@@ -1,0 +1,17 @@
+{{define "portal_nav"}}
+<div class="portal-tabs">
+  <a href="/portal" class="portal-tab {{if eq .Active "dashboard"}}active{{end}}">📊 Dashboard</a>
+  <a href="/portal/bookings" class="portal-tab {{if eq .Active "bookings"}}active{{end}}">📅 All Bookings</a>
+  <a href="/portal/bookings/new" class="portal-tab {{if eq .Active "new_booking"}}active{{end}}">➕ New Booking (CS)</a>
+  <a href="/portal/customers" class="portal-tab {{if eq .Active "customers"}}active{{end}}">👶 Customers</a>
+  <a href="/portal/customers/new" class="portal-tab {{if eq .Active "new_customer"}}active{{end}}">➕ Register Customer</a>
+  <a href="/portal/schedule" class="portal-tab {{if eq .Active "schedule"}}active{{end}}">👩‍⚕️ Bidan Roster & Leave</a>
+  <a href="/portal/services" class="portal-tab {{if eq .Active "services"}}active{{end}}">💆‍♀️ Services</a>
+  {{if .User}}
+    {{if eq (printf "%s" .User.Role) "admin"}}
+      <a href="/admin/cs" class="portal-tab {{if eq .Active "admin_cs"}}active{{end}}">👑 Manage CS Accounts</a>
+      <a href="/admin" class="portal-tab {{if eq .Active "admin"}}active{{end}}">⚙️ Admin Master</a>
+    {{end}}
+  {{end}}
+</div>
+{{end}}

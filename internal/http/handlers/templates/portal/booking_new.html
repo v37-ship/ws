@@ -1,0 +1,147 @@
+{{define "portal_booking_new.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New Customer Booking — Staff Portal</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Register Booking for Customer</h1>
+        <p class="muted">Frontdesk phone reservation, WhatsApp booking, or counter walk-in.</p>
+      </div>
+      <a href="/portal/customers/new" class="btn secondary on-light">+ Register New Mom First</a>
+    </div>
+
+    {{template "portal_nav" dict "Active" "new_booking" "User" .User}}
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+    <form class="panel stack" method="post" action="/portal/bookings/new" id="staff-book-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
+        <label>Customer (Mom)
+          <select name="customer_id" required>
+            <option value="">-- Select Registered Customer --</option>
+            {{range .Customers}}
+              <option value="{{.ID}}" {{if eq $.CustomerID .ID.String}}selected{{end}}>
+                {{.FullName}} ({{.Phone}}) {{if .BabyName}}— 👶 {{.BabyName}}{{end}}
+              </option>
+            {{end}}
+          </select>
+        </label>
+
+        <label>Booking Source
+          <select name="source">
+            <option value="walkin" selected>Walk-in (Counter)</option>
+            <option value="whatsapp">WhatsApp Inbound</option>
+            <option value="phone">Phone Reservation</option>
+          </select>
+        </label>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
+        <label>Location / Branch
+          <select name="location_id" id="location_id" required
+            hx-get="/book/services" hx-target="#service-wrap" hx-include="this"
+            hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''">
+            <option value="">Select location</option>
+            {{range .Locations}}
+              <option value="{{.ID}}" {{if eq $.LocationID .ID.String}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
+      </div>
+
+      <div id="service-wrap">
+        {{template "services_partial.html" .}}
+      </div>
+
+      <div id="staff-wrap">
+        {{template "staff_partial.html" .}}
+      </div>
+
+      <label>Date
+        <input type="date" name="date" id="date" required value="{{.Date}}"
+          hx-get="/book/slots" hx-target="#slots-wrap"
+          hx-include="#location_id,#service_id,#staff_id,#date">
+      </label>
+
+      <div id="slots-wrap">
+        {{template "slots_partial.html" .}}
+      </div>
+
+      <input type="hidden" name="start_at" id="start_at" value="{{.StartAt}}">
+      <input type="hidden" name="staff_id_selected" id="staff_id_selected" value="{{.StaffIDSelected}}">
+
+      <fieldset class="panel stack" style="background:var(--bg-2); border-color:var(--line);">
+        <legend style="font-weight:700; color:var(--accent-deep); padding:0 0.5rem;">Payment Information</legend>
+        
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
+          <label>Payment Method
+            <select name="payment_method" id="payment_method" onchange="handleMethodChange(this.value)">
+              <option value="cash" selected>💵 Cash (Pay at Clinic for Services)</option>
+              <option value="qris">📱 QRIS (Instant QR code)</option>
+            </select>
+          </label>
+
+          <label>Payment Purpose
+            <select name="payment_purpose" id="payment_purpose">
+              <option value="service" selected>Full Service Payment</option>
+              <option value="booking_fee" id="opt-booking-fee">Booking Fee / Down Payment (QRIS only)</option>
+            </select>
+          </label>
+        </div>
+
+        <p id="cash-warning" class="muted" style="font-size:0.85rem; color:var(--mint-deep); margin:0;">
+          💡 <em>Cash is accepted for services at the clinic counter. Confirms booking immediately upon creation.</em>
+        </p>
+      </fieldset>
+
+      <label>Internal Notes / Requests
+        <textarea name="notes" rows="2" placeholder="e.g. Baby skin sensitivity, requested calm music, walk-in mom">{{.Notes}}</textarea>
+      </label>
+
+      <button class="btn" type="submit" style="align-self:flex-start;">Confirm &amp; Create Booking</button>
+    </form>
+  </main>
+
+  <script>
+    function handleMethodChange(val) {
+      const feeOpt = document.getElementById('opt-booking-fee');
+      const purpose = document.getElementById('payment_purpose');
+      const warning = document.getElementById('cash-warning');
+      if (val === 'cash') {
+        feeOpt.disabled = true;
+        if (purpose.value === 'booking_fee') {
+          purpose.value = 'service';
+        }
+        warning.innerHTML = '💡 <em>Cash is accepted for services at the clinic counter. Confirms booking immediately upon creation.</em>';
+      } else {
+        feeOpt.disabled = false;
+        warning.innerHTML = '💡 <em>QRIS can be used to pay either the booking fee or the full service cost.</em>';
+      }
+    }
+
+    document.body.addEventListener('click', function (e) {
+      const btn = e.target.closest('.slot');
+      if (!btn) return;
+      document.getElementById('start_at').value = btn.dataset.start;
+      document.getElementById('staff_id_selected').value = btn.dataset.staff;
+      document.querySelectorAll('.slot').forEach(el => el.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+
+    handleMethodChange(document.getElementById('payment_method').value);
+  </script>
+</body>
+</html>
+{{end}}

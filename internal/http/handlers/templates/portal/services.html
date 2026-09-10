@@ -1,0 +1,67 @@
+{{define "portal_services.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Services Availability — Staff Portal</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Services Availability</h1>
+        <p class="muted">Frontdesk controls to temporarily pause or resume services for booking.</p>
+      </div>
+    </div>
+
+    {{template "portal_nav" dict "Active" "services" "User" .User}}
+
+    <div class="panel">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Service Name</th>
+            <th>Duration</th>
+            <th>Price</th>
+            <th>Availability</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        {{range .Services}}
+          <tr>
+            <td>
+              <strong>{{.Name}}</strong><br>
+              <small class="muted">{{.Description}}</small>
+            </td>
+            <td>{{.DurationMin}} min</td>
+            <td>{{formatIDR .PriceIDR}}</td>
+            <td>
+              {{if .Active}}
+                <span class="badge confirmed">Available for Booking</span>
+              {{else}}
+                <span class="badge cancelled">Paused / Unavailable</span>
+              {{end}}
+            </td>
+            <td>
+              <form method="post" action="/portal/services/{{.ID}}/toggle">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <button type="submit" class="btn secondary on-light btn-sm">
+                  {{if .Active}}Pause Service{{else}}Enable Service{{end}}
+                </button>
+              </form>
+            </td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

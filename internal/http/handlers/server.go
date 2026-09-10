@@ -3,11 +3,13 @@ package handlers
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -18,19 +20,20 @@ import (
 	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 //go:embed all:templates
 var templateFS embed.FS
 
 type Server struct {
-	cfg    config.Config
-	log    *slog.Logger
-	auth   *service.AuthService
-	catalog *service.CatalogService
-	avail  *service.AvailabilityService
-	book   *service.BookingService
-	tpl    *template.Template
+	cfg        config.Config
+	log        *slog.Logger
+	auth       *service.AuthService
+	catalog    *service.CatalogService
+	avail      *service.AvailabilityService
+	book       *service.BookingService
+	tpl        *template.Template
 	csrfSecure bool
 }
 
@@ -55,10 +58,13 @@ func New(
 			return "Rp " + b.String()
 		},
 		"formatTime": func(t time.Time, layout string) string {
+			if t.IsZero() {
+				return "-"
+			}
 			return t.In(time.FixedZone("WIB", 7*3600)).Format(layout)
 		},
 		"csrf": func() string { return "" }, // overridden per render
-		"eq": func(a, b any) bool { return a == b },
+		"eq":   func(a, b any) bool { return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b) },
 		"hasUUID": func(list []string, id string) bool {
 			for _, x := range list {
 				if x == id {
@@ -67,9 +73,42 @@ func New(
 			}
 			return false
 		},
+		"dict": func(values ...any) (map[string]any, error) {
+			if len(values)%2 != 0 {
+				return nil, errors.New("invalid dict call")
+			}
+			dict := make(map[string]any, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil, errors.New("dict keys must be strings")
+				}
+				dict[key] = values[i+1]
+			}
+			return dict, nil
+		},
+		"waURL": func(phone, customerName, serviceName, staffName, whenStr, locName string) string {
+			cleanPhone := strings.TrimSpace(phone)
+			cleanPhone = strings.ReplaceAll(cleanPhone, "-", "")
+			cleanPhone = strings.ReplaceAll(cleanPhone, " ", "")
+			cleanPhone = strings.ReplaceAll(cleanPhone, "+", "")
+			if strings.HasPrefix(cleanPhone, "0") {
+				cleanPhone = "62" + cleanPhone[1:]
+			}
+			msg := fmt.Sprintf("Halo Bunda %s! Konfirmasi booking di Wangga: Baby & Mom Spa:\n\n✨ Layanan: %s\n👩‍⚕️ Bidan/Terapis: %s\n📅 Waktu: %s\n📍 Lokasi: %s\n\nSampai jumpa di Wangga Spa! Ada yang ingin ditanyakan sebelumnya, Bunda? 🥰",
+				customerName, serviceName, staffName, whenStr, locName)
+			return "https://wa.me/" + cleanPhone + "?text=" + url.QueryEscape(msg)
+		},
 	}
 	root := template.New("root").Funcs(funcs)
-	tpl, err := root.ParseFS(templateFS, "templates/layouts/*.html", "templates/pages/*.html", "templates/partials/*.html", "templates/admin/*.html")
+	tpl, err := root.ParseFS(
+		templateFS,
+		"templates/layouts/*.html",
+		"templates/pages/*.html",
+		"templates/partials/*.html",
+		"templates/admin/*.html",
+		"templates/portal/*.html",
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +254,32 @@ func (s *Server) Routes(r chi.Router) {
 
 	r.Post("/webhooks/midtrans", s.MidtransWebhook)
 
+	// Staff Portal (Accessible by CS and Admin)
+	r.Route("/portal", func(pr chi.Router) {
+		pr.Use(middleware.RequireStaff)
+		pr.Get("/", s.PortalDashboard)
+		pr.Get("/bookings", s.PortalBookings)
+		pr.Get("/bookings/new", s.PortalNewBookingForm)
+		pr.Post("/bookings/new", s.PortalCreateBooking)
+		pr.Get("/bookings/{id}", s.PortalBookingDetail)
+		pr.Post("/bookings/{id}/status", s.PortalUpdateBookingStatus)
+		pr.Post("/bookings/{id}/reschedule", s.PortalRescheduleBooking)
+
+		pr.Get("/customers", s.PortalCustomers)
+		pr.Get("/customers/new", s.PortalNewCustomerForm)
+		pr.Post("/customers/new", s.PortalCreateCustomer)
+		pr.Get("/customers/{id}", s.PortalCustomerDetail)
+
+		pr.Get("/schedule", s.PortalSchedule)
+		pr.Post("/schedule/time-off", s.PortalCreateTimeOff)
+		pr.Post("/schedule/time-off/{id}/delete", s.PortalDeleteTimeOff)
+
+		pr.Get("/services", s.PortalServices)
+		pr.Post("/services/{id}/toggle", s.PortalToggleService)
+		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
+	})
+
+	// Admin Only Routes
 	r.Route("/admin", func(ar chi.Router) {
 		ar.Use(middleware.RequireAdmin)
 		ar.Get("/", s.AdminHome)
@@ -227,10 +292,21 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/staff/{id}/hours", s.AdminStaffHours)
 		ar.Post("/staff/{id}/hours", s.AdminSaveStaffHours)
 		ar.Get("/bookings", s.AdminBookings)
+
+		// CS Accounts Management
+		ar.Get("/cs", s.AdminCSList)
+		ar.Post("/cs", s.AdminCreateCS)
+		ar.Post("/cs/{id}/toggle-active", s.AdminToggleCSActive)
+		ar.Post("/cs/{id}/reset-password", s.AdminResetCSPassword)
+
+		// Customer password reset
+		ar.Get("/customers/{id}/reset-password", s.AdminCustomerResetForm)
+		ar.Post("/customers/{id}/reset-password", s.AdminResetCustomerPassword)
 	})
 }
 
 var (
 	_ = domain.RoleCustomer
 	_ = strings.TrimSpace
+	_ = chimw.RequestID
 )

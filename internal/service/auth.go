@@ -16,7 +16,9 @@ import (
 
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrAccountDeactivated = errors.New("account is deactivated")
 	ErrEmailTaken         = errors.New("email already registered")
+	ErrPhoneTaken         = errors.New("phone already registered")
 	ErrUnauthorized       = errors.New("unauthorized")
 	ErrForbidden          = errors.New("forbidden")
 	ErrValidation         = errors.New("validation error")
@@ -36,6 +38,7 @@ func NewAuthService(users *repo.UserRepo, sessions *repo.SessionRepo, ttl time.D
 func (s *AuthService) Register(ctx context.Context, email, password, fullName, phone string) (*domain.User, *domain.Session, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	fullName = strings.TrimSpace(fullName)
+	phone = strings.TrimSpace(phone)
 	if email == "" || len(password) < 8 || fullName == "" {
 		return nil, nil, fmt.Errorf("%w: email, name, and password (min 8) required", ErrValidation)
 	}
@@ -52,8 +55,9 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, p
 		Email:        email,
 		PasswordHash: hash,
 		FullName:     fullName,
-		Phone:        strings.TrimSpace(phone),
+		Phone:        phone,
 		Role:         domain.RoleCustomer,
+		IsActive:     true,
 	}
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, nil, err
@@ -65,6 +69,53 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, p
 	return u, sess, nil
 }
 
+func (s *AuthService) RegisterCustomerByStaff(
+	ctx context.Context,
+	fullName, phone, email, babyName string,
+	babyDOB *time.Time,
+	momCondition, medicalNotes string,
+) (*domain.User, error) {
+	fullName = strings.TrimSpace(fullName)
+	phone = strings.TrimSpace(phone)
+	email = strings.TrimSpace(strings.ToLower(email))
+	if fullName == "" || phone == "" {
+		return nil, fmt.Errorf("%w: full name and phone number required", ErrValidation)
+	}
+	if email == "" {
+		cleanPhone := strings.ReplaceAll(strings.ReplaceAll(phone, "+", ""), " ", "")
+		email = cleanPhone + "@wangga.local"
+	}
+	if existing, err := s.users.ByEmail(ctx, email); err == nil && existing != nil {
+		return nil, fmt.Errorf("%w: user with email %s already exists", ErrValidation, email)
+	}
+	if existing, err := s.users.ByPhone(ctx, phone); err == nil && existing != nil {
+		return nil, fmt.Errorf("%w: customer with phone %s already registered as %s", ErrValidation, phone, existing.FullName)
+	}
+
+	tempPass := "Wangga@" + uuid.New().String()[:8]
+	hash, err := auth.HashPassword(tempPass)
+	if err != nil {
+		return nil, err
+	}
+
+	u := &domain.User{
+		Email:        email,
+		PasswordHash: hash,
+		FullName:     fullName,
+		Phone:        phone,
+		Role:         domain.RoleCustomer,
+		IsActive:     true,
+		BabyName:     strings.TrimSpace(babyName),
+		BabyDOB:      babyDOB,
+		MomCondition: strings.TrimSpace(momCondition),
+		MedicalNotes: strings.TrimSpace(medicalNotes),
+	}
+	if err := s.users.Create(ctx, u); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
 func (s *AuthService) Login(ctx context.Context, email, password string) (*domain.User, *domain.Session, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	u, err := s.users.ByEmail(ctx, email)
@@ -73,6 +124,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*domai
 	}
 	if err != nil {
 		return nil, nil, err
+	}
+	if !u.IsActive {
+		return nil, nil, ErrAccountDeactivated
 	}
 	if !auth.CheckPassword(u.PasswordHash, password) {
 		return nil, nil, ErrInvalidCredentials
@@ -107,7 +161,14 @@ func (s *AuthService) UserFromSession(ctx context.Context, sessionID string) (*d
 	if errors.Is(err, repo.ErrNotFound) {
 		return nil, ErrUnauthorized
 	}
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+	if !u.IsActive {
+		_ = s.sessions.Delete(ctx, sessionID)
+		return nil, ErrAccountDeactivated
+	}
+	return u, nil
 }
 
 func (s *AuthService) createSession(ctx context.Context, userID uuid.UUID) (*domain.Session, error) {
@@ -146,13 +207,18 @@ func (s *AuthService) ListCustomers(ctx context.Context, query string) ([]domain
 	return s.users.ListCustomers(ctx, query)
 }
 
+func (s *AuthService) ListCS(ctx context.Context) ([]domain.User, error) {
+	return s.users.ListByRole(ctx, domain.RoleCS)
+}
+
 func (s *AuthService) GetUser(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	return s.users.ByID(ctx, id)
 }
 
-func (s *AuthService) CreateCustomer(ctx context.Context, email, password, fullName, phone string) (*domain.User, error) {
+func (s *AuthService) CreateCS(ctx context.Context, email, password, fullName, phone string) (*domain.User, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	fullName = strings.TrimSpace(fullName)
+	phone = strings.TrimSpace(phone)
 	if email == "" || fullName == "" || len(password) < 8 {
 		return nil, fmt.Errorf("%w: email, name, password (min 8) required", ErrValidation)
 	}
@@ -166,8 +232,12 @@ func (s *AuthService) CreateCustomer(ctx context.Context, email, password, fullN
 		return nil, err
 	}
 	u := &domain.User{
-		Email: email, PasswordHash: hash, FullName: fullName,
-		Phone: strings.TrimSpace(phone), Role: domain.RoleCustomer,
+		Email:        email,
+		PasswordHash: hash,
+		FullName:     fullName,
+		Phone:        phone,
+		Role:         domain.RoleCS,
+		IsActive:     true,
 	}
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, err
@@ -175,69 +245,28 @@ func (s *AuthService) CreateCustomer(ctx context.Context, email, password, fullN
 	return u, nil
 }
 
-func (s *AuthService) UpdateCustomer(ctx context.Context, id uuid.UUID, email, fullName, phone, newPassword string) (*domain.User, error) {
-	u, err := s.users.ByID(ctx, id)
-	if err != nil {
-		return nil, err
+func (s *AuthService) SetUserActive(ctx context.Context, userID uuid.UUID, active bool) error {
+	if err := s.users.SetActive(ctx, userID, active); err != nil {
+		return err
 	}
-	if u.Role != domain.RoleCustomer {
-		return nil, fmt.Errorf("%w: not a customer account", ErrValidation)
+	if !active {
+		_ = s.sessions.DeleteByUserID(ctx, userID)
 	}
-	email = strings.TrimSpace(strings.ToLower(email))
-	fullName = strings.TrimSpace(fullName)
-	if email == "" || fullName == "" {
-		return nil, fmt.Errorf("%w: email and name required", ErrValidation)
-	}
-	if other, err := s.users.ByEmail(ctx, email); err == nil && other.ID != id {
-		return nil, ErrEmailTaken
-	} else if err != nil && !errors.Is(err, repo.ErrNotFound) {
-		return nil, err
-	}
-	u.Email = email
-	u.FullName = fullName
-	u.Phone = strings.TrimSpace(phone)
-	if err := s.users.Update(ctx, u); err != nil {
-		return nil, err
-	}
-	if newPassword != "" {
-		if len(newPassword) < 8 {
-			return nil, fmt.Errorf("%w: password min 8", ErrValidation)
-		}
-		hash, err := auth.HashPassword(newPassword)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.users.UpdatePassword(ctx, id, hash); err != nil {
-			return nil, err
-		}
-	}
-	return u, nil
+	return nil
 }
 
-func (s *AuthService) CreateStaffUser(ctx context.Context, email, password, fullName, phone string, role domain.Role) (*domain.User, error) {
-	if role != domain.RoleCS && role != domain.RoleAdmin {
-		return nil, fmt.Errorf("%w: invalid staff role", ErrValidation)
+func (s *AuthService) ResetPassword(ctx context.Context, userID uuid.UUID, newPassword string) error {
+	newPassword = strings.TrimSpace(newPassword)
+	if len(newPassword) < 8 {
+		return fmt.Errorf("%w: password must be at least 8 characters", ErrValidation)
 	}
-	email = strings.TrimSpace(strings.ToLower(email))
-	fullName = strings.TrimSpace(fullName)
-	if email == "" || fullName == "" || len(password) < 8 {
-		return nil, fmt.Errorf("%w: email, name, password (min 8) required", ErrValidation)
-	}
-	if _, err := s.users.ByEmail(ctx, email); err == nil {
-		return nil, ErrEmailTaken
-	} else if !errors.Is(err, repo.ErrNotFound) {
-		return nil, err
-	}
-	hash, err := auth.HashPassword(password)
+	hash, err := auth.HashPassword(newPassword)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	u := &domain.User{
-		Email: email, PasswordHash: hash, FullName: fullName,
-		Phone: strings.TrimSpace(phone), Role: role,
+	if err := s.users.UpdatePassword(ctx, userID, hash); err != nil {
+		return err
 	}
-	if err := s.users.Create(ctx, u); err != nil {
-		return nil, err
-	}
-	return u, nil
+	_ = s.sessions.DeleteByUserID(ctx, userID)
+	return nil
 }

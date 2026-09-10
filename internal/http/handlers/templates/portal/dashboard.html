@@ -1,0 +1,112 @@
+{{define "portal_dashboard.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Staff Portal — Wangga: Baby &amp; Mom Spa</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Frontdesk &amp; Clinic Portal</h1>
+        <p class="muted">Daily operations, booking management, and clinic status.</p>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <a href="/portal/bookings/new" class="btn">+ New Walk-in / Booking</a>
+        <a href="/portal/customers/new" class="btn secondary on-light">+ Register Mom &amp; Baby</a>
+      </div>
+    </div>
+
+    {{template "portal_nav" dict "Active" "dashboard" "User" .User}}
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="num">{{.Stats.TodayTotal}}</div>
+        <div class="label">Today's Bookings</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:var(--mint-deep);">{{.Stats.Confirmed}}</div>
+        <div class="label">Confirmed / Waiting</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:#0284c7;">{{.Stats.CheckedIn}}</div>
+        <div class="label">Checked In (Lobby)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:#d97706;">{{.Stats.InService}}</div>
+        <div class="label">In Service (Rooms)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:#16a34a;">{{.Stats.Completed}}</div>
+        <div class="label">Completed Today</div>
+      </div>
+    </div>
+
+    <div class="panel stack">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <h2>Today's Live Queue ({{.TodayStr}})</h2>
+        <span class="muted">Live status update for clinic rooms</span>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Customer / Mom</th>
+              <th>Baby Info</th>
+              <th>Service</th>
+              <th>Bidan / Staff</th>
+              <th>Status</th>
+              <th>Payment</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .TodayBookings}}
+            <tr>
+              <td><strong>{{formatTime .StartAt "15:04"}} - {{formatTime .EndAt "15:04"}}</strong></td>
+              <td>
+                <div><strong>{{.CustomerName}}</strong></div>
+                {{if .CustomerPhone}}
+                  <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "15:04") .LocationName}}" target="_blank" class="btn-wa btn-sm" title="Send WhatsApp">
+                    💬 WhatsApp
+                  </a>
+                {{end}}
+              </td>
+              <td>
+                {{if .BabyName}}👶 {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
+                {{if .MomCondition}}<br><small class="muted">Mom: {{.MomCondition}}</small>{{end}}
+              </td>
+              <td>{{.ServiceName}}</td>
+              <td>👩‍⚕️ {{.StaffName}}</td>
+              <td>
+                <span class="badge {{.Status}}">{{.Status.Display}}</span>
+              </td>
+              <td>
+                <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>
+                <small>{{formatIDR .PriceIDR}}</small>
+              </td>
+              <td>
+                <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+                  <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Manage</a>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">No bookings scheduled for today yet.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

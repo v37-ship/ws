@@ -1,0 +1,87 @@
+{{define "portal_customers.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer Directory — Staff Portal</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Customer Directory</h1>
+        <p class="muted">Search moms, babies, and contact details.</p>
+      </div>
+      <a href="/portal/customers/new" class="btn">+ Register New Mom &amp; Baby</a>
+    </div>
+
+    {{template "portal_nav" dict "Active" "customers" "User" .User}}
+
+    <div class="panel">
+      <form method="get" action="/portal/customers" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+        <label style="flex:1; min-width:240px;">Search Customer
+          <input type="text" name="q" value="{{.Query}}" placeholder="Search by name, phone number, email, or baby name...">
+        </label>
+        <button type="submit" class="btn" style="height:44px;">Search</button>
+        {{if .Query}}
+          <a href="/portal/customers" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">Clear</a>
+        {{end}}
+      </form>
+    </div>
+
+    <div class="panel">
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Customer Name</th>
+              <th>WhatsApp / Phone</th>
+              <th>Baby Info</th>
+              <th>Mom Care Condition</th>
+              <th>Registered</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Customers}}
+            <tr>
+              <td>
+                <a href="/portal/customers/{{.ID}}" style="font-weight:700;">{{.FullName}}</a><br>
+                <small class="muted">{{.Email}}</small>
+              </td>
+              <td>
+                {{.Phone}}
+                {{if .Phone}}
+                  <a href="https://wa.me/{{.Phone}}" target="_blank" class="btn-wa btn-sm" style="margin-left:0.5rem;">WA</a>
+                {{end}}
+              </td>
+              <td>
+                {{if .BabyName}}👶 <strong>{{.BabyName}}</strong>{{else}}<span class="muted">-</span>{{end}}
+              </td>
+              <td>
+                {{if .MomCondition}}{{.MomCondition}}{{else}}<span class="muted">Standard</span>{{end}}
+              </td>
+              <td><small>{{formatTime .CreatedAt "02 Jan 2006"}}</small></td>
+              <td>
+                <div style="display:flex; gap:0.4rem;">
+                  <a href="/portal/bookings/new?customer_id={{.ID}}" class="btn secondary on-light btn-sm">+ Book</a>
+                  <a href="/portal/customers/{{.ID}}" class="btn secondary on-light btn-sm">History</a>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="6" class="muted" style="text-align:center; padding:2rem;">No customers found.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,44 @@
+{{define "admin_customer_reset.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reset Customer Password — Admin</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <a href="/portal/customers/{{.Customer.ID}}" class="muted">&larr; Back to customer profile</a>
+        <h1 class="page-title" style="margin:0.25rem 0;">Reset Password: {{.Customer.FullName}}</h1>
+      </div>
+    </div>
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+
+    <div class="panel stack" style="max-width:500px;">
+      <p class="muted">Enter a new temporary or permanent password for this customer. Any existing active sessions will be invalidated immediately.</p>
+      
+      <form method="post" action="/admin/customers/{{.Customer.ID}}/reset-password" class="stack">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+        <label>Customer Email
+          <input type="text" value="{{.Customer.Email}}" disabled>
+        </label>
+
+        <label>New Password (min 8 chars) *
+          <input type="password" name="password" required minlength="8" placeholder="Enter new password">
+        </label>
+
+        <button type="submit" class="btn" onclick="return confirm('Reset password for this customer?')">Save New Password</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

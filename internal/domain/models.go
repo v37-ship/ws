@@ -25,6 +25,11 @@ type User struct {
 	FullName     string
 	Phone        string
 	Role         Role
+	IsActive     bool
+	BabyName     string
+	BabyDOB      *time.Time
+	MomCondition string
+	MedicalNotes string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -70,6 +75,16 @@ type StaffHours struct {
 	EndTime   string // HH:MM
 }
 
+type StaffTimeOff struct {
+	ID        uuid.UUID
+	StaffID   uuid.UUID
+	StaffName string
+	StartAt   time.Time
+	EndAt     time.Time
+	Reason    string
+	CreatedAt time.Time
+}
+
 type StaffService struct {
 	StaffID   uuid.UUID
 	ServiceID uuid.UUID
@@ -80,28 +95,90 @@ type BookingStatus string
 const (
 	BookingPendingPayment BookingStatus = "pending_payment"
 	BookingConfirmed      BookingStatus = "confirmed"
+	BookingCheckedIn      BookingStatus = "checked_in"
+	BookingInService      BookingStatus = "in_service"
+	BookingCompleted      BookingStatus = "completed"
 	BookingCancelled      BookingStatus = "cancelled"
 	BookingExpired        BookingStatus = "expired"
+	BookingNoShow         BookingStatus = "no_show"
+)
+
+func (s BookingStatus) Display() string {
+	switch s {
+	case BookingPendingPayment:
+		return "Pending Payment"
+	case BookingConfirmed:
+		return "Confirmed"
+	case BookingCheckedIn:
+		return "Checked In"
+	case BookingInService:
+		return "In Service"
+	case BookingCompleted:
+		return "Completed"
+	case BookingCancelled:
+		return "Cancelled"
+	case BookingExpired:
+		return "Expired"
+	case BookingNoShow:
+		return "No Show"
+	default:
+		return string(s)
+	}
+}
+
+type PaymentMethod string
+
+const (
+	PaymentMethodQRIS PaymentMethod = "qris"
+	PaymentMethodCash PaymentMethod = "cash"
+)
+
+type PaymentPurpose string
+
+const (
+	PaymentPurposeBookingFee PaymentPurpose = "booking_fee"
+	PaymentPurposeService    PaymentPurpose = "service"
+	PaymentPurposeFull       PaymentPurpose = "full"
 )
 
 type Booking struct {
-	ID              uuid.UUID
-	CustomerID      uuid.UUID
-	LocationID      uuid.UUID
-	ServiceID       uuid.UUID
-	StaffID         uuid.UUID
-	StartAt         time.Time
-	EndAt           time.Time
-	Status          BookingStatus
-	PriceIDR        int64
-	HoldExpiresAt   *time.Time
-	Notes           string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	CustomerName    string
-	ServiceName     string
-	StaffName       string
-	LocationName    string
+	ID            uuid.UUID
+	CustomerID    uuid.UUID
+	LocationID    uuid.UUID
+	ServiceID     uuid.UUID
+	StaffID       uuid.UUID
+	StartAt       time.Time
+	EndAt         time.Time
+	Status        BookingStatus
+	PriceIDR      int64
+	BookingFeeIDR int64
+	HoldExpiresAt *time.Time
+	Notes         string
+	Source        string // 'web', 'walkin', 'whatsapp', 'phone'
+	CreatedByID   *uuid.UUID
+	UpdatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
+	ServiceName   string
+	StaffName     string
+	LocationName  string
+	BabyName      string
+	MomCondition  string
+	PaymentMethod PaymentMethod
+	PaymentStatus PaymentStatus
+}
+
+type BookingLog struct {
+	ID        uuid.UUID
+	BookingID uuid.UUID
+	UserID    *uuid.UUID
+	UserName  string
+	Action    string
+	Notes     string
+	CreatedAt time.Time
 }
 
 type PaymentStatus string
@@ -114,17 +191,19 @@ const (
 )
 
 type Payment struct {
-	ID                uuid.UUID
-	BookingID         uuid.UUID
-	OrderID           string
-	AmountIDR         int64
-	Status            PaymentStatus
-	QRString          string
-	MidtransTransID   string
-	RawNotification   string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	PaidAt            *time.Time
+	ID              uuid.UUID
+	BookingID       uuid.UUID
+	OrderID         string
+	AmountIDR       int64
+	Status          PaymentStatus
+	PaymentMethod   PaymentMethod
+	PaymentPurpose  PaymentPurpose
+	QRString        string
+	MidtransTransID string
+	RawNotification string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	PaidAt          *time.Time
 }
 
 type Session struct {

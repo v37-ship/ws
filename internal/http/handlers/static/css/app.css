@@ -366,6 +366,21 @@ input:focus, select:focus, textarea:focus {
 .badge.pending, .badge.pending_payment { background: #fff1d6; color: #a86b00; }
 .badge.cancelled, .badge.expired { background: #ffe1e1; color: var(--danger); }
 .badge.confirmed { background: #ddf8f4; color: var(--mint-deep); }
+.badge.checked_in { background: #e0f2fe; color: #0369a1; }
+.badge.in_service { background: #fef3c7; color: #b45309; }
+.badge.completed { background: #dcfce7; color: #15803d; }
+.badge.no_show { background: #f1f5f9; color: #475569; }
+
+.portal-tabs { display: flex; gap: 0.5rem; border-bottom: 2px solid var(--line); margin-bottom: 1.5rem; flex-wrap: wrap; }
+.portal-tab { padding: 0.6rem 1rem; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.portal-tab.active, .portal-tab:hover { color: var(--accent-deep); border-color: var(--accent-deep); text-decoration: none; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow-soft); }
+.stat-card .num { font-size: 2rem; font-weight: 800; font-family: var(--font-display); color: var(--accent-deep); line-height: 1.1; }
+.stat-card .label { font-size: 0.85rem; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+.btn-wa { display: inline-flex; align-items: center; gap: 0.4rem; background: #25d366; color: #fff !important; font-weight: 700; border-radius: 999px; padding: 0.55rem 1.1rem; border: none; cursor: pointer; text-decoration: none; }
+.btn-wa:hover { background: #20ba5a; color: #fff; text-decoration: none; }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.85rem; border-radius: 8px; }
 
 .qr-box {
   display: grid;

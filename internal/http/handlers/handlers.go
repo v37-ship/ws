@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
@@ -47,8 +49,8 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	s.setSessionCookie(w, sess.ID)
 	next := r.FormValue("next")
 	if next == "" || !strings.HasPrefix(next, "/") {
-		if u.Role == domain.RoleAdmin {
-			next = "/admin"
+		if u.Role.IsStaff() {
+			next = "/portal"
 		} else {
 			next = "/book"
 		}
@@ -454,4 +456,493 @@ func (s *Server) AdminBookings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, r, "admin_bookings.html", pageData{"Bookings": list})
+}
+
+type PortalStats struct {
+	TodayTotal int
+	Confirmed  int
+	CheckedIn  int
+	InService  int
+	Completed  int
+}
+
+func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
+	nowWIB := time.Now().In(time.FixedZone("WIB", 7*3600))
+	todayStr := nowWIB.Format("2006-01-02")
+	bookings, err := s.book.ListFiltered(r.Context(), repo.FilterParams{Date: todayStr})
+	if err != nil {
+		http.Error(w, "failed to load bookings", http.StatusInternalServerError)
+		return
+	}
+	var stats PortalStats
+	stats.TodayTotal = len(bookings)
+	for _, b := range bookings {
+		switch b.Status {
+		case domain.BookingConfirmed:
+			stats.Confirmed++
+		case domain.BookingCheckedIn:
+			stats.CheckedIn++
+		case domain.BookingInService:
+			stats.InService++
+		case domain.BookingCompleted:
+			stats.Completed++
+		}
+	}
+	s.render(w, r, "portal_dashboard.html", pageData{
+		"TodayStr":      nowWIB.Format("Monday, 02 January 2006"),
+		"TodayBookings": bookings,
+		"Stats":         stats,
+	})
+}
+
+func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	date := r.URL.Query().Get("date")
+	status := domain.BookingStatus(r.URL.Query().Get("status"))
+	list, err := s.book.ListFiltered(r.Context(), repo.FilterParams{
+		Search: q, Date: date, Status: status, Limit: 100,
+	})
+	if err != nil {
+		http.Error(w, "failed to load bookings", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, r, "portal_bookings.html", pageData{
+		"Bookings": list,
+		"Search":   q,
+		"Date":     date,
+		"Status":   string(status),
+	})
+}
+
+func (s *Server) PortalNewBookingForm(w http.ResponseWriter, r *http.Request) {
+	locs, err := s.catalog.ListLocations(r.Context(), true)
+	if err != nil {
+		http.Error(w, "failed to load locations", http.StatusInternalServerError)
+		return
+	}
+	customers, err := s.auth.ListCustomers(r.Context(), "")
+	if err != nil {
+		http.Error(w, "failed to load customers", http.StatusInternalServerError)
+		return
+	}
+	customerID := r.URL.Query().Get("customer_id")
+	today := time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02")
+	s.render(w, r, "portal_booking_new.html", pageData{
+		"Locations":  locs,
+		"Customers":  customers,
+		"CustomerID": customerID,
+		"Date":       today,
+	})
+}
+
+func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	custID, err := uuid.Parse(r.FormValue("customer_id"))
+	if err != nil {
+		http.Error(w, "invalid customer", http.StatusBadRequest)
+		return
+	}
+	locID, _ := uuid.Parse(r.FormValue("location_id"))
+	svcID, _ := uuid.Parse(r.FormValue("service_id"))
+	staffID, _ := uuid.Parse(r.FormValue("staff_id_selected"))
+	startAtStr := r.FormValue("start_at")
+	notes := r.FormValue("notes")
+	source := r.FormValue("source")
+	payMethod := domain.PaymentMethod(r.FormValue("payment_method"))
+	payPurpose := domain.PaymentPurpose(r.FormValue("payment_purpose"))
+
+	startAt, err := time.Parse(time.RFC3339, startAtStr)
+	if err != nil {
+		loc, _ := time.LoadLocation("Asia/Jakarta")
+		if loc == nil {
+			loc = time.FixedZone("WIB", 7*3600)
+		}
+		startAt, err = time.ParseInLocation("2006-01-02T15:04", startAtStr, loc)
+		if err != nil {
+			locs, _ := s.catalog.ListLocations(r.Context(), true)
+			customers, _ := s.auth.ListCustomers(r.Context(), "")
+			s.render(w, r, "portal_booking_new.html", pageData{
+				"Locations": locs, "Customers": customers, "Error": "Please select an available time slot",
+			})
+			return
+		}
+	}
+
+	b, _, err := s.book.CreateStaffBooking(r.Context(), service.StaffBookingRequest{
+		CustomerID: custID, LocationID: locID, ServiceID: svcID, StaffID: staffID,
+		StartAt: startAt, Notes: notes, Source: source,
+		PaymentMethod: payMethod, PaymentPurpose: payPurpose, ActorID: u.ID,
+	})
+	if err != nil {
+		locs, _ := s.catalog.ListLocations(r.Context(), true)
+		customers, _ := s.auth.ListCustomers(r.Context(), "")
+		s.render(w, r, "portal_booking_new.html", pageData{
+			"Locations": locs, "Customers": customers, "Error": err.Error(),
+		})
+		return
+	}
+	http.Redirect(w, r, "/portal/bookings/"+b.ID.String(), http.StatusSeeOther)
+}
+
+func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	b, err := s.book.GetBooking(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	staffList, _ := s.catalog.ListStaff(r.Context(), b.LocationID, true)
+	logs, _ := s.book.ListLogs(r.Context(), b.ID)
+	s.render(w, r, "portal_booking_detail.html", pageData{
+		"Booking":   b,
+		"StaffList": staffList,
+		"Logs":      logs,
+		"Success":   r.URL.Query().Get("success"),
+		"Error":     r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) PortalUpdateBookingStatus(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	newStatus := domain.BookingStatus(r.FormValue("status"))
+	note := r.FormValue("note")
+	var actorID *uuid.UUID
+	if u != nil {
+		actorID = &u.ID
+	}
+	if err := s.book.UpdateStatus(r.Context(), id, newStatus, actorID, note); err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?error=%s", id, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape("Status updated to "+string(newStatus))), http.StatusSeeOther)
+}
+
+func (s *Server) PortalRescheduleBooking(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	staffID, _ := uuid.Parse(r.FormValue("staff_id"))
+	startAtStr := r.FormValue("start_at")
+	note := r.FormValue("note")
+
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	if loc == nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
+	startAt, err := time.ParseInLocation("2006-01-02T15:04", startAtStr, loc)
+	if err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?error=%s", id, url.QueryEscape("Invalid date/time format")), http.StatusSeeOther)
+		return
+	}
+
+	var actorID *uuid.UUID
+	if u != nil {
+		actorID = &u.ID
+	}
+	if err := s.book.Reschedule(r.Context(), id, staffID, startAt, actorID, note); err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?error=%s", id, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape("Booking rescheduled successfully")), http.StatusSeeOther)
+}
+
+func (s *Server) PortalCustomers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	list, err := s.auth.ListCustomers(r.Context(), q)
+	if err != nil {
+		http.Error(w, "failed to load customers", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, r, "portal_customers.html", pageData{
+		"Customers": list,
+		"Query":     q,
+	})
+}
+
+func (s *Server) PortalNewCustomerForm(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, "portal_customer_new.html", nil)
+}
+
+func (s *Server) PortalCreateCustomer(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	fullName := r.FormValue("full_name")
+	phone := r.FormValue("phone")
+	email := r.FormValue("email")
+	babyName := r.FormValue("baby_name")
+	momCondition := r.FormValue("mom_condition")
+	medicalNotes := r.FormValue("medical_notes")
+	dobStr := r.FormValue("baby_dob")
+	var babyDOB *time.Time
+	if dobStr != "" {
+		if t, err := time.Parse("2006-01-02", dobStr); err == nil {
+			babyDOB = &t
+		}
+	}
+
+	u, err := s.auth.RegisterCustomerByStaff(r.Context(), fullName, phone, email, babyName, babyDOB, momCondition, medicalNotes)
+	if err != nil {
+		s.render(w, r, "portal_customer_new.html", pageData{
+			"Error":        err.Error(),
+			"FullName":     fullName,
+			"Phone":        phone,
+			"Email":        email,
+			"BabyName":     babyName,
+			"BabyDOB":      dobStr,
+			"MomCondition": momCondition,
+			"MedicalNotes": medicalNotes,
+		})
+		return
+	}
+	http.Redirect(w, r, "/portal/bookings/new?customer_id="+u.ID.String(), http.StatusSeeOther)
+}
+
+func (s *Server) PortalCustomerDetail(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cust, err := s.auth.GetUser(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	bookings, _ := s.book.ListMine(r.Context(), id)
+	s.render(w, r, "portal_customer_detail.html", pageData{
+		"Customer": cust,
+		"Bookings": bookings,
+	})
+}
+
+func (s *Server) PortalSchedule(w http.ResponseWriter, r *http.Request) {
+	locs, _ := s.catalog.ListLocations(r.Context(), true)
+	var staff []domain.Staff
+	for _, l := range locs {
+		st, _ := s.catalog.ListStaff(r.Context(), l.ID, false)
+		staff = append(staff, st...)
+	}
+	timeOffs, _ := s.catalog.ListStaffTimeOff(r.Context(), uuid.Nil)
+	s.render(w, r, "portal_schedule.html", pageData{
+		"Staff":    staff,
+		"TimeOffs": timeOffs,
+		"Success":  r.URL.Query().Get("success"),
+		"Error":    r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) PortalCreateTimeOff(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	staffID, err := uuid.Parse(r.FormValue("staff_id"))
+	if err != nil {
+		http.Redirect(w, r, "/portal/schedule?error=Invalid+staff", http.StatusSeeOther)
+		return
+	}
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	if loc == nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
+	startAt, err1 := time.ParseInLocation("2006-01-02T15:04", r.FormValue("start_at"), loc)
+	endAt, err2 := time.ParseInLocation("2006-01-02T15:04", r.FormValue("end_at"), loc)
+	if err1 != nil || err2 != nil {
+		http.Redirect(w, r, "/portal/schedule?error=Invalid+time+range", http.StatusSeeOther)
+		return
+	}
+	to := &domain.StaffTimeOff{
+		StaffID: staffID,
+		StartAt: startAt.UTC(),
+		EndAt:   endAt.UTC(),
+		Reason:  r.FormValue("reason"),
+	}
+	if err := s.catalog.CreateStaffTimeOff(r.Context(), to); err != nil {
+		http.Redirect(w, r, "/portal/schedule?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/portal/schedule?success=Time-off+blockout+added", http.StatusSeeOther)
+}
+
+func (s *Server) PortalDeleteTimeOff(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	_ = s.catalog.DeleteStaffTimeOff(r.Context(), id)
+	http.Redirect(w, r, "/portal/schedule?success=Time-off+removed", http.StatusSeeOther)
+}
+
+func (s *Server) PortalServices(w http.ResponseWriter, r *http.Request) {
+	locs, _ := s.catalog.ListLocations(r.Context(), false)
+	var all []domain.Service
+	for _, l := range locs {
+		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, false)
+		all = append(all, svcs...)
+	}
+	s.render(w, r, "portal_services.html", pageData{"Services": all})
+}
+
+func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err == nil {
+		_ = s.catalog.ToggleServiceActive(r.Context(), id)
+	}
+	http.Redirect(w, r, "/portal/services", http.StatusSeeOther)
+}
+
+func (s *Server) PortalToggleStaff(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err == nil {
+		_ = s.catalog.ToggleStaffActive(r.Context(), id)
+	}
+	http.Redirect(w, r, "/portal/schedule", http.StatusSeeOther)
+}
+
+// Admin CS & Password Handlers
+func (s *Server) AdminCSList(w http.ResponseWriter, r *http.Request) {
+	csUsers, err := s.auth.ListCS(r.Context())
+	if err != nil {
+		http.Error(w, "failed to load CS accounts", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, r, "admin_cs.html", pageData{
+		"CSUsers": csUsers,
+		"Success": r.URL.Query().Get("success"),
+		"Error":   r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) AdminCreateCS(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	name := r.FormValue("full_name")
+	email := r.FormValue("email")
+	phone := r.FormValue("phone")
+	pass := r.FormValue("password")
+	_, err := s.auth.CreateCS(r.Context(), email, pass, name, phone)
+	if err != nil {
+		http.Redirect(w, r, "/admin/cs?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/cs?success="+url.QueryEscape("CS account created for "+name), http.StatusSeeOther)
+}
+
+func (s *Server) AdminToggleCSActive(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	user, err := s.auth.GetUser(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	newActive := !user.IsActive
+	_ = s.auth.SetUserActive(r.Context(), id, newActive)
+	msg := "CS account reactivated"
+	if !newActive {
+		msg = "CS account deactivated and active sessions terminated"
+	}
+	http.Redirect(w, r, "/admin/cs?success="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
+func (s *Server) AdminResetCSPassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	pass := r.FormValue("password")
+	if err := s.auth.ResetPassword(r.Context(), id, pass); err != nil {
+		http.Redirect(w, r, "/admin/cs?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/cs?success="+url.QueryEscape("Password reset successfully"), http.StatusSeeOther)
+}
+
+func (s *Server) AdminCustomerResetForm(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cust, err := s.auth.GetUser(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.render(w, r, "admin_customer_reset.html", pageData{
+		"Customer": cust,
+		"Success":  r.URL.Query().Get("success"),
+		"Error":    r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) AdminResetCustomerPassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	pass := r.FormValue("password")
+	if err := s.auth.ResetPassword(r.Context(), id, pass); err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/admin/customers/%s/reset-password?error=%s", id, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/admin/customers/%s/reset-password?success=%s", id, url.QueryEscape("Customer password updated successfully")), http.StatusSeeOther)
 }

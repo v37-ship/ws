@@ -1,0 +1,136 @@
+{{define "portal_schedule.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bidan Schedules &amp; Leave — Staff Portal</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Bidan Schedules &amp; Leave Exceptions</h1>
+        <p class="muted">Manage therapist availability, blockouts, and vacation/sick leave.</p>
+      </div>
+    </div>
+
+    {{template "portal_nav" dict "Active" "schedule" "User" .User}}
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+      <!-- Active Bidan List -->
+      <div class="panel stack">
+        <h2>Bidan &amp; Therapists</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Bidan Name</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Staff}}
+            <tr>
+              <td>
+                <strong>{{.Name}}</strong><br>
+                <small class="muted">{{.Bio}}</small>
+              </td>
+              <td>
+                {{if .Active}}
+                  <span class="badge confirmed">Available</span>
+                {{else}}
+                  <span class="badge cancelled">Inactive</span>
+                {{end}}
+              </td>
+              <td>
+                <form method="post" action="/portal/staff/{{.ID}}/toggle" style="display:inline;">
+                  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                  <button type="submit" class="btn secondary on-light btn-sm">
+                    {{if .Active}}Pause{{else}}Activate{{end}}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Add Leave / Time-Off Blockout -->
+      <div class="panel stack">
+        <h2>Block Time-Off / Leave for Bidan</h2>
+        <p class="muted">Prevent bookings during sick leave, doctor visits, or holidays.</p>
+        
+        <form method="post" action="/portal/schedule/time-off" class="stack">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label>Select Bidan / Staff *
+            <select name="staff_id" required>
+              <option value="">-- Choose Bidan --</option>
+              {{range .Staff}}
+                <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+          </label>
+
+          <label>Start Time (WIB) *
+            <input type="datetime-local" name="start_at" required>
+          </label>
+
+          <label>End Time (WIB) *
+            <input type="datetime-local" name="end_at" required>
+          </label>
+
+          <label>Reason / Note
+            <input type="text" name="reason" placeholder="e.g. Annual leave, Doctor visit, Emergency" required>
+          </label>
+
+          <button type="submit" class="btn">Add Time-Off Blockout</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Active Time-Off Blockouts Table -->
+    <div class="panel stack">
+      <h2>Upcoming Time-Off &amp; Leave Blockouts</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Bidan</th>
+            <th>From</th>
+            <th>Until</th>
+            <th>Reason</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        {{range .TimeOffs}}
+          <tr>
+            <td>👩‍⚕️ <strong>{{.StaffName}}</strong></td>
+            <td>{{formatTime .StartAt "Mon, 02 Jan 15:04"}} WIB</td>
+            <td>{{formatTime .EndAt "Mon, 02 Jan 15:04"}} WIB</td>
+            <td>{{.Reason}}</td>
+            <td>
+              <form method="post" action="/portal/schedule/time-off/{{.ID}}/delete" onsubmit="return confirm('Remove this time-off block?')">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {{else}}
+          <tr><td colspan="5" class="muted">No scheduled time-offs. All therapists on normal schedule.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

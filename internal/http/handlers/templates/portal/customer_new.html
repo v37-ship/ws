@@ -1,0 +1,77 @@
+{{define "portal_customer_new.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register Mom &amp; Baby — Staff Portal</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <h1 class="page-title" style="margin-bottom:0.2rem;">Register New Mom &amp; Baby</h1>
+    <p class="muted">Phone-first registration for frontdesk walk-in or WhatsApp inquiries.</p>
+
+    {{template "portal_nav" dict "Active" "new_customer" "User" .User}}
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+    <form class="panel stack" method="post" action="/portal/customers/new">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+      <h2>Mom / Parent Information</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem;">
+        <label>Full Name (Mom/Parent) *
+          <input type="text" name="full_name" required value="{{.FullName}}" placeholder="e.g. Bunda Amanda">
+        </label>
+
+        <label>WhatsApp / Phone Number *
+          <input type="tel" name="phone" required value="{{.Phone}}" placeholder="e.g. 081234567890">
+        </label>
+
+        <label>Email (Optional)
+          <input type="email" name="email" value="{{.Email}}" placeholder="Auto-generated if left blank">
+        </label>
+      </div>
+
+      <hr style="border:none; border-top:1px solid var(--line); margin:1rem 0;">
+
+      <h2>Baby &amp; Maternal Health Details</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem;">
+        <label>Baby's Name
+          <input type="text" name="baby_name" value="{{.BabyName}}" placeholder="e.g. Baby Kenzo">
+        </label>
+
+        <label>Baby's Date of Birth (or estimated)
+          <input type="date" name="baby_dob" value="{{.BabyDOB}}">
+        </label>
+
+        <label>Mom Condition / Phase
+          <select name="mom_condition">
+            <option value="">General Mom Care</option>
+            <option value="Hamil Trimester 1">Hamil Trimester 1 (0-12 minggu)</option>
+            <option value="Hamil Trimester 2">Hamil Trimester 2 (13-26 minggu)</option>
+            <option value="Hamil Trimester 3">Hamil Trimester 3 (27+ minggu)</option>
+            <option value="Pasca Melahirkan Normal">Pasca Melahirkan Normal</option>
+            <option value="Pasca Melahirkan Caesar (C-Section)">Pasca Melahirkan Caesar (C-Section)</option>
+            <option value="Menyusui (Laktasi)">Menyusui / Pijat Laktasi</option>
+          </select>
+        </label>
+      </div>
+
+      <label>Medical / Skin Sensitivity Notes
+        <textarea name="medical_notes" rows="3" placeholder="e.g. Baby has eczema, allergy to eucalyptus oil, mom needs lower pressure massage...">{{.MedicalNotes}}</textarea>
+      </label>
+
+      <div style="display:flex; gap:0.75rem; align-items:center;">
+        <button class="btn" type="submit">Save Customer &amp; Continue</button>
+        <a href="/portal/customers" class="btn secondary on-light">Cancel</a>
+      </div>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}

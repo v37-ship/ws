@@ -1,0 +1,113 @@
+{{define "admin_cs.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manage CS Accounts — Admin</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Customer Service (CS) Management</h1>
+        <p class="muted">Admin controls for staff accounts, deactivations, and credential resets.</p>
+      </div>
+      <a href="/portal" class="btn secondary on-light">&larr; Back to Staff Portal</a>
+    </div>
+
+    {{template "portal_nav" dict "Active" "admin_cs" "User" .User}}
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+      <!-- Active CS List -->
+      <div class="panel stack">
+        <h2>CS Staff Accounts ({{len .CSUsers}})</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Staff Name / Email</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .CSUsers}}
+            <tr>
+              <td>
+                <strong>{{.FullName}}</strong><br>
+                <small>{{.Email}}</small><br>
+                <small class="muted">📞 {{.Phone}}</small>
+              </td>
+              <td>
+                {{if .IsActive}}
+                  <span class="badge confirmed">Active</span>
+                {{else}}
+                  <span class="badge cancelled">Deactivated</span>
+                {{end}}
+              </td>
+              <td>
+                <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                  <form method="post" action="/admin/cs/{{.ID}}/toggle-active" onsubmit="return confirm('Change active status for this staff member?')">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="width:100%;">
+                      {{if .IsActive}}Deactivate &amp; Kick{{else}}Reactivate{{end}}
+                    </button>
+                  </form>
+
+                  <details>
+                    <summary style="font-size:0.8rem; cursor:pointer; color:var(--accent-deep); font-weight:700;">Reset Password</summary>
+                    <form method="post" action="/admin/cs/{{.ID}}/reset-password" style="margin-top:0.5rem;" class="stack">
+                      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                      <input type="password" name="password" placeholder="New pass (min 8)" required minlength="8" style="padding:0.3rem;">
+                      <button type="submit" class="btn btn-sm">Save</button>
+                    </form>
+                  </details>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="3" class="muted">No CS accounts created yet.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Create New CS Staff -->
+      <div class="panel stack">
+        <h2>Create New CS Staff Member</h2>
+        <p class="muted">Creates an account with CS portal access.</p>
+
+        <form method="post" action="/admin/cs" class="stack">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+          <label>Full Name *
+            <input type="text" name="full_name" required placeholder="e.g. Siti Rahayu">
+          </label>
+
+          <label>Email Address *
+            <input type="email" name="email" required placeholder="e.g. siti@wangga.com">
+          </label>
+
+          <label>WhatsApp / Phone Number
+            <input type="tel" name="phone" placeholder="e.g. 08123456789">
+          </label>
+
+          <label>Initial Password (min 8 chars) *
+            <input type="password" name="password" required minlength="8" placeholder="Strong password">
+          </label>
+
+          <button type="submit" class="btn">Create CS Staff Account</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

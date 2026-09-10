@@ -274,14 +274,19 @@ func (r *CatalogRepo) CountSeed(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// BusyIntervals returns active booking windows for staff on a calendar day (UTC bounds passed in).
+// BusyIntervals returns active booking windows and approved time-offs for staff on a calendar day (UTC bounds passed in).
 func (r *CatalogRepo) BusyIntervals(ctx context.Context, staffID uuid.UUID, from, to time.Time) ([][2]time.Time, error) {
-	const q = `SELECT start_at, end_at FROM bookings
+	const q = `
+		SELECT start_at, end_at FROM bookings
 		WHERE staff_id=$1 AND start_at < $3 AND end_at > $2
 		AND (
-			status = 'confirmed'
+			status IN ('confirmed', 'checked_in', 'in_service')
 			OR (status = 'pending_payment' AND (hold_expires_at IS NULL OR hold_expires_at > now()))
-		)`
+		)
+		UNION ALL
+		SELECT start_at, end_at FROM staff_time_off
+		WHERE staff_id=$1 AND start_at < $3 AND end_at > $2
+	`
 	rows, err := r.pool.Query(ctx, q, staffID, from, to)
 	if err != nil {
 		return nil, err
@@ -297,3 +302,60 @@ func (r *CatalogRepo) BusyIntervals(ctx context.Context, staffID uuid.UUID, from
 	}
 	return out, rows.Err()
 }
+
+func (r *CatalogRepo) ListStaffTimeOff(ctx context.Context, staffID uuid.UUID) ([]domain.StaffTimeOff, error) {
+	var rows pgx.Rows
+	var err error
+	if staffID != uuid.Nil {
+		const q = `SELECT t.id, t.staff_id, s.name, t.start_at, t.end_at, t.reason, t.created_at
+			FROM staff_time_off t
+			JOIN staff s ON s.id = t.staff_id
+			WHERE t.staff_id = $1 AND t.end_at >= now() - interval '1 day'
+			ORDER BY t.start_at ASC`
+		rows, err = r.pool.Query(ctx, q, staffID)
+	} else {
+		const q = `SELECT t.id, t.staff_id, s.name, t.start_at, t.end_at, t.reason, t.created_at
+			FROM staff_time_off t
+			JOIN staff s ON s.id = t.staff_id
+			WHERE t.end_at >= now() - interval '1 day'
+			ORDER BY t.start_at ASC`
+		rows, err = r.pool.Query(ctx, q)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.StaffTimeOff
+	for rows.Next() {
+		var to domain.StaffTimeOff
+		if err := rows.Scan(&to.ID, &to.StaffID, &to.StaffName, &to.StartAt, &to.EndAt, &to.Reason, &to.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, to)
+	}
+	return out, rows.Err()
+}
+
+func (r *CatalogRepo) CreateStaffTimeOff(ctx context.Context, to *domain.StaffTimeOff) error {
+	if to.ID == uuid.Nil {
+		to.ID = uuid.New()
+	}
+	const q = `INSERT INTO staff_time_off (id, staff_id, start_at, end_at, reason) VALUES ($1,$2,$3,$4,$5) RETURNING created_at`
+	return r.pool.QueryRow(ctx, q, to.ID, to.StaffID, to.StartAt, to.EndAt, to.Reason).Scan(&to.CreatedAt)
+}
+
+func (r *CatalogRepo) DeleteStaffTimeOff(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM staff_time_off WHERE id=$1`, id)
+	return err
+}
+
+func (r *CatalogRepo) ToggleServiceActive(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `UPDATE services SET active = NOT active, updated_at=now() WHERE id=$1`, id)
+	return err
+}
+
+func (r *CatalogRepo) ToggleStaffActive(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `UPDATE staff SET active = NOT active, updated_at=now() WHERE id=$1`, id)
+	return err
+}
+

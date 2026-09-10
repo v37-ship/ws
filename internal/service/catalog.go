@@ -99,6 +99,30 @@ func (s *CatalogService) StaffServiceIDs(ctx context.Context, staffID uuid.UUID)
 	return s.catalog.StaffServiceIDs(ctx, staffID)
 }
 
+func (s *CatalogService) ListStaffTimeOff(ctx context.Context, staffID uuid.UUID) ([]domain.StaffTimeOff, error) {
+	return s.catalog.ListStaffTimeOff(ctx, staffID)
+}
+
+func (s *CatalogService) CreateStaffTimeOff(ctx context.Context, to *domain.StaffTimeOff) error {
+	if to.StaffID == uuid.Nil || to.StartAt.IsZero() || to.EndAt.IsZero() || !to.EndAt.After(to.StartAt) {
+		return fmt.Errorf("%w: invalid time-off window", ErrValidation)
+	}
+	return s.catalog.CreateStaffTimeOff(ctx, to)
+}
+
+func (s *CatalogService) DeleteStaffTimeOff(ctx context.Context, id uuid.UUID) error {
+	return s.catalog.DeleteStaffTimeOff(ctx, id)
+}
+
+func (s *CatalogService) ToggleServiceActive(ctx context.Context, id uuid.UUID) error {
+	return s.catalog.ToggleServiceActive(ctx, id)
+}
+
+func (s *CatalogService) ToggleStaffActive(ctx context.Context, id uuid.UUID) error {
+	return s.catalog.ToggleStaffActive(ctx, id)
+}
+
+
 func (s *CatalogService) SeedDemo(ctx context.Context) error {
 	n, err := s.catalog.CountSeed(ctx)
 	if err != nil {

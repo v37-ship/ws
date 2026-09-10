@@ -1,0 +1,90 @@
+{{define "portal_customer_detail.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Customer.FullName}} — Customer Profile</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <a href="/portal/customers" class="muted">&larr; Back to customers</a>
+        <h1 class="page-title" style="margin:0.25rem 0;">{{.Customer.FullName}}</h1>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <a href="/portal/bookings/new?customer_id={{.Customer.ID}}" class="btn">+ Book Appointment</a>
+        {{if .Customer.Phone}}
+          <a href="https://wa.me/{{.Customer.Phone}}" target="_blank" class="btn-wa">💬 WhatsApp Mom</a>
+        {{end}}
+      </div>
+    </div>
+
+    {{template "portal_nav" dict "Active" "customers" "User" .User}}
+
+    <div class="panel stack">
+      <h2>Mom &amp; Baby Profile</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
+        <div>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Contact</span>
+          <div>📞 {{.Customer.Phone}}</div>
+          <div>✉️ {{.Customer.Email}}</div>
+        </div>
+        <div>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Baby Info</span>
+          <div>👶 <strong>{{if .Customer.BabyName}}{{.Customer.BabyName}}{{else}}<em>Not specified</em>{{end}}</strong></div>
+          {{if .Customer.BabyDOB}}<div>DOB: {{formatTime .Customer.BabyDOB "02 Jan 2006"}}</div>{{end}}
+        </div>
+        <div>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Maternal Care</span>
+          <div>🤰 {{if .Customer.MomCondition}}{{.Customer.MomCondition}}{{else}}Standard{{end}}</div>
+        </div>
+      </div>
+      {{if .Customer.MedicalNotes}}
+        <div>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Special / Medical Notes</span>
+          <p style="background:var(--bg-2); padding:0.6rem 0.8rem; border-radius:8px; margin:0.25rem 0;">{{.Customer.MedicalNotes}}</p>
+        </div>
+      {{end}}
+    </div>
+
+    <div class="panel stack">
+      <h2>Booking History ({{len .Bookings}})</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Schedule</th>
+            <th>Service</th>
+            <th>Bidan</th>
+            <th>Status</th>
+            <th>Amount</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        {{range .Bookings}}
+          <tr>
+            <td><strong>{{formatTime .StartAt "Mon, 02 Jan 15:04"}}</strong></td>
+            <td>{{.ServiceName}}</td>
+            <td>👩‍⚕️ {{.StaffName}}</td>
+            <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
+            <td>{{formatIDR .PriceIDR}}</td>
+            <td>
+              <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Manage</a>
+            </td>
+          </tr>
+        {{else}}
+          <tr><td colspan="6" class="muted">No booking history for this customer.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

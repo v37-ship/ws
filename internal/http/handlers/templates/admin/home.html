@@ -12,13 +12,15 @@
   {{template "header" .}}
   <main>
     <h1 class="page-title">Admin</h1>
-    <nav class="admin-nav">
+    <nav class="admin-nav" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <a class="btn" href="/portal">🏥 Open Staff Portal</a>
+      <a class="btn secondary on-light" href="/admin/cs">👥 Manage CS Accounts</a>
       <a class="btn secondary on-light" href="/admin/locations">Locations</a>
       <a class="btn secondary on-light" href="/admin/services">Services</a>
       <a class="btn secondary on-light" href="/admin/staff">Staff</a>
-      <a class="btn secondary on-light" href="/admin/bookings">Bookings</a>
+      <a class="btn secondary on-light" href="/admin/bookings">Legacy Bookings</a>
     </nav>
-    <p class="muted">Manage Wangga catalog and upcoming bookings.</p>
+    <p class="muted">Manage Wangga catalog, staff accounts, and daily spa operations.</p>
   </main>
 </body>
 </html>
