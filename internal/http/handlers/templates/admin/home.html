@@ -1,0 +1,25 @@
+{{define "admin_home.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Wangga: Baby &amp; Mom Spa</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+</head>
+<body>
+  {{template "header" .}}
+  <main>
+    <h1 class="page-title">Admin</h1>
+    <nav class="admin-nav">
+      <a class="btn secondary on-light" href="/admin/locations">Locations</a>
+      <a class="btn secondary on-light" href="/admin/services">Services</a>
+      <a class="btn secondary on-light" href="/admin/staff">Staff</a>
+      <a class="btn secondary on-light" href="/admin/bookings">Bookings</a>
+    </nav>
+    <p class="muted">Manage Wangga catalog and upcoming bookings.</p>
+  </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,22 @@
+{{define "header"}}
+<header class="site-header">
+  <a class="brand" href="/">
+    <span class="brand-mark">Wangga</span>
+    <span class="brand-sub">Baby &amp; Mom Spa</span>
+  </a>
+  <nav class="nav">
+    <a href="/book">Book</a>
+    {{if .User}}
+      <a href="/bookings">My bookings</a>
+      {{if eq (printf "%s" .User.Role) "admin"}}<a href="/admin">Admin</a>{{end}}
+      <form method="post" action="/logout" style="display:inline">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button class="linkish" type="submit">Log out</button>
+      </form>
+    {{else}}
+      <a href="/login">Log in</a>
+      <a href="/register">Register</a>
+    {{end}}
+  </nav>
+</header>
+{{end}}

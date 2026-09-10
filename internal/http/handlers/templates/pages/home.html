@@ -1,0 +1,75 @@
+{{define "home.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wangga: Baby &amp; Mom Spa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <section class="hero-bleed">
+    <span class="blob blob-a"></span>
+    <span class="blob blob-b"></span>
+    <div class="hero-inner">
+      <p class="hero-tag">Baby &amp; Mom Spa</p>
+      <h1 class="hero-brand">Wangga</h1>
+      <p class="hero-copy">Gentle care for little ones and restful treatments for moms — book baby spa, massage, and mom recovery in a bright, cozy studio.</p>
+      <div class="form-actions">
+        <a class="btn" href="/book">Book a session</a>
+        {{if not .User}}<a class="btn secondary" href="/register">Create account</a>{{end}}
+      </div>
+    </div>
+  </section>
+  <main>
+    <section class="section-head">
+      <h2>Why families choose Wangga</h2>
+      <p>Soft care, certified therapists, and easy online booking with QRIS.</p>
+    </section>
+    <section class="grid three" style="margin-bottom:2rem">
+      <article class="feature">
+        <div class="feature-icon feature-icon-baby"></div>
+        <h3>Baby-first comfort</h3>
+        <p>Warm water play, gentle massage, and calm rooms made for tiny guests.</p>
+      </article>
+      <article class="feature">
+        <div class="feature-icon feature-icon-mom"></div>
+        <h3>Mom recovery</h3>
+        <p>Maternity and postpartum massage to ease tension and restore energy.</p>
+      </article>
+      <article class="feature">
+        <div class="feature-icon feature-icon-book"></div>
+        <h3>Book in minutes</h3>
+        <p>Pick a slot, pay with QRIS, and get confirmation by email.</p>
+      </article>
+    </section>
+
+    <section class="section-head">
+      <h2>Visit us</h2>
+      <p>Choose a location and reserve your next Wangga moment.</p>
+    </section>
+    <section class="grid two">
+      {{range .Locations}}
+      <article class="panel location-tile">
+        <h2>{{.Name}}</h2>
+        <p class="muted">{{.Address}}, {{.City}}</p>
+        <div class="pill-row">
+          <span class="pill">Baby spa</span>
+          <span class="pill mint">Mom care</span>
+          <span class="pill sun">QRIS ready</span>
+        </div>
+        <a class="btn mint" href="/book?location_id={{.ID}}">Book here</a>
+      </article>
+      {{else}}
+      <p class="muted">No locations yet.</p>
+      {{end}}
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

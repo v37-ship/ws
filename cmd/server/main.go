@@ -1,0 +1,107 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"spa-booking/internal/config"
+	"spa-booking/internal/db"
+	"spa-booking/internal/email"
+	"spa-booking/internal/http/handlers"
+	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/payment"
+	"spa-booking/internal/repo"
+	"spa-booking/internal/service"
+
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
+)
+
+func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	cfg, err := config.Load()
+	if err != nil {
+		log.Error("config", "err", err)
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	if err := db.Migrate(cfg.DatabaseURL); err != nil {
+		log.Error("migrate", "err", err)
+		os.Exit(1)
+	}
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Error("db", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	users := repo.NewUserRepo(pool)
+	sessions := repo.NewSessionRepo(pool)
+	catalogRepo := repo.NewCatalogRepo(pool)
+	bookings := repo.NewBookingRepo(pool)
+	payments := repo.NewPaymentRepo(pool)
+
+	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
+	catalogSvc := service.NewCatalogService(catalogRepo)
+	availSvc := service.NewAvailabilityService(catalogRepo)
+	mailer := email.NewSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
+	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
+	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
+
+	if err := authSvc.EnsureAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword, "Wangga Admin"); err != nil {
+		log.Error("ensure admin", "err", err)
+		os.Exit(1)
+	}
+	if err := catalogSvc.SeedDemo(ctx); err != nil {
+		log.Error("seed", "err", err)
+		os.Exit(1)
+	}
+
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc)
+	if err != nil {
+		log.Error("handlers", "err", err)
+		os.Exit(1)
+	}
+
+	r := chi.NewRouter()
+	r.Use(chimw.RequestID)
+	r.Use(chimw.RealIP)
+	r.Use(chimw.Recoverer)
+	r.Use(chimw.Timeout(60 * time.Second))
+	r.Use(middleware.LoadUser(authSvc))
+	srvHandlers.Routes(r)
+
+	go func() {
+		t := time.NewTicker(1 * time.Minute)
+		defer t.Stop()
+		for range t.C {
+			if err := bookSvc.ExpireHolds(context.Background()); err != nil {
+				log.Warn("expire holds", "err", err)
+			}
+			_ = sessions.DeleteExpired(context.Background())
+		}
+	}()
+
+	httpSrv := &http.Server{Addr: cfg.HTTPAddr, Handler: r}
+	go func() {
+		log.Info("listening", "addr", cfg.HTTPAddr)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = httpSrv.Shutdown(shutdownCtx)
+}

@@ -1,0 +1,52 @@
+{{define "admin_staff.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Staff — Admin</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <nav class="admin-nav"><a href="/admin">Admin</a></nav>
+    <h1>Staff</h1>
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    <form class="panel stack" method="post" action="/admin/staff">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Location
+        <select name="location_id" required>
+          {{range .Locations}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </label>
+      <label>Name <input name="name" required></label>
+      <label>Bio <textarea name="bio" rows="2"></textarea></label>
+      <fieldset>
+        <legend>Services</legend>
+        {{range .Services}}
+          <label style="display:flex;gap:.5rem;align-items:center;font-weight:500">
+            <input type="checkbox" name="service_ids" value="{{.ID}}"> {{.Name}}
+          </label>
+        {{end}}
+      </fieldset>
+      <button class="btn" type="submit">Add staff</button>
+    </form>
+    <div class="panel">
+      <table class="table">
+        <thead><tr><th>Name</th><th>Bio</th><th></th></tr></thead>
+        <tbody>
+        {{range .Staff}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td>{{.Bio}}</td>
+            <td><a href="/admin/staff/{{.ID}}/hours">Hours</a></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

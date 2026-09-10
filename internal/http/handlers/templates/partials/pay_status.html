@@ -1,0 +1,10 @@
+{{define "pay_status.html"}}
+{{if eq (printf "%s" .Booking.Status) "confirmed"}}
+  <p class="ok">Payment received. Your booking is confirmed.</p>
+  <a class="btn" href="/bookings">View my bookings</a>
+{{else if eq (printf "%s" .Booking.Status) "pending_payment"}}
+  <p class="muted">Waiting for QRIS payment…</p>
+{{else}}
+  <p class="error">Booking status: {{.Booking.Status}}</p>
+{{end}}
+{{end}}

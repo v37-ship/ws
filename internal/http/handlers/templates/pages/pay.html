@@ -1,0 +1,50 @@
+{{define "pay.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pay with QRIS — Wangga: Baby &amp; Mom Spa</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main>
+    <section class="stack" style="max-width:560px">
+      <h1 class="page-title">Pay with QRIS</h1>
+      <div class="panel stack">
+        <p><strong>{{.Booking.ServiceName}}</strong> with {{.Booking.StaffName}}</p>
+        <p class="muted">{{formatTime .Booking.StartAt "Mon 02 Jan 2006 15:04"}} · {{.Booking.LocationName}}</p>
+        <p>{{formatIDR .Booking.PriceIDR}}</p>
+        <div id="pay-status"
+          hx-get="/bookings/{{.Booking.ID}}/status"
+          hx-trigger="every 3s"
+          hx-swap="innerHTML">
+          {{template "pay_status.html" .}}
+        </div>
+        {{if eq (printf "%s" .Booking.Status) "pending_payment"}}
+        <div class="qr-box">
+          <strong>Scan this QRIS code in your banking / e-wallet app</strong>
+          {{if .Payment}}
+            {{if .QRImageURL}}
+              <img src="{{.QRImageURL}}" alt="QRIS" width="220" height="220">
+            {{end}}
+            <code>{{.Payment.QRString}}</code>
+            <p class="muted">Order {{.Payment.OrderID}}</p>
+          {{end}}
+          {{if .MockMode}}
+            <form method="post" action="/bookings/{{.Booking.ID}}/mock-pay">
+              <input type="hidden" name="csrf" value="{{.CSRF}}">
+              <button class="btn" type="submit">Simulate successful payment (dev)</button>
+            </form>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

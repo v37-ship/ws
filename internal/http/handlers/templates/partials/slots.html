@@ -1,0 +1,18 @@
+{{define "slots_partial.html"}}
+<div class="stack">
+  <strong>Available slots</strong>
+  {{if .SlotsError}}<p class="error">{{.SlotsError}}</p>{{end}}
+  {{if .Slots}}
+  <div class="slot-grid">
+    {{range .Slots}}
+    <button type="button" class="slot" data-start="{{.StartAt.Format "2006-01-02T15:04:05Z07:00"}}" data-staff="{{.StaffID}}">
+      {{formatTime .StartAt "15:04"}}
+    </button>
+    {{end}}
+  </div>
+  <p class="muted">Select a time, then continue to payment.</p>
+  {{else}}
+  <p class="muted">No open slots for this day. Try another date.</p>
+  {{end}}
+</div>
+{{end}}

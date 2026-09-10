@@ -1,0 +1,67 @@
+{{define "book.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book — Wangga: Baby &amp; Mom Spa</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  {{template "header" .}}
+  <main>
+    <section class="stack">
+      <h1 class="page-title">Book a Wangga session</h1>
+      {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+      <form class="panel stack" method="post" action="/book" id="book-form">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label>Location
+          <select name="location_id" id="location_id" required
+            hx-get="/book/services" hx-target="#service-wrap" hx-include="this"
+            hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''">
+            <option value="">Select location</option>
+            {{range .Locations}}
+            <option value="{{.ID}}" {{if eq $.LocationID .ID.String}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
+        <div id="service-wrap">
+          {{template "services_partial.html" .}}
+        </div>
+        <div id="staff-wrap">
+          {{template "staff_partial.html" .}}
+        </div>
+        <label>Date
+          <input type="date" name="date" id="date" required value="{{.Date}}"
+            hx-get="/book/slots" hx-target="#slots-wrap"
+            hx-include="#location_id,#service_id,#staff_id,#date">
+        </label>
+        <div id="slots-wrap">
+          {{template "slots_partial.html" .}}
+        </div>
+        <input type="hidden" name="start_at" id="start_at" value="{{.StartAt}}">
+        <input type="hidden" name="staff_id_selected" id="staff_id_selected" value="{{.StaffIDSelected}}">
+        <label>Notes <textarea name="notes" rows="2">{{.Notes}}</textarea></label>
+        {{if .User}}
+          <button class="btn" type="submit">Continue to QRIS payment</button>
+        {{else}}
+          <p class="muted">Please <a href="/login?next=/book">log in</a> to complete booking.</p>
+        {{end}}
+      </form>
+    </section>
+  </main>
+  <script>
+    document.body.addEventListener('click', function (e) {
+      const btn = e.target.closest('.slot');
+      if (!btn) return;
+      document.getElementById('start_at').value = btn.dataset.start;
+      document.getElementById('staff_id_selected').value = btn.dataset.staff;
+      document.querySelectorAll('.slot').forEach(s => s.style.outline = '');
+      btn.style.outline = '2px solid #0f6b5c';
+    });
+  </script>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,27 @@
+{{define "admin_staff_hours.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Staff hours — Admin</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+</head>
+<body>
+  {{template "header" .}}
+  <main class="stack">
+    <nav class="admin-nav"><a href="/admin/staff">Staff</a></nav>
+    <h1>Hours for {{.Staff.Name}}</h1>
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    <form class="panel stack" method="post" action="/admin/staff/{{.Staff.ID}}/hours">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <p class="muted">Enter rows as weekday (0=Sun..6=Sat), start HH:MM, end HH:MM. One schedule row per line.</p>
+      <label>Schedule
+        <textarea name="hours" rows="8" placeholder="1 10:00 18:00">{{.HoursText}}</textarea>
+      </label>
+      <button class="btn" type="submit">Save hours</button>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}

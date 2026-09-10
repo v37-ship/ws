@@ -1,0 +1,48 @@
+{{define "bookings.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My bookings — Wangga: Baby &amp; Mom Spa</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+</head>
+<body>
+  {{template "header" .}}
+  <main>
+    <section class="stack">
+      <h1 class="page-title">My bookings</h1>
+      <div class="panel">
+        <table class="table">
+          <thead><tr><th>When</th><th>Service</th><th>Therapist</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          {{range .Bookings}}
+            <tr>
+              <td>{{formatTime .StartAt "Mon 02 Jan 15:04"}}</td>
+              <td>{{.ServiceName}}<div class="muted">{{.LocationName}}</div></td>
+              <td>{{.StaffName}}</td>
+              <td><span class="badge {{.Status}}">{{.Status}}</span></td>
+              <td>
+                {{if eq (printf "%s" .Status) "pending_payment"}}
+                  <a href="/bookings/{{.ID}}/pay">Pay</a>
+                {{end}}
+                {{if or (eq (printf "%s" .Status) "confirmed") (eq (printf "%s" .Status) "pending_payment")}}
+                  <form method="post" action="/bookings/{{.ID}}/cancel" style="display:inline">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button class="linkish" type="submit">Cancel</button>
+                  </form>
+                {{end}}
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="5" class="muted">No bookings yet. <a href="/book">Book one</a>.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

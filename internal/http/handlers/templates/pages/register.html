@@ -1,0 +1,30 @@
+{{define "register.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register — Wangga: Baby &amp; Mom Spa</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
+</head>
+<body>
+  {{template "header" .}}
+  <main>
+    <section class="auth-shell stack">
+      <h1 class="page-title">Join Wangga</h1>
+      <p class="muted">Create an account to book baby &amp; mom treatments.</p>
+      {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+      <form class="panel stack" method="post" action="/register">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label>Full name <input name="full_name" required value="{{.FullName}}"></label>
+        <label>Email <input type="email" name="email" required value="{{.Email}}"></label>
+        <label>Phone <input name="phone" value="{{.Phone}}"></label>
+        <label>Password <input type="password" name="password" required minlength="8"></label>
+        <button class="btn" type="submit">Register</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}
