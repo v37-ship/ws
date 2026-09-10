@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -139,35 +140,35 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 	idx := 1
 
 	if f.Status != "" {
-		sb.WriteString(strings.Replace(" AND b.status = $N", "N", string(rune('0'+idx)), 1))
+		sb.WriteString(fmt.Sprintf(" AND b.status = $%d", idx))
 		args = append(args, f.Status)
 		idx++
 	}
 	if f.LocationID != uuid.Nil {
-		sb.WriteString(strings.Replace(" AND b.location_id = $N", "N", string(rune('0'+idx)), 1))
+		sb.WriteString(fmt.Sprintf(" AND b.location_id = $%d", idx))
 		args = append(args, f.LocationID)
 		idx++
 	}
 	if f.StaffID != uuid.Nil {
-		sb.WriteString(strings.Replace(" AND b.staff_id = $N", "N", string(rune('0'+idx)), 1))
+		sb.WriteString(fmt.Sprintf(" AND b.staff_id = $%d", idx))
 		args = append(args, f.StaffID)
 		idx++
 	}
 	if f.Date != "" {
-		sb.WriteString(strings.Replace(" AND date(b.start_at AT TIME ZONE 'Asia/Jakarta') = $N::date", "N", string(rune('0'+idx)), 1))
+		sb.WriteString(fmt.Sprintf(" AND date(b.start_at AT TIME ZONE 'Asia/Jakarta') = $%d::date", idx))
 		args = append(args, f.Date)
 		idx++
 	}
 	if f.Search != "" {
 		like := "%" + strings.ToLower(f.Search) + "%"
-		sb.WriteString(strings.Replace(" AND (lower(u.full_name) LIKE $N OR u.phone LIKE $N OR lower(u.email) LIKE $N OR lower(u.baby_name) LIKE $N)", "N", string(rune('0'+idx)), -1))
+		sb.WriteString(fmt.Sprintf(" AND (lower(u.full_name) LIKE $%d OR u.phone LIKE $%d OR lower(u.email) LIKE $%d OR lower(u.baby_name) LIKE $%d)", idx, idx, idx, idx))
 		args = append(args, like)
 		idx++
 	}
 
 	sb.WriteString(" ORDER BY b.start_at ASC")
 	if f.Limit > 0 {
-		sb.WriteString(strings.Replace(" LIMIT $N", "N", string(rune('0'+idx)), 1))
+		sb.WriteString(fmt.Sprintf(" LIMIT $%d", idx))
 		args = append(args, f.Limit)
 	}
 
