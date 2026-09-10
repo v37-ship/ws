@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Format check
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (incl. template parse)
+        run: go test -race -count=1 ./...
+
+      - name: Build
+        run: go build ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: go
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (no push)
+        run: docker build -t spa-booking:ci .
+
+      - name: Validate compose config
+        run: docker compose config --quiet
