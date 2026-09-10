@@ -122,7 +122,6 @@ func (s *CatalogService) ToggleStaffActive(ctx context.Context, id uuid.UUID) er
 	return s.catalog.ToggleStaffActive(ctx, id)
 }
 
-
 func (s *CatalogService) SeedDemo(ctx context.Context) error {
 	n, err := s.catalog.CountSeed(ctx)
 	if err != nil {
@@ -240,7 +239,7 @@ func (s *AvailabilityService) Slots(ctx context.Context, locationID, serviceID, 
 			windowEnd := dayLocal.Add(endHM)
 			for !cursor.Add(duration).After(windowEnd) {
 				slotEnd := cursor.Add(duration)
-				if !cursor.Before(now.Add(30 * time.Minute)) && !overlapsAny(cursor, slotEnd, busy) {
+				if !cursor.Before(now.Add(30*time.Minute)) && !overlapsAny(cursor, slotEnd, busy) {
 					slots = append(slots, domain.Slot{StartAt: cursor.UTC(), EndAt: slotEnd.UTC(), StaffID: st.ID})
 				}
 				cursor = cursor.Add(15 * time.Minute)

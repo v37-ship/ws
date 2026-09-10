@@ -13,9 +13,9 @@ import (
 type ctxKey string
 
 const (
-	UserKey   ctxKey = "user"
-	CSRFKey   ctxKey = "csrf"
-	FlashKey  ctxKey = "flash"
+	UserKey  ctxKey = "user"
+	CSRFKey  ctxKey = "csrf"
+	FlashKey ctxKey = "flash"
 )
 
 func UserFrom(ctx context.Context) *domain.User {
@@ -83,10 +83,10 @@ func RequireStaff(next http.Handler) http.Handler {
 }
 
 type RateLimiter struct {
-	mu      sync.Mutex
-	hits    map[string][]time.Time
-	limit   int
-	window  time.Duration
+	mu     sync.Mutex
+	hits   map[string][]time.Time
+	limit  int
+	window time.Duration
 }
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {

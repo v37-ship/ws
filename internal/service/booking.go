@@ -129,8 +129,8 @@ type StaffBookingRequest struct {
 	StaffID        uuid.UUID
 	StartAt        time.Time
 	Notes          string
-	Source         string // 'walkin', 'whatsapp', 'phone'
-	PaymentMethod  domain.PaymentMethod // 'qris' or 'cash'
+	Source         string                // 'walkin', 'whatsapp', 'phone'
+	PaymentMethod  domain.PaymentMethod  // 'qris' or 'cash'
 	PaymentPurpose domain.PaymentPurpose // 'service' or 'booking_fee' or 'full'
 	ActorID        uuid.UUID
 }

@@ -70,7 +70,7 @@ type Staff struct {
 type StaffHours struct {
 	ID        uuid.UUID
 	StaffID   uuid.UUID
-	Weekday   int // 0=Sunday .. 6=Saturday
+	Weekday   int    // 0=Sunday .. 6=Saturday
 	StartTime string // HH:MM
 	EndTime   string // HH:MM
 }

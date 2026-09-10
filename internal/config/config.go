@@ -8,20 +8,20 @@ import (
 )
 
 type Config struct {
-	AppEnv          string
-	HTTPAddr        string
-	BaseURL         string
-	DatabaseURL     string
-	SessionSecret   string
-	SessionTTL      time.Duration
-	BookingHoldTTL  time.Duration
-	CSRFSecure      bool
-	SMTPHost        string
-	SMTPPort        int
-	SMTPFrom        string
-	MidtransServer  string
-	MidtransClient  string
-	MidtransIsProd  bool
+	AppEnv         string
+	HTTPAddr       string
+	BaseURL        string
+	DatabaseURL    string
+	SessionSecret  string
+	SessionTTL     time.Duration
+	BookingHoldTTL time.Duration
+	CSRFSecure     bool
+	SMTPHost       string
+	SMTPPort       int
+	SMTPFrom       string
+	MidtransServer string
+	MidtransClient string
+	MidtransIsProd bool
 	AdminEmail     string
 	AdminPassword  string
 	CSEmail        string

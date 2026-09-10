@@ -358,4 +358,3 @@ func (r *CatalogRepo) ToggleStaffActive(ctx context.Context, id uuid.UUID) error
 	_, err := r.pool.Exec(ctx, `UPDATE staff SET active = NOT active, updated_at=now() WHERE id=$1`, id)
 	return err
 }
-

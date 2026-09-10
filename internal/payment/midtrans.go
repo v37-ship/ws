@@ -35,20 +35,20 @@ func (c *Client) baseURL() string {
 }
 
 type QRISChargeRequest struct {
-	OrderID     string
-	AmountIDR   int64
+	OrderID      string
+	AmountIDR    int64
 	CustomerName string
-	Email       string
-	ItemName    string
+	Email        string
+	ItemName     string
 }
 
 type QRISChargeResult struct {
-	OrderID         string
-	TransactionID   string
-	QRString        string
+	OrderID           string
+	TransactionID     string
+	QRString          string
 	TransactionStatus string
-	Raw             string
-	Mock            bool
+	Raw               string
+	Mock              bool
 }
 
 type midtransChargePayload struct {
@@ -81,7 +81,7 @@ type midtransChargeResponse struct {
 		Method string `json:"method"`
 		URL    string `json:"url"`
 	} `json:"actions"`
-	QRString string `json:"qr_string"`
+	QRString      string `json:"qr_string"`
 	StatusMessage string `json:"status_message"`
 }
 
