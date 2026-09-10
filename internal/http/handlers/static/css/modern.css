@@ -1,0 +1,67 @@
+/* Modern HTMX + Alpine layer. Loaded after app.css. Tailwind handles
+   utilities; this file covers htmx indicators, toasts, skeletons. */
+
+.htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator { opacity: 1; }
+
+.spinner {
+  display: inline-block;
+  width: 1rem; height: 1rem;
+  border-radius: 9999px;
+  border: 2px solid rgba(0,0,0,.15);
+  border-top-color: currentColor;
+  animation: spin .7s linear infinite;
+  vertical-align: -2px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.skeleton {
+  border-radius: .75rem;
+  background: linear-gradient(90deg, #f3e8ef 25%, #fbeef5 50%, #f3e8ef 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  min-height: 3rem;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+.toast-region {
+  position: fixed;
+  bottom: 1rem; right: 1rem;
+  display: flex; flex-direction: column; gap: .5rem;
+  z-index: 60;
+  max-width: min(22rem, calc(100vw - 2rem));
+}
+.toast {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  padding: .75rem 1rem;
+  border-radius: .9rem;
+  background: #2a2430; color: #fff;
+  box-shadow: 0 18px 50px rgba(42,36,48,.25);
+  font-size: .9rem;
+}
+.toast-success { background: #0f9f6e; }
+.toast-error { background: #d64545; }
+.toast-info { background: #2a2430; }
+.toast-close {
+  background: transparent; border: 0; color: inherit;
+  font-size: 1.2rem; line-height: 1; cursor: pointer;
+}
+
+/* Slot picker selected state (replaces inline outline JS) */
+.slot[aria-pressed="true"] {
+  outline: 2px solid #0f6b5c;
+  outline-offset: 2px;
+}
+
+/* Mobile: tables become cards */
+@media (max-width: 720px) {
+  .table-cards table, .table-cards thead, .table-cards tbody,
+  .table-cards th, .table-cards td, .table-cards tr { display: block; }
+  .table-cards thead { position: absolute; left: -9999px; }
+  .table-cards tr {
+    background: #fff; border: 1px solid var(--line);
+    border-radius: 1rem; margin-bottom: .75rem; padding: .75rem 1rem;
+  }
+  .table-cards td { border: 0; padding: .15rem 0; }
+}

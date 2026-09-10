@@ -2,24 +2,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Book — Wangga: Baby &amp; Mom Spa</title>
-  <link rel="stylesheet" href="/static/css/app.css">
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
-  <script src="/static/js/htmx.min.js" defer></script>
+  {{template "head" .}}
 </head>
-<body>
+<body hx-boost="false">
   {{template "header" .}}
+  {{template "toast-region" .}}
   <main>
     <section class="stack">
       <h1 class="page-title">Book a Wangga session</h1>
-      {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
-      <form class="panel stack" method="post" action="/book" id="book-form">
+      {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+      <form class="panel stack" method="post" action="/book" id="book-form"
+        x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }}">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label>Location
           <select name="location_id" id="location_id" required
-            hx-get="/book/services" hx-target="#service-wrap" hx-include="this"
+            hx-get="/book/services" hx-target="#service-wrap" hx-swap="innerHTML" hx-include="this" hx-indicator="#svc-ind"
             hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''">
             <option value="">Select location</option>
             {{range .Locations}}
@@ -27,41 +25,33 @@
             {{end}}
           </select>
         </label>
-        <div id="service-wrap">
+        <span id="svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading services…</span></span>
+        <div id="service-wrap" aria-live="polite">
           {{template "services_partial.html" .}}
         </div>
-        <div id="staff-wrap">
+        <div id="staff-wrap" aria-live="polite">
           {{template "staff_partial.html" .}}
         </div>
         <label>Date
-          <input type="date" name="date" id="date" required value="{{.Date}}"
-            hx-get="/book/slots" hx-target="#slots-wrap"
+          <input type="date" name="date" id="date" required value="{{.Date}}" autocomplete="off"
+            hx-get="/book/slots" hx-target="#slots-wrap" hx-swap="innerHTML" hx-trigger="change" hx-indicator="#slot-ind"
             hx-include="#location_id,#service_id,#staff_id,#date">
         </label>
-        <div id="slots-wrap">
+        <span id="slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Finding open slots…</span></span>
+        <div id="slots-wrap" aria-live="polite">
           {{template "slots_partial.html" .}}
         </div>
-        <input type="hidden" name="start_at" id="start_at" value="{{.StartAt}}">
-        <input type="hidden" name="staff_id_selected" id="staff_id_selected" value="{{.StaffIDSelected}}">
-        <label>Notes <textarea name="notes" rows="2">{{.Notes}}</textarea></label>
+        <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
+        <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
+        <label>Notes <textarea name="notes" rows="2" autocomplete="off">{{.Notes}}</textarea></label>
         {{if .User}}
-          <button class="btn" type="submit">Continue to QRIS payment</button>
+          <button class="btn" type="submit" :disabled="!start">Continue to QRIS payment</button>
         {{else}}
           <p class="muted">Please <a href="/login?next=/book">log in</a> to complete booking.</p>
         {{end}}
       </form>
     </section>
   </main>
-  <script>
-    document.body.addEventListener('click', function (e) {
-      const btn = e.target.closest('.slot');
-      if (!btn) return;
-      document.getElementById('start_at').value = btn.dataset.start;
-      document.getElementById('staff_id_selected').value = btn.dataset.staff;
-      document.querySelectorAll('.slot').forEach(s => s.style.outline = '');
-      btn.style.outline = '2px solid #0f6b5c';
-    });
-  </script>
 </body>
 </html>
 {{end}}

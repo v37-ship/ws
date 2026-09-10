@@ -53,11 +53,21 @@ make run
 
 ## Stack
 
-- Go 1.26 + Chi + `html/template` (embedded) + HTMX
+- Go 1.26 + Chi + `html/template` (embedded) + HTMX 2.0.4 + Alpine.js + Tailwind
+- Shared head partial (`layouts/head.html`): Tailwind browser, Alpine CDN, `modern.css` (indicators/toasts/skeletons), `app.js` (toast via `HX-Trigger`, slot-picker fallback)
+- HTMX helpers (`internal/http/htmx`): `IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`, `Retarget`, `Reswap`; `renderAuto` serves fragments for `HX-Request`
 - PostgreSQL 16 + native session storage (no Redis required)
-- Embedded migrations via Goose (`internal/db/migrations`)
+- Embedded migrations via Goose (`internal/db/migrations` — single source of truth)
 - Midtrans QRIS + webhook (`/webhooks/midtrans`)
 - SMTP email delivery (Mailpit in Compose)
+
+## HTMX endpoints (fragments)
+
+- `GET /book/services|staff|slots` → `services/staff/slots` partials (wizard cascade, `hx-indicator`, `aria-live`)
+- `GET /bookings/{id}/status` → pay status poll (`every 3s`)
+- `GET /portal/queue` → live queue rows (`every 30s` on `/portal`)
+- `GET /portal/bookings` → rows partial when `HX-Request` (debounced live search + `hx-push-url`)
+- `POST /portal/bookings/{id}/status` → `hx-post` + `hx-confirm` + `hx-disabled-elt`; returns `HX-Trigger: toast` + `HX-Refresh` (no full form post)
 
 ## Production notes
 
@@ -65,3 +75,5 @@ make run
 - Set `APP_ENV=production` (enables Secure cookies)
 - Point Midtrans notification URL to `https://your-domain/webhooks/midtrans`
 - Keep a single app replica unless shared session storage is added
+- `GET /healthz` (compose/docker healthcheck) + `GET /readyz`
+- Docker: multi-stage build with Go module cache, image `HEALTHCHECK`, non-root `nobody`; Caddy listens on `:80` (mapped to host `8089`)

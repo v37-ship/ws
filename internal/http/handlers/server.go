@@ -16,6 +16,7 @@ import (
 	"spa-booking/internal/auth"
 	"spa-booking/internal/config"
 	"spa-booking/internal/domain"
+	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/service"
 
@@ -151,7 +152,31 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Vary", "HX-Request")
 	_, _ = w.Write(buf.Bytes())
+}
+
+// renderAuto serves a fragment for HTMX requests and a full page otherwise.
+// Use for filter/search endpoints that support both hx-get and full loads.
+func (s *Server) renderAuto(w http.ResponseWriter, r *http.Request, partial, page string, data pageData) {
+	if isHTMX(r) {
+		s.renderPartial(w, r, partial, data)
+		return
+	}
+	s.render(w, r, page, data)
+}
+
+func (s *Server) toast(w http.ResponseWriter, kind, message string) {
+	htmx.Toast(w, kind, message)
+}
+
+func (s *Server) redirectHTMX(w http.ResponseWriter, r *http.Request, to string) {
+	if isHTMX(r) {
+		htmx.Redirect(w, to)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, to, http.StatusSeeOther)
 }
 
 func (s *Server) ensureCSRF(w http.ResponseWriter, r *http.Request) string {
@@ -222,6 +247,11 @@ func (s *Server) Routes(r chi.Router) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	r.Get("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ready"))
+	})
 	r.Handle("/static/*", http.StripPrefix("/static/", StaticHandler()))
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
@@ -258,6 +288,7 @@ func (s *Server) Routes(r chi.Router) {
 	r.Route("/portal", func(pr chi.Router) {
 		pr.Use(middleware.RequireStaff)
 		pr.Get("/", s.PortalDashboard)
+		pr.Get("/queue", s.PortalQueuePartial)
 		pr.Get("/bookings", s.PortalBookings)
 		pr.Get("/bookings/new", s.PortalNewBookingForm)
 		pr.Post("/bookings/new", s.PortalCreateBooking)

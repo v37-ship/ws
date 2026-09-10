@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"spa-booking/internal/domain"
+	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
@@ -104,9 +105,9 @@ func (s *Server) BookPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pageData{
-		"Locations": locs,
+		"Locations":  locs,
 		"LocationID": r.URL.Query().Get("location_id"),
-		"Date": time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
+		"Date":       time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
 	}
 	if lid, err := uuid.Parse(r.URL.Query().Get("location_id")); err == nil {
 		svcs, _ := s.catalog.ListServices(r.Context(), lid, true)
@@ -506,11 +507,26 @@ func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load bookings", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "portal_bookings.html", pageData{
+	data := pageData{
 		"Bookings": list,
 		"Search":   q,
 		"Date":     date,
 		"Status":   string(status),
+	}
+	s.renderAuto(w, r, "portal_booking_rows.html", "portal_bookings.html", data)
+}
+
+// PortalQueuePartial serves today's live queue rows for HTMX polling.
+func (s *Server) PortalQueuePartial(w http.ResponseWriter, r *http.Request) {
+	nowWIB := time.Now().In(time.FixedZone("WIB", 7*3600))
+	bookings, err := s.book.ListFiltered(r.Context(), repo.FilterParams{Date: nowWIB.Format("2006-01-02")})
+	if err != nil {
+		http.Error(w, "failed to load queue", http.StatusInternalServerError)
+		return
+	}
+	s.renderPartial(w, r, "portal_queue_rows.html", pageData{
+		"TodayBookings": bookings,
+		"TodayStr":      nowWIB.Format("Monday, 02 January 2006"),
 	})
 }
 
@@ -628,10 +644,21 @@ func (s *Server) PortalUpdateBookingStatus(w http.ResponseWriter, r *http.Reques
 		actorID = &u.ID
 	}
 	if err := s.book.UpdateStatus(r.Context(), id, newStatus, actorID, note); err != nil {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", err.Error())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
 		http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?error=%s", id, url.QueryEscape(err.Error())), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape("Status updated to "+string(newStatus))), http.StatusSeeOther)
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Status updated to "+string(newStatus))
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?toast=%s&kind=%s", id, url.QueryEscape("Status updated to "+string(newStatus)), "success"), http.StatusSeeOther)
 }
 
 func (s *Server) PortalRescheduleBooking(w http.ResponseWriter, r *http.Request) {

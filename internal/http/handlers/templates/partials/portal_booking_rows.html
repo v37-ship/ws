@@ -1,0 +1,36 @@
+{{define "portal_booking_rows.html"}}
+{{range .Bookings}}
+<tr>
+  <td>
+    <strong>{{formatTime .StartAt "Mon, 02 Jan 15:04"}}</strong><br>
+    <small class="muted">{{formatTime .EndAt "15:04"}} ({{.LocationName}})</small>
+  </td>
+  <td>
+    <strong>{{.CustomerName}}</strong><br>
+    <small>{{.CustomerPhone}}</small>
+    {{if .CustomerPhone}}
+      <br>
+      <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "Mon, 02 Jan 15:04") .LocationName}}" target="_blank" class="btn-wa btn-sm" style="margin-top:0.25rem;">
+        💬 WA
+      </a>
+    {{end}}
+  </td>
+  <td>
+    {{if .BabyName}}👶 {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
+    {{if .MomCondition}}<br><small class="muted">Mom: {{.MomCondition}}</small>{{end}}
+  </td>
+  <td>{{.ServiceName}}</td>
+  <td>👩‍⚕️ {{.StaffName}}</td>
+  <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
+  <td>
+    <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>
+    <small>{{formatIDR .PriceIDR}}</small>
+  </td>
+  <td>
+    <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Edit / Status</a>
+  </td>
+</tr>
+{{else}}
+<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">No bookings found matching filters.</td></tr>
+{{end}}
+{{end}}

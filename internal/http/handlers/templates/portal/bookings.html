@@ -2,15 +2,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Manage Bookings — Staff Portal</title>
-  <link rel="stylesheet" href="/static/css/app.css">
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
-  <script src="/static/js/htmx.min.js" defer></script>
+  {{template "head" .}}
 </head>
 <body>
   {{template "header" .}}
+  {{template "toast-region" .}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <h1 class="page-title" style="margin-bottom:0.2rem;">Bookings Management</h1>
@@ -20,9 +17,12 @@
     {{template "portal_nav" dict "Active" "bookings" "User" .User}}
 
     <div class="panel">
-      <form method="get" action="/portal/bookings" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+      <form method="get" action="/portal/bookings"
+        hx-get="/portal/bookings" hx-target="#booking-rows" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#booking-ind"
+        style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
         <label style="flex:1; min-width:180px;">Search Mom / Phone / Baby
-          <input type="text" name="q" value="{{.Search}}" placeholder="Name, WhatsApp, Baby name...">
+          <input type="search" name="q" value="{{.Search}}" placeholder="Name, WhatsApp, Baby name..."
+            autocomplete="off" hx-trigger="keyup changed delay:300ms, search">
         </label>
         <label>Date
           <input type="date" name="date" value="{{.Date}}">
@@ -39,7 +39,7 @@
             <option value="no_show" {{if eq .Status "no_show"}}selected{{end}}>No Show</option>
           </select>
         </label>
-        <button type="submit" class="btn" style="height:44px;">Filter</button>
+        <button type="submit" class="btn" style="height:44px;" hx-disabled-elt="this">Filter <span id="booking-ind" class="htmx-indicator spinner" aria-hidden="true"></span></button>
         {{if or .Search .Date .Status}}
           <a href="/portal/bookings" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">Reset</a>
         {{end}}
@@ -47,7 +47,7 @@
     </div>
 
     <div class="panel">
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;" class="table-cards" aria-live="polite">
         <table class="table">
           <thead>
             <tr>
@@ -61,41 +61,8 @@
               <th>Action</th>
             </tr>
           </thead>
-          <tbody>
-          {{range .Bookings}}
-            <tr>
-              <td>
-                <strong>{{formatTime .StartAt "Mon, 02 Jan 15:04"}}</strong><br>
-                <small class="muted">{{formatTime .EndAt "15:04"}} ({{.LocationName}})</small>
-              </td>
-              <td>
-                <strong>{{.CustomerName}}</strong><br>
-                <small>{{.CustomerPhone}}</small>
-                {{if .CustomerPhone}}
-                  <br>
-                  <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "Mon, 02 Jan 15:04") .LocationName}}" target="_blank" class="btn-wa btn-sm" style="margin-top:0.25rem;">
-                    💬 WA
-                  </a>
-                {{end}}
-              </td>
-              <td>
-                {{if .BabyName}}👶 {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
-                {{if .MomCondition}}<br><small class="muted">Mom: {{.MomCondition}}</small>{{end}}
-              </td>
-              <td>{{.ServiceName}}</td>
-              <td>👩‍⚕️ {{.StaffName}}</td>
-              <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
-              <td>
-                <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>
-                <small>{{formatIDR .PriceIDR}}</small>
-              </td>
-              <td>
-                <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Edit / Status</a>
-              </td>
-            </tr>
-          {{else}}
-            <tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">No bookings found matching filters.</td></tr>
-          {{end}}
+          <tbody id="booking-rows">
+          {{template "portal_booking_rows.html" .}}
           </tbody>
         </table>
       </div>

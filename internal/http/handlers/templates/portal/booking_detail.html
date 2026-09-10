@@ -2,15 +2,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Booking #{{.Booking.ID}} — Staff Portal</title>
-  <link rel="stylesheet" href="/static/css/app.css">
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800" rel="stylesheet">
-  <script src="/static/js/htmx.min.js" defer></script>
+  {{template "head" .}}
 </head>
 <body>
   {{template "header" .}}
+  {{template "toast-region" .}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
@@ -82,36 +79,37 @@
           <h2>Frontdesk Status Actions</h2>
           <p class="muted">Update the appointment state through the clinic workflow:</p>
 
-          <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack">
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/status" hx-swap="none">
             <input type="hidden" name="csrf" value="{{.CSRF}}">
             <label>Staff Note for this Status Change (optional)
-              <input type="text" name="note" placeholder="e.g. Arrived on time with baby">
+              <input type="text" name="note" placeholder="e.g. Arrived on time with baby" autocomplete="off">
             </label>
 
             <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
               {{if eq (printf "%s" .Booking.Status) "confirmed"}}
-                <button type="submit" name="status" value="checked_in" class="btn" style="background:#0284c7;">
+                <button type="submit" name="status" value="checked_in" class="btn" style="background:#0284c7;" hx-disabled-elt="this">
                   📍 Mark Checked-In (In Lobby)
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "checked_in")}}
-                <button type="submit" name="status" value="in_service" class="btn" style="background:#d97706;">
+                <button type="submit" name="status" value="in_service" class="btn" style="background:#d97706;" hx-disabled-elt="this">
                   💆‍♀️ Start In-Service (In Room)
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "in_service") (eq (printf "%s" .Booking.Status) "checked_in")}}
-                <button type="submit" name="status" value="completed" class="btn" style="background:#16a34a;">
+                <button type="submit" name="status" value="completed" class="btn" style="background:#16a34a;" hx-disabled-elt="this">
                   ✅ Mark Completed
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "pending_payment")}}
-                <button type="submit" name="status" value="no_show" class="btn secondary on-light" onclick="return confirm('Mark as No-Show?')">
+                <button type="submit" name="status" value="no_show" class="btn secondary on-light" hx-confirm="Mark as No-Show?" hx-disabled-elt="this">
                   ⚠️ Mark No-Show
                 </button>
-                <button type="submit" name="status" value="cancelled" class="btn secondary on-light" style="color:var(--danger);" onclick="return confirm('Cancel this booking?')">
+                <button type="submit" name="status" value="cancelled" class="btn secondary on-light" style="color:var(--danger);" hx-confirm="Cancel this booking?" hx-disabled-elt="this">
                   ❌ Cancel Booking
                 </button>
               {{end}}

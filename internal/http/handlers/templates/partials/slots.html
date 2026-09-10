@@ -1,11 +1,13 @@
 {{define "slots_partial.html"}}
 <div class="stack">
   <strong>Available slots</strong>
-  {{if .SlotsError}}<p class="error">{{.SlotsError}}</p>{{end}}
+  {{if .SlotsError}}<p class="error" role="alert">{{.SlotsError}}</p>{{end}}
   {{if .Slots}}
-  <div class="slot-grid">
+  <div class="slot-grid" role="group" aria-label="Available time slots">
     {{range .Slots}}
-    <button type="button" class="slot" data-start="{{.StartAt.Format "2006-01-02T15:04:05Z07:00"}}" data-staff="{{.StaffID}}">
+    <button type="button" class="slot" aria-pressed="false"
+      data-start="{{.StartAt.Format "2006-01-02T15:04:05Z07:00"}}" data-staff="{{.StaffID}}"
+      @click="pick($el.dataset.start, $el.dataset.staff)">
       {{formatTime .StartAt "15:04"}}
     </button>
     {{end}}

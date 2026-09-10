@@ -1,0 +1,6 @@
+{{define "toast.html"}}
+<div class="toast toast-{{.Kind}}" role="status" x-data="{show:true}" x-show="show" x-transition>
+  <span>{{.Message}}</span>
+  <button type="button" class="toast-close" aria-label="Dismiss" @click="show=false">×</button>
+</div>
+{{end}}

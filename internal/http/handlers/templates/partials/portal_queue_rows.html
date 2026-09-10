@@ -1,0 +1,33 @@
+{{define "portal_queue_rows.html"}}
+{{range .TodayBookings}}
+<tr>
+  <td><strong>{{formatTime .StartAt "15:04"}} - {{formatTime .EndAt "15:04"}}</strong></td>
+  <td>
+    <div><strong>{{.CustomerName}}</strong></div>
+    {{if .CustomerPhone}}
+      <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "15:04") .LocationName}}" target="_blank" class="btn-wa btn-sm" title="Send WhatsApp">
+        💬 WhatsApp
+      </a>
+    {{end}}
+  </td>
+  <td>
+    {{if .BabyName}}👶 {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
+    {{if .MomCondition}}<br><small class="muted">Mom: {{.MomCondition}}</small>{{end}}
+  </td>
+  <td>{{.ServiceName}}</td>
+  <td>👩‍⚕️ {{.StaffName}}</td>
+  <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
+  <td>
+    <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>
+    <small>{{formatIDR .PriceIDR}}</small>
+  </td>
+  <td>
+    <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+      <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Manage</a>
+    </div>
+  </td>
+</tr>
+{{else}}
+<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">No bookings scheduled for today yet.</td></tr>
+{{end}}
+{{end}}
