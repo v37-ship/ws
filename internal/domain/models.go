@@ -57,6 +57,56 @@ type Service struct {
 	UpdatedAt   time.Time
 }
 
+type EmploymentType string
+
+const (
+	EmploymentFullTime  EmploymentType = "full_time"
+	EmploymentPartTime  EmploymentType = "part_time"
+	EmploymentContract  EmploymentType = "contract"
+	EmploymentFreelance EmploymentType = "freelance"
+)
+
+func (e EmploymentType) Display() string {
+	switch e {
+	case EmploymentFullTime:
+		return "Full-time"
+	case EmploymentPartTime:
+		return "Part-time"
+	case EmploymentContract:
+		return "Contract"
+	case EmploymentFreelance:
+		return "Freelance"
+	default:
+		return string(e)
+	}
+}
+
+type Job struct {
+	ID             uuid.UUID
+	Title          string
+	LocationID     *uuid.UUID
+	LocationName   string
+	EmploymentType EmploymentType
+	Description    string
+	Requirements   string
+	Active         bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type JobApplication struct {
+	ID             uuid.UUID
+	JobID          uuid.UUID
+	JobTitle       string
+	FullName       string
+	Email          string
+	Phone          string
+	Message        string
+	CVFilename     string
+	CVOriginalName string
+	CreatedAt      time.Time
+}
+
 type Staff struct {
 	ID         uuid.UUID
 	LocationID uuid.UUID

@@ -1,0 +1,46 @@
+{{define "admin_job_applications.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Applications — {{.Job.Title}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack">
+    <nav class="admin-nav"><a href="/admin">Admin</a> / <a href="/admin/jobs">Jobs</a></nav>
+    <h1>Applications: {{.Job.Title}}</h1>
+    <p class="muted">{{.Job.EmploymentType.Display}}{{if .Job.LocationName}} · {{.Job.LocationName}}{{end}}</p>
+
+    <div class="panel table-cards">
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead><tr><th>Applied</th><th>Name</th><th>Contact</th><th>Message</th><th>CV</th></tr></thead>
+          <tbody>
+          {{range .Applications}}
+            <tr>
+              <td><small>{{formatTime .CreatedAt "02 Jan 2006 15:04"}}</small></td>
+              <td><strong>{{.FullName}}</strong></td>
+              <td><small>{{.Phone}}<br>{{.Email}}</small></td>
+              <td><small>{{if .Message}}{{.Message}}{{else}}<span class="muted">-</span>{{end}}</small></td>
+              <td>
+                {{if .CVFilename}}
+                  <a class="btn secondary on-light btn-sm" href="/admin/applications/{{.ID}}/cv" download="{{.CVOriginalName}}">⬇ {{.CVOriginalName}}</a>
+                {{else}}
+                  <span class="muted">-</span>
+                {{end}}
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="5" class="muted" style="text-align:center; padding:2rem;">No applications yet.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

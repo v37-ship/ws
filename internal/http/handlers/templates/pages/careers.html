@@ -1,0 +1,57 @@
+{{define "careers.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Careers — Wangga: Baby &amp; Mom Spa</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack" style="max-width:760px; margin:0 auto;">
+    <section class="section-head">
+      <h1 class="page-title">Join the Wangga family</h1>
+      <p>We're hiring gentle hands and warm hearts — therapists, bidan, and frontdesk staff. Apply below with your contact info and CV.</p>
+    </section>
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    {{range .Jobs}}
+    <article class="panel stack">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap;">
+        <h2 style="margin:0;">{{.Title}}</h2>
+        <span class="pill-row"><span class="pill">{{.EmploymentType.Display}}</span>{{if .LocationName}}<span class="pill mint">{{.LocationName}}</span>{{else}}<span class="pill mint">All branches</span>{{end}}</span>
+      </div>
+      {{if .Description}}<p>{{.Description}}</p>{{end}}
+      {{if .Requirements}}
+      <details>
+        <summary style="cursor:pointer; font-weight:700;">Requirements</summary>
+        <p style="white-space:pre-wrap;">{{.Requirements}}</p>
+      </details>
+      {{end}}
+      <details class="stack" style="background:var(--bg-2); border-radius:.9rem; padding:.9rem 1rem;">
+        <summary style="cursor:pointer; font-weight:800; color:var(--accent-deep);">Apply for this position</summary>
+        <form class="stack" method="post" action="/careers/{{.ID}}/apply" enctype="multipart/form-data">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+            <label>Full name <input name="full_name" required autocomplete="name"></label>
+            <label>Phone / WhatsApp <input name="phone" required autocomplete="tel" placeholder="08xx…"></label>
+          </div>
+          <label>Email <input type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label>Message <textarea name="message" rows="2" placeholder="Tell us briefly about your experience"></textarea></label>
+          <label>CV (PDF/DOC/JPG/PNG, max 5 MB) <input type="file" name="cv" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></label>
+          <button class="btn" type="submit">Submit application</button>
+        </form>
+      </details>
+    </article>
+    {{else}}
+    <div class="panel stack" style="text-align:center; align-items:center;">
+      <p class="muted">No openings right now — check back soon, or say hello on WhatsApp.</p>
+      <a class="btn secondary" href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin menanyakan lowongan pekerjaan."}}" target="_blank" rel="noopener">💬 Ask about openings</a>
+    </div>
+    {{end}}
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}
