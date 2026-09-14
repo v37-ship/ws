@@ -124,7 +124,7 @@ func (r *CatalogRepo) UpdateService(ctx context.Context, s *domain.Service) erro
 }
 
 func (r *CatalogRepo) ListStaff(ctx context.Context, locationID uuid.UUID, activeOnly bool) ([]domain.Staff, error) {
-	q := `SELECT id, location_id, name, bio, active, created_at, updated_at FROM staff WHERE location_id=$1`
+	q := `SELECT id, location_id, name, bio, active, photo_path, photo_url, created_at, updated_at FROM staff WHERE location_id=$1`
 	if activeOnly {
 		q += ` AND active=true`
 	}
@@ -137,7 +137,7 @@ func (r *CatalogRepo) ListStaff(ctx context.Context, locationID uuid.UUID, activ
 	var out []domain.Staff
 	for rows.Next() {
 		var s domain.Staff
-		if err := rows.Scan(&s.ID, &s.LocationID, &s.Name, &s.Bio, &s.Active, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.LocationID, &s.Name, &s.Bio, &s.Active, &s.PhotoPath, &s.PhotoURL, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -146,9 +146,9 @@ func (r *CatalogRepo) ListStaff(ctx context.Context, locationID uuid.UUID, activ
 }
 
 func (r *CatalogRepo) StaffByID(ctx context.Context, id uuid.UUID) (*domain.Staff, error) {
-	const q = `SELECT id, location_id, name, bio, active, created_at, updated_at FROM staff WHERE id=$1`
+	const q = `SELECT id, location_id, name, bio, active, photo_path, photo_url, created_at, updated_at FROM staff WHERE id=$1`
 	var s domain.Staff
-	err := r.pool.QueryRow(ctx, q, id).Scan(&s.ID, &s.LocationID, &s.Name, &s.Bio, &s.Active, &s.CreatedAt, &s.UpdatedAt)
+	err := r.pool.QueryRow(ctx, q, id).Scan(&s.ID, &s.LocationID, &s.Name, &s.Bio, &s.Active, &s.PhotoPath, &s.PhotoURL, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -162,13 +162,14 @@ func (r *CatalogRepo) CreateStaff(ctx context.Context, s *domain.Staff) error {
 	if s.ID == uuid.Nil {
 		s.ID = uuid.New()
 	}
-	const q = `INSERT INTO staff (id, location_id, name, bio, active) VALUES ($1,$2,$3,$4,$5) RETURNING created_at, updated_at`
-	return r.pool.QueryRow(ctx, q, s.ID, s.LocationID, s.Name, s.Bio, s.Active).Scan(&s.CreatedAt, &s.UpdatedAt)
+	const q = `INSERT INTO staff (id, location_id, name, bio, active, photo_path, photo_url) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING created_at, updated_at`
+	return r.pool.QueryRow(ctx, q, s.ID, s.LocationID, s.Name, s.Bio, s.Active, s.PhotoPath, s.PhotoURL).Scan(&s.CreatedAt, &s.UpdatedAt)
 }
 
 func (r *CatalogRepo) UpdateStaff(ctx context.Context, s *domain.Staff) error {
-	const q = `UPDATE staff SET name=$2, bio=$3, active=$4, updated_at=now() WHERE id=$1 RETURNING updated_at`
-	return r.pool.QueryRow(ctx, q, s.ID, s.Name, s.Bio, s.Active).Scan(&s.UpdatedAt)
+	const q = `UPDATE staff SET name=$2, bio=$3, active=$4, photo_path=$5, photo_url=$6, updated_at=now()
+		WHERE id=$1 RETURNING updated_at`
+	return r.pool.QueryRow(ctx, q, s.ID, s.Name, s.Bio, s.Active, s.PhotoPath, s.PhotoURL).Scan(&s.UpdatedAt)
 }
 
 func (r *CatalogRepo) SetStaffServices(ctx context.Context, staffID uuid.UUID, serviceIDs []uuid.UUID) error {
@@ -189,7 +190,7 @@ func (r *CatalogRepo) SetStaffServices(ctx context.Context, staffID uuid.UUID, s
 }
 
 func (r *CatalogRepo) StaffForService(ctx context.Context, locationID, serviceID uuid.UUID) ([]domain.Staff, error) {
-	const q = `SELECT s.id, s.location_id, s.name, s.bio, s.active, s.created_at, s.updated_at
+	const q = `SELECT s.id, s.location_id, s.name, s.bio, s.active, s.photo_path, s.photo_url, s.created_at, s.updated_at
 		FROM staff s
 		JOIN staff_services ss ON ss.staff_id = s.id
 		WHERE s.location_id=$1 AND ss.service_id=$2 AND s.active=true
@@ -202,7 +203,7 @@ func (r *CatalogRepo) StaffForService(ctx context.Context, locationID, serviceID
 	var out []domain.Staff
 	for rows.Next() {
 		var s domain.Staff
-		if err := rows.Scan(&s.ID, &s.LocationID, &s.Name, &s.Bio, &s.Active, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.LocationID, &s.Name, &s.Bio, &s.Active, &s.PhotoPath, &s.PhotoURL, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -414,5 +415,20 @@ func (r *CatalogRepo) ToggleServiceActive(ctx context.Context, id uuid.UUID) err
 
 func (r *CatalogRepo) ToggleStaffActive(ctx context.Context, id uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `UPDATE staff SET active = NOT active, updated_at=now() WHERE id=$1`, id)
+	return err
+}
+
+// StaffBookingCount reports how many bookings reference a therapist.
+// Bookings use ON DELETE RESTRICT, so history must be absent for removal.
+func (r *CatalogRepo) StaffBookingCount(ctx context.Context, staffID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM bookings WHERE staff_id=$1`, staffID).Scan(&n)
+	return n, err
+}
+
+// DeleteStaff removes a therapist; hours, service mapping, and time-off
+// rows cascade. Fails on RESTRICT when booking history exists.
+func (r *CatalogRepo) DeleteStaff(ctx context.Context, staffID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM staff WHERE id=$1`, staffID)
 	return err
 }

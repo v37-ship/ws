@@ -188,6 +188,16 @@ func SummarizeServiceHours(hours []domain.ServiceHours) string {
 	}
 	return strings.Join(parts, " · ")
 }
+
+// ResolveStaffPhoto picks the display picture: local upload first, then
+// internet link, then "" (templates fall back to an avatar placeholder).
+func ResolveStaffPhoto(st domain.Staff) string {
+	if st.PhotoPath != "" {
+		return "/uploads/staff/" + path.Base(st.PhotoPath)
+	}
+	return strings.TrimSpace(st.PhotoURL)
+}
+
 func KeywordServiceImage(name string) string {
 	n := strings.ToLower(name)
 	switch {
@@ -217,6 +227,9 @@ func (s *CatalogService) SaveStaff(ctx context.Context, st *domain.Staff, servic
 	if st.Name == "" || st.LocationID == uuid.Nil {
 		return fmt.Errorf("%w: invalid staff", ErrValidation)
 	}
+	if err := ValidateImageURL(st.PhotoURL); err != nil {
+		return err
+	}
 	if st.ID == uuid.Nil {
 		st.Active = true
 		if err := s.catalog.CreateStaff(ctx, st); err != nil {
@@ -242,6 +255,19 @@ func (s *CatalogService) StaffForService(ctx context.Context, locationID, servic
 
 func (s *CatalogService) StaffServiceIDs(ctx context.Context, staffID uuid.UUID) ([]uuid.UUID, error) {
 	return s.catalog.StaffServiceIDs(ctx, staffID)
+}
+
+// DeleteStaff removes a therapist only when no booking history references
+// them; otherwise it refuses so CS pauses the profile instead.
+func (s *CatalogService) DeleteStaff(ctx context.Context, staffID uuid.UUID) error {
+	n, err := s.catalog.StaffBookingCount(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: therapist has booking history — pause instead of removing", ErrValidation)
+	}
+	return s.catalog.DeleteStaff(ctx, staffID)
 }
 
 func (s *CatalogService) ListStaffTimeOff(ctx context.Context, staffID uuid.UUID) ([]domain.StaffTimeOff, error) {

@@ -123,6 +123,8 @@ type Staff struct {
 	Name       string
 	Bio        string
 	Active     bool
+	PhotoPath  string // local upload under uploads/staff/
+	PhotoURL   string // internet picture link
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
