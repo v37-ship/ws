@@ -5,11 +5,13 @@
     <span class="brand-sub">Baby &amp; Mom Spa</span>
   </a>
   <nav class="nav">
-    <a href="/book">Book</a>
+    <a href="/services">Services</a>
     {{if .User}}
       {{if .User.Role.IsStaff}}
+        <a href="/portal/bookings/new" style="font-weight:800;">➕ New Booking</a>
         <a href="/portal" style="color:var(--accent-deep); font-weight:800;">🏥 Staff Portal</a>
       {{else}}
+        <a href="/book">Book</a>
         <a href="/bookings">My bookings</a>
       {{end}}
       {{if eq (printf "%s" .User.Role) "admin"}}
@@ -21,6 +23,7 @@
         <button class="linkish" type="submit">Log out</button>
       </form>
     {{else}}
+      <a href="/book">Book</a>
       <a href="/login">Log in</a>
       <a href="/register">Register</a>
     {{end}}

@@ -12,3 +12,5 @@ bin/
 .DS_Store
 .vscode/
 .idea/
+
+uploads/

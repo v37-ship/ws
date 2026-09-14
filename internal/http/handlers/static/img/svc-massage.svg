@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Mom massage illustration">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff7f2"/>
+      <stop offset="1" stop-color="#ffe8d6"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <circle cx="80" cy="70" r="52" fill="#ffe3c2" opacity="0.8"/>
+  <circle cx="330" cy="240" r="66" fill="#ffffff" opacity="0.5"/>
+  <g transform="translate(200 150)">
+    <g fill="#ff4d8d" opacity="0.85">
+      <ellipse cx="0" cy="-52" rx="20" ry="44"/>
+      <ellipse cx="0" cy="52" rx="20" ry="44"/>
+      <ellipse cx="-49" cy="-18" rx="20" ry="44" transform="rotate(-72 -49 -18)"/>
+      <ellipse cx="49" cy="-18" rx="20" ry="44" transform="rotate(72 49 -18)"/>
+      <ellipse cx="-30" cy="42" rx="20" ry="44" transform="rotate(-36 -30 42)"/>
+      <ellipse cx="30" cy="42" rx="20" ry="44" transform="rotate(36 30 42)"/>
+    </g>
+    <circle r="22" fill="#ffb020"/>
+    <circle r="12" fill="#fff7f2"/>
+  </g>
+  <rect x="120" y="248" width="160" height="14" rx="7" fill="#0ea5a0" opacity="0.7"/>
+</svg>

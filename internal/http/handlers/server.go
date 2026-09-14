@@ -34,6 +34,7 @@ type Server struct {
 	catalog    *service.CatalogService
 	avail      *service.AvailabilityService
 	book       *service.BookingService
+	career     *service.CareerService
 	tpl        *template.Template
 	csrfSecure bool
 }
@@ -45,6 +46,7 @@ func New(
 	catalog *service.CatalogService,
 	avail *service.AvailabilityService,
 	book *service.BookingService,
+	career *service.CareerService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -88,6 +90,35 @@ func New(
 			}
 			return dict, nil
 		},
+		"waInquire": func(serviceName, locName string) string {
+			msg := fmt.Sprintf("Halo Wangga: Baby & Mom Spa! Saya ingin bertanya tentang layanan %s di %s. Apakah masih tersedia?", serviceName, locName)
+			return "https://wa.me/?text=" + url.QueryEscape(msg)
+		},
+		"waLink": func(phone, msg string) string {
+			digits := strings.Map(func(r rune) rune {
+				if r >= '0' && r <= '9' {
+					return r
+				}
+				return -1
+			}, phone)
+			return "https://wa.me/" + digits + "?text=" + url.QueryEscape(msg)
+		},
+		"serviceImg": func(name string) string {
+			n := strings.ToLower(name)
+			switch {
+			case strings.Contains(n, "baby") || strings.Contains(n, "kid") || strings.Contains(n, "child"):
+				return "/static/img/svc-baby.svg"
+			case strings.Contains(n, "facial") || strings.Contains(n, "face") || strings.Contains(n, "glow"):
+				return "/static/img/svc-facial.svg"
+			case strings.Contains(n, "foot") || strings.Contains(n, "reflex") || strings.Contains(n, "pedicure") || strings.Contains(n, "kaki"):
+				return "/static/img/svc-foot.svg"
+			case strings.Contains(n, "mom") || strings.Contains(n, "massage") || strings.Contains(n, "recovery") ||
+				strings.Contains(n, "maternity") || strings.Contains(n, "postpartum") || strings.Contains(n, "pijat"):
+				return "/static/img/svc-massage.svg"
+			default:
+				return "/static/img/svc-default.svg"
+			}
+		},
 		"waURL": func(phone, customerName, serviceName, staffName, whenStr, locName string) string {
 			cleanPhone := strings.TrimSpace(phone)
 			cleanPhone = strings.ReplaceAll(cleanPhone, "-", "")
@@ -114,7 +145,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, career: career,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -129,6 +160,13 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	token := s.ensureCSRF(w, r)
 	data["CSRF"] = token
 	data["Request"] = r
+	data["Contact"] = pageData{
+		"WhatsApp": s.cfg.ContactWhatsApp,
+		"Email":    s.cfg.ContactEmail,
+		"Address":  s.cfg.ContactAddress,
+		"Hours":    s.cfg.ContactHours,
+		"Maps":     s.cfg.ContactMapsURL,
+	}
 	var buf bytes.Buffer
 	if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 		s.log.Error("template", "name", name, "err", err)
@@ -258,6 +296,11 @@ func (s *Server) Routes(r chi.Router) {
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
 
 	r.Get("/", s.Home)
+	r.Get("/services", s.ServicesPage)
+	r.Get("/careers", s.CareersPage)
+	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
+		return "apply:" + req.RemoteAddr
+	})).Post("/careers/{id}/apply", s.ApplyForJob)
 	r.Get("/login", s.LoginForm)
 	r.With(middleware.RateLimit(loginLimiter, func(req *http.Request) string {
 		return "login:" + req.RemoteAddr
@@ -306,6 +349,7 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/schedule/time-off/{id}/delete", s.PortalDeleteTimeOff)
 
 		pr.Get("/services", s.PortalServices)
+		pr.Post("/services", s.PortalCreateService)
 		pr.Post("/services/{id}/toggle", s.PortalToggleService)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})
@@ -316,8 +360,10 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/", s.AdminHome)
 		ar.Get("/locations", s.AdminLocations)
 		ar.Post("/locations", s.AdminCreateLocation)
-		ar.Get("/services", s.AdminServices)
-		ar.Post("/services", s.AdminCreateService)
+		// Services moved to the staff portal; keep old admin URL working.
+		ar.Get("/services", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/portal/services", http.StatusSeeOther)
+		})
 		ar.Get("/staff", s.AdminStaff)
 		ar.Post("/staff", s.AdminCreateStaff)
 		ar.Get("/staff/{id}/hours", s.AdminStaffHours)
@@ -329,6 +375,13 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Post("/cs", s.AdminCreateCS)
 		ar.Post("/cs/{id}/toggle-active", s.AdminToggleCSActive)
 		ar.Post("/cs/{id}/reset-password", s.AdminResetCSPassword)
+
+		// Job openings & applications
+		ar.Get("/jobs", s.AdminJobs)
+		ar.Post("/jobs", s.AdminCreateJob)
+		ar.Post("/jobs/{id}/toggle", s.AdminToggleJob)
+		ar.Get("/jobs/{id}/applications", s.AdminJobApplications)
+		ar.Get("/applications/{id}/cv", s.AdminDownloadCV)
 
 		// Customer password reset
 		ar.Get("/customers/{id}/reset-password", s.AdminCustomerResetForm)

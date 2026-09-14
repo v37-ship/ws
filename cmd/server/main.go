@@ -47,6 +47,7 @@ func main() {
 	catalogRepo := repo.NewCatalogRepo(pool)
 	bookings := repo.NewBookingRepo(pool)
 	payments := repo.NewPaymentRepo(pool)
+	careers := repo.NewCareerRepo(pool)
 
 	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
 	catalogSvc := service.NewCatalogService(catalogRepo)
@@ -54,6 +55,12 @@ func main() {
 	mailer := email.NewSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
 	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
+	careerSvc := service.NewCareerService(careers)
+
+	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
+		log.Error("upload dir", "err", err)
+		os.Exit(1)
+	}
 
 	if err := authSvc.EnsureAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword, "Wangga Admin"); err != nil {
 		log.Error("ensure admin", "err", err)
@@ -64,7 +71,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, careerSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

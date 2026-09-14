@@ -12,16 +12,49 @@
     <span class="blob blob-a"></span>
     <span class="blob blob-b"></span>
     <div class="hero-inner">
-      <p class="hero-tag">Baby &amp; Mom Spa</p>
-      <h1 class="hero-brand">Wangga</h1>
-      <p class="hero-copy">Gentle care for little ones and restful treatments for moms — book baby spa, massage, and mom recovery in a bright, cozy studio.</p>
+      <p class="hero-tag">Baby &amp; Mom Spa · Jakarta</p>
+      <h1 class="hero-brand">Gentle beginnings, rested moms</h1>
+      <p class="hero-copy">Warm baby spa, maternity &amp; postpartum massage by certified bidan — booked in minutes, paid with QRIS.</p>
       <div class="form-actions">
-        <a class="btn" href="/book">Book a session</a>
-        {{if not .User}}<a class="btn secondary" href="/register">Create account</a>{{end}}
+        <a class="btn big" href="/book">Book a session</a>
+        <a class="btn secondary" href="/services">Browse services</a>
+      </div>
+      <div class="hero-stats">
+        <div><strong>✓</strong><span class="muted">Certified bidan &amp; therapists</span></div>
+        <div><strong>QRIS</strong><span class="muted">instant payment</span></div>
+        <div><strong>Today</strong><span class="muted">same-day slots &amp; walk-ins</span></div>
       </div>
     </div>
   </section>
   <main>
+    <section class="section-head">
+      <h2>Booking in 3 easy steps</h2>
+      <p>From couch to cozy studio in under two minutes.</p>
+    </section>
+    <section class="how-grid" style="margin-bottom:2rem">
+      <article class="how-step"><h3>1 · Pick a treatment</h3><p class="muted">Choose a location and service with photos, prices, and durations.</p></article>
+      <article class="how-step"><h3>2 · Choose your time</h3><p class="muted">See live availability — dimmed times are already taken.</p></article>
+      <article class="how-step"><h3>3 · Pay with QRIS</h3><p class="muted">Scan, pay, and get confirmation. Walk-ins welcome too.</p></article>
+    </section>
+
+    <section class="section-head">
+      <h2>Popular treatments</h2>
+      <p>A taste of the menu — <a href="/services">see all services</a>.</p>
+    </section>
+    <section class="grid three" style="margin-bottom:2rem">
+      {{range .PreviewServices}}
+      <article class="panel stack service-card">
+        <img src="{{serviceImg .Name}}" alt="{{.Name}} illustration" loading="lazy"
+          style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">
+        <h3 style="margin:0;">{{.Name}}</h3>
+        <div class="pill-row"><span class="pill">{{.DurationMin}} min</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></div>
+        <a class="btn mint" href="/book?location_id={{.LocationID}}">Book here</a>
+      </article>
+      {{else}}
+      <p class="muted">Treatments coming soon.</p>
+      {{end}}
+    </section>
+
     <section class="section-head">
       <h2>Why families choose Wangga</h2>
       <p>Soft care, certified therapists, and easy online booking with QRIS.</p>
@@ -48,11 +81,12 @@
       <h2>Visit us</h2>
       <p>Choose a location and reserve your next Wangga moment.</p>
     </section>
-    <section class="grid two">
+    <section class="grid two" style="margin-bottom:2rem">
       {{range .Locations}}
       <article class="panel location-tile">
         <h2>{{.Name}}</h2>
         <p class="muted">{{.Address}}, {{.City}}</p>
+        <p><a href="{{$.Contact.Maps}}" target="_blank" rel="noopener">📍 View on Google Maps</a></p>
         <div class="pill-row">
           <span class="pill">Baby spa</span>
           <span class="pill mint">Mom care</span>
@@ -64,7 +98,21 @@
       <p class="muted">No locations yet.</p>
       {{end}}
     </section>
+
+    <section class="cta-band">
+      <h2 style="margin-top:0;">Ready for some calm?</h2>
+      <p class="muted">Same-day slots often available. Come as you are.</p>
+      <a class="btn big" href="/book">Book a session</a>
+    </section>
+
+    {{if .OpenJobCount}}
+    <section class="panel stack" style="margin-top:1.5rem; text-align:center; align-items:center;">
+      <p style="margin:0;">💼 <strong>We're hiring!</strong> {{.OpenJobCount}} open position{{if ne .OpenJobCount 1}}s{{end}} — join the Wangga family.</p>
+      <a class="btn secondary" href="/careers">See openings</a>
+    </section>
+    {{end}}
   </main>
+  {{template "footer" .}}
 </body>
 </html>
 {{end}}

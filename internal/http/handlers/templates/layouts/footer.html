@@ -1,0 +1,28 @@
+{{define "footer"}}
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div>
+      <div class="brand-mark">Wangga</div>
+      <div class="brand-sub">Baby &amp; Mom Spa</div>
+      <p class="muted">Gentle care for little ones and restful treatments for moms.</p>
+    </div>
+    <div>
+      <h3>Contact us</h3>
+      <p><a href="{{.Contact.Maps}}" target="_blank" rel="noopener">📍 {{.Contact.Address}}</a></p>
+      <p>🕒 {{.Contact.Hours}}</p>
+      <p>
+        <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin bertanya."}}" target="_blank" rel="noopener">💬 WhatsApp</a><br>
+        <a href="mailto:{{.Contact.Email}}">✉️ {{.Contact.Email}}</a>
+      </p>
+    </div>
+    <div>
+      <h3>Explore</h3>
+      <p><a href="/services">Services</a><br>
+      <a href="/book">Book a session</a><br>
+      <a href="/careers">Careers</a><br>
+      <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin menyampaikan laporan/masukan."}}" target="_blank" rel="noopener">Report &amp; feedback</a></p>
+    </div>
+  </div>
+  <div class="footer-bottom muted">© 2026 Wangga: Baby &amp; Mom Spa · All rights reserved</div>
+</footer>
+{{end}}

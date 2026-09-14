@@ -32,6 +32,7 @@ make run
 - Book spa appointments (select location, service, therapist/bidan, date, and slot).
 - Pay booking fees or full services via Midtrans QRIS.
 - View booking history and status.
+- Cancel with reconfirmation: unpaid bookings cancel free; paid bookings show a WhatsApp refund button with the booking reference prefilled (reason is logged for CS).
 
 ### 2. Customer Service (CS / Frontdesk) — `/portal`
 - **Live Clinic Dashboard**: Real-time queue (`Confirmed`, `Checked-in`, `In-service`, `Completed`, `No-show`).
@@ -48,8 +49,15 @@ make run
 ### 3. Admin — `/admin`
 - Everything CS can do.
 - **CS Staff Management** (`/admin/cs`): Create CS staff accounts, toggle active/deactivate (instantly revoking sessions), and reset CS passwords.
+- **Job Openings** (`/admin/jobs`): Post vacancies for the public Careers page, close/reopen them, review applications, and download CVs.
 - **Customer Password Reset** (`/admin/customers/{id}/reset-password`).
 - **Master Catalog & Locations**: Manage branch locations, business hours, and base service pricing.
+
+## Careers
+
+- Public page `/careers` lists open positions with an apply form (name, phone, email, message, CV upload up to 5 MB: PDF/DOC/JPG/PNG).
+- CVs are stored in `UPLOAD_DIR` (`./uploads` locally, persisted via compose volume) and downloadable by admins only.
+- Configure site contact info shown in the footer via `CONTACT_PHONE/WHATSAPP/EMAIL/ADDRESS/HOURS`.
 
 ## Stack
 

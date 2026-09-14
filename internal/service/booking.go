@@ -335,7 +335,7 @@ func (s *BookingService) ListAdmin(ctx context.Context) ([]domain.Booking, error
 	return s.bookings.ListUpcoming(ctx, 100)
 }
 
-func (s *BookingService) Cancel(ctx context.Context, bookingID, actorID uuid.UUID, isStaff bool) error {
+func (s *BookingService) Cancel(ctx context.Context, bookingID, actorID uuid.UUID, isStaff bool, reason string) error {
 	b, err := s.bookings.ByID(ctx, bookingID)
 	if err != nil {
 		return err
@@ -346,7 +346,11 @@ func (s *BookingService) Cancel(ctx context.Context, bookingID, actorID uuid.UUI
 	if b.Status != domain.BookingConfirmed && b.Status != domain.BookingPendingPayment {
 		return fmt.Errorf("%w: cannot cancel booking with status %s", ErrValidation, b.Status)
 	}
-	return s.UpdateStatus(ctx, bookingID, domain.BookingCancelled, &actorID, "Cancelled by user/staff")
+	note := "Cancelled by user/staff"
+	if strings.TrimSpace(reason) != "" {
+		note += ": " + strings.TrimSpace(reason)
+	}
+	return s.UpdateStatus(ctx, bookingID, domain.BookingCancelled, &actorID, note)
 }
 
 func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []byte) error {

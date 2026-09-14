@@ -9,3 +9,4 @@ bin/
 docker/
 .vscode/
 .idea/
+uploads/

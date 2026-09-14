@@ -26,7 +26,22 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load locations", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "home.html", pageData{"Locations": locs})
+	var preview []domain.Service
+	for _, l := range locs {
+		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, true)
+		preview = append(preview, svcs...)
+		if len(preview) >= 6 {
+			break
+		}
+	}
+	if len(preview) > 6 {
+		preview = preview[:6]
+	}
+	openJobs, _ := s.career.ListJobs(r.Context(), true)
+	s.render(w, r, "home.html", pageData{
+		"Locations": locs, "PreviewServices": preview,
+		"OpenJobCount": len(openJobs),
+	})
 }
 
 func (s *Server) LoginForm(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +114,11 @@ func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) BookPage(w http.ResponseWriter, r *http.Request) {
+	// Staff always book on behalf of customers via the single portal flow.
+	if u := middleware.UserFrom(r.Context()); u != nil && u.Role.IsStaff() {
+		http.Redirect(w, r, "/portal/bookings/new", http.StatusSeeOther)
+		return
+	}
 	locs, err := s.catalog.ListLocations(r.Context(), true)
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
@@ -108,6 +128,7 @@ func (s *Server) BookPage(w http.ResponseWriter, r *http.Request) {
 		"Locations":  locs,
 		"LocationID": r.URL.Query().Get("location_id"),
 		"Date":       time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
+		"Days":       nextDays(14),
 	}
 	if lid, err := uuid.Parse(r.URL.Query().Get("location_id")); err == nil {
 		svcs, _ := s.catalog.ListServices(r.Context(), lid, true)
@@ -127,6 +148,10 @@ func (s *Server) BookServices(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
+	if r.URL.Query().Get("view") == "cards" {
+		s.renderPartial(w, r, "service_cards.html", pageData{"Services": svcs, "LocationID": lid.String()})
+		return
+	}
 	s.renderPartial(w, r, "services_partial.html", pageData{"Services": svcs, "LocationID": lid.String()})
 }
 
@@ -140,6 +165,10 @@ func (s *Server) BookStaff(w http.ResponseWriter, r *http.Request) {
 	staff, err := s.catalog.StaffForService(r.Context(), lid, sid)
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
+		return
+	}
+	if r.URL.Query().Get("view") == "cards" {
+		s.renderPartial(w, r, "staff_cards.html", pageData{"Staff": staff, "ServiceID": sid.String(), "LocationID": lid.String()})
 		return
 	}
 	s.renderPartial(w, r, "staff_partial.html", pageData{"Staff": staff, "ServiceID": sid.String(), "LocationID": lid.String()})
@@ -162,12 +191,79 @@ func (s *Server) BookSlots(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("staff_id"); v != "" {
 		staffID, _ = uuid.Parse(v)
 	}
-	slots, err := s.avail.Slots(r.Context(), lid, sid, staffID, day)
+	slots, err := s.avail.SlotsDetailed(r.Context(), lid, sid, staffID, day)
 	if err != nil {
 		s.renderPartial(w, r, "slots_partial.html", pageData{"SlotsError": err.Error()})
 		return
 	}
-	s.renderPartial(w, r, "slots_partial.html", pageData{"Slots": slots})
+	if r.URL.Query().Get("view") == "cards" {
+		s.renderPartial(w, r, "slot_groups.html", pageData{"SlotGroups": groupSlots(slots)})
+		return
+	}
+	free := make([]domain.Slot, 0, len(slots))
+	for _, s := range slots {
+		if s.Available {
+			free = append(free, s.Slot)
+		}
+	}
+	s.renderPartial(w, r, "slots_partial.html", pageData{"Slots": free})
+}
+
+type bookingDay struct {
+	Value   string
+	Weekday string
+	DayNum  string
+	Month   string
+}
+
+func nextDays(n int) []bookingDay {
+	wib := time.FixedZone("WIB", 7*3600)
+	now := time.Now().In(wib)
+	days := make([]bookingDay, 0, n)
+	for i := 0; i < n; i++ {
+		d := now.AddDate(0, 0, i)
+		label := "Today"
+		if i == 1 {
+			label = "Tomorrow"
+		} else if i > 1 {
+			label = d.Format("Mon")
+		}
+		days = append(days, bookingDay{
+			Value:   d.Format("2006-01-02"),
+			Weekday: label,
+			DayNum:  d.Format("2"),
+			Month:   d.Format("Jan"),
+		})
+	}
+	return days
+}
+
+type slotGroup struct {
+	Title string
+	Slots []service.SlotInfo
+}
+
+func groupSlots(slots []service.SlotInfo) []slotGroup {
+	wib := time.FixedZone("WIB", 7*3600)
+	groups := []slotGroup{{Title: "Morning"}, {Title: "Afternoon"}, {Title: "Evening"}}
+	for _, s := range slots {
+		h := s.Slot.StartAt.In(wib).Hour()
+		switch {
+		case h < 11:
+			groups[0].Slots = append(groups[0].Slots, s)
+		case h < 15:
+			groups[1].Slots = append(groups[1].Slots, s)
+		default:
+			groups[2].Slots = append(groups[2].Slots, s)
+		}
+	}
+	out := groups[:0]
+	for _, g := range groups {
+		if len(g.Slots) > 0 {
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 func (s *Server) CreateBooking(w http.ResponseWriter, r *http.Request) {
@@ -207,7 +303,16 @@ func (s *Server) MyBookings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "bookings.html", pageData{"Bookings": list})
+	data := pageData{"Bookings": list, "Error": r.URL.Query().Get("error")}
+	if cid := r.URL.Query().Get("cancelled"); cid != "" {
+		if cid, err := uuid.Parse(cid); err == nil {
+			if b, err := s.book.GetBooking(r.Context(), cid); err == nil &&
+				(b.CustomerID == u.ID || u.Role == domain.RoleAdmin) {
+				data["CancelledBooking"] = b
+			}
+		}
+	}
+	s.render(w, r, "bookings.html", data)
 }
 
 func (s *Server) PayPage(w http.ResponseWriter, r *http.Request) {
@@ -267,11 +372,11 @@ func (s *Server) CancelBooking(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.book.Cancel(r.Context(), id, u.ID, u.Role == domain.RoleAdmin); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := s.book.Cancel(r.Context(), id, u.ID, u.Role == domain.RoleAdmin, r.FormValue("reason")); err != nil {
+		http.Redirect(w, r, "/bookings?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/bookings", http.StatusSeeOther)
+	http.Redirect(w, r, "/bookings?cancelled="+id.String(), http.StatusSeeOther)
 }
 
 func (s *Server) MockPay(w http.ResponseWriter, r *http.Request) {
@@ -333,36 +438,6 @@ func (s *Server) AdminCreateLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/admin/locations", http.StatusSeeOther)
-}
-
-func (s *Server) AdminServices(w http.ResponseWriter, r *http.Request) {
-	locs, _ := s.catalog.ListLocations(r.Context(), false)
-	var all []domain.Service
-	for _, l := range locs {
-		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, false)
-		all = append(all, svcs...)
-	}
-	s.render(w, r, "admin_services.html", pageData{"Locations": locs, "Services": all})
-}
-
-func (s *Server) AdminCreateService(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
-		return
-	}
-	lid, _ := uuid.Parse(r.FormValue("location_id"))
-	dur, _ := strconv.Atoi(r.FormValue("duration_min"))
-	price, _ := strconv.ParseInt(r.FormValue("price_idr"), 10, 64)
-	svc := &domain.Service{
-		LocationID: lid, Name: r.FormValue("name"), Description: r.FormValue("description"),
-		DurationMin: dur, PriceIDR: price, Active: true,
-	}
-	if err := s.catalog.SaveService(r.Context(), svc); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/admin/services", http.StatusSeeOther)
 }
 
 func (s *Server) AdminStaff(w http.ResponseWriter, r *http.Request) {
@@ -465,6 +540,25 @@ type PortalStats struct {
 	CheckedIn  int
 	InService  int
 	Completed  int
+}
+
+type locationServices struct {
+	Location domain.Location
+	Services []domain.Service
+}
+
+func (s *Server) ServicesPage(w http.ResponseWriter, r *http.Request) {
+	locs, err := s.catalog.ListLocations(r.Context(), true)
+	if err != nil {
+		http.Error(w, "failed to load locations", http.StatusInternalServerError)
+		return
+	}
+	groups := make([]locationServices, 0, len(locs))
+	for _, l := range locs {
+		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, false)
+		groups = append(groups, locationServices{Location: l, Services: svcs})
+	}
+	s.render(w, r, "services.html", pageData{"LocationGroups": groups})
 }
 
 func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
@@ -583,6 +677,8 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 			customers, _ := s.auth.ListCustomers(r.Context(), "")
 			s.render(w, r, "portal_booking_new.html", pageData{
 				"Locations": locs, "Customers": customers, "Error": "Please select an available time slot",
+				"CustomerID": r.FormValue("customer_id"), "LocationID": r.FormValue("location_id"),
+				"Date": r.FormValue("date"), "Notes": notes,
 			})
 			return
 		}
@@ -598,6 +694,8 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 		customers, _ := s.auth.ListCustomers(r.Context(), "")
 		s.render(w, r, "portal_booking_new.html", pageData{
 			"Locations": locs, "Customers": customers, "Error": err.Error(),
+			"CustomerID": r.FormValue("customer_id"), "LocationID": r.FormValue("location_id"),
+			"Date": r.FormValue("date"), "Notes": notes,
 		})
 		return
 	}
@@ -838,7 +936,42 @@ func (s *Server) PortalServices(w http.ResponseWriter, r *http.Request) {
 		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, false)
 		all = append(all, svcs...)
 	}
-	s.render(w, r, "portal_services.html", pageData{"Services": all})
+	s.render(w, r, "portal_services.html", pageData{
+		"Locations": locs,
+		"Services":  all,
+		"Error":     r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) PortalCreateService(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	lid, _ := uuid.Parse(r.FormValue("location_id"))
+	dur, _ := strconv.Atoi(r.FormValue("duration_min"))
+	price, _ := strconv.ParseInt(r.FormValue("price_idr"), 10, 64)
+	svc := &domain.Service{
+		LocationID: lid, Name: r.FormValue("name"), Description: r.FormValue("description"),
+		DurationMin: dur, PriceIDR: price, Active: true,
+	}
+	if err := s.catalog.SaveService(r.Context(), svc); err != nil {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", err.Error())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		http.Redirect(w, r, "/portal/services?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Service added")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/portal/services?toast="+url.QueryEscape("Service added")+"&kind=success", http.StatusSeeOther)
 }
 
 func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {
@@ -849,6 +982,12 @@ func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err == nil {
 		_ = s.catalog.ToggleServiceActive(r.Context(), id)
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Service availability updated")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
 	}
 	http.Redirect(w, r, "/portal/services", http.StatusSeeOther)
 }

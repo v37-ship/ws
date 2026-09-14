@@ -9,6 +9,11 @@ APP_URL="${APP_URL:-http://localhost:8088}"
 echo "==> docker compose up --build -d"
 docker compose up --build -d
 
+echo "==> ensuring uploads dir is writable by the app user (nobody)"
+mkdir -p uploads
+docker run --rm -v ./uploads:/data alpine chown 65534:65534 /data >/dev/null 2>&1 || true
+docker compose restart app >/dev/null 2>&1 || true
+
 echo "==> waiting for app health (up to ~3 min)"
 for i in $(seq 1 36); do
   if docker inspect --format='{{.State.Health.Status}}' ws-app-1 2>/dev/null | grep -q healthy; then

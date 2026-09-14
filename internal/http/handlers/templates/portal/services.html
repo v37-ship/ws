@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Services Availability — Staff Portal</title>
+  <title>Services — Staff Portal</title>
   {{template "head" .}}
 </head>
 <body>
@@ -11,54 +11,85 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Services Availability</h1>
-        <p class="muted">Frontdesk controls to temporarily pause or resume services for booking.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Services</h1>
+        <p class="muted">Add new treatments and pause or resume services for booking.</p>
       </div>
     </div>
 
     {{template "portal_nav" dict "Active" "services" "User" .User}}
 
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">+ Add new service</summary>
+      <form class="stack" method="post" action="/portal/services">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label>Location
+          <select name="location_id" required>
+            {{range .Locations}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+          </select>
+        </label>
+        <label>Name <input name="name" required autocomplete="off" placeholder="e.g. Baby Spa Premium"></label>
+        <label>Description <textarea name="description" rows="2" placeholder="What's included"></textarea></label>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+          <label style="flex:1; min-width:140px;">Duration (min)
+            <input type="number" name="duration_min" value="60" min="15" required>
+          </label>
+          <label style="flex:1; min-width:140px;">Price (IDR)
+            <input type="number" name="price_idr" value="250000" min="0" required>
+          </label>
+        </div>
+        <button class="btn" type="submit">Add service</button>
+      </form>
+    </details>
+
     <div class="panel">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Service Name</th>
-            <th>Duration</th>
-            <th>Price</th>
-            <th>Availability</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-        {{range .Services}}
-          <tr>
-            <td>
-              <strong>{{.Name}}</strong><br>
-              <small class="muted">{{.Description}}</small>
-            </td>
-            <td>{{.DurationMin}} min</td>
-            <td>{{formatIDR .PriceIDR}}</td>
-            <td>
-              {{if .Active}}
-                <span class="badge confirmed">Available for Booking</span>
-              {{else}}
-                <span class="badge cancelled">Paused / Unavailable</span>
-              {{end}}
-            </td>
-            <td>
-              <form method="post" action="/portal/services/{{.ID}}/toggle">
-                <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                <button type="submit" class="btn secondary on-light btn-sm">
-                  {{if .Active}}Pause Service{{else}}Enable Service{{end}}
-                </button>
-              </form>
-            </td>
-          </tr>
-        {{end}}
-        </tbody>
-      </table>
+      <div style="overflow-x:auto;" class="table-cards" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Service Name</th>
+              <th>Duration</th>
+              <th>Price</th>
+              <th>Availability</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Services}}
+            <tr>
+              <td>
+                <strong>{{.Name}}</strong><br>
+                <small class="muted">{{.Description}}</small>
+              </td>
+              <td>{{.DurationMin}} min</td>
+              <td>{{formatIDR .PriceIDR}}</td>
+              <td>
+                {{if .Active}}
+                  <span class="badge confirmed">Available for Booking</span>
+                {{else}}
+                  <span class="badge cancelled">Paused / Unavailable</span>
+                {{end}}
+              </td>
+              <td>
+                <form method="post" action="/portal/services/{{.ID}}/toggle"
+                  hx-post="/portal/services/{{.ID}}/toggle" hx-swap="none">
+                  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                  <button type="submit" class="btn secondary on-light btn-sm" hx-disabled-elt="this">
+                    {{if .Active}}Pause Service{{else}}Enable Service{{end}}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="5" class="muted" style="text-align:center; padding:2rem;">No services yet. Add the first one above.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
+  {{template "footer" .}}
 </body>
 </html>
 {{end}}

@@ -9,38 +9,93 @@
   {{template "header" .}}
   {{template "toast-region" .}}
   <main>
-    <section class="stack">
+    <section class="stack" style="max-width:720px; margin:0 auto;">
       <h1 class="page-title">My bookings</h1>
-      <div class="panel">
-        <table class="table">
-          <thead><tr><th>When</th><th>Service</th><th>Therapist</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-          {{range .Bookings}}
-            <tr>
-              <td>{{formatTime .StartAt "Mon 02 Jan 15:04"}}</td>
-              <td>{{.ServiceName}}<div class="muted">{{.LocationName}}</div></td>
-              <td>{{.StaffName}}</td>
-              <td><span class="badge {{.Status}}">{{.Status}}</span></td>
-              <td>
-                {{if eq (printf "%s" .Status) "pending_payment"}}
-                  <a href="/bookings/{{.ID}}/pay">Pay</a>
-                {{end}}
-                {{if or (eq (printf "%s" .Status) "confirmed") (eq (printf "%s" .Status) "pending_payment")}}
-                  <form method="post" action="/bookings/{{.ID}}/cancel" style="display:inline">
-                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                    <button class="linkish" type="submit">Cancel</button>
-                  </form>
-                {{end}}
-              </td>
-            </tr>
-          {{else}}
-            <tr><td colspan="5" class="muted">No bookings yet. <a href="/book">Book one</a>.</td></tr>
-          {{end}}
-          </tbody>
-        </table>
+      {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+      {{if .CancelledBooking}}
+      {{$c := .CancelledBooking}}
+      <div class="panel stack" role="status" style="border-color:var(--mint-deep);">
+        <h2 style="margin:0;">Booking cancelled</h2>
+        <p class="muted" style="margin:0;">{{$c.ServiceName}} · {{formatTime $c.StartAt "Mon 02 Jan 2006 · 15:04"}} · {{$c.LocationName}}</p>
+        {{if eq (printf "%s" $c.PaymentStatus) "paid"}}
+        <p style="margin:0;">You paid <strong>{{formatIDR $c.PriceIDR}}</strong>. To process your refund, please contact us on WhatsApp with your booking reference — our CS team usually responds within a few hours on operational days.</p>
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+          <a class="btn" target="_blank" rel="noopener"
+            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (formatTime $c.StartAt "02 Jan 2006 15:04") (formatIDR $c.PriceIDR))}}">💬 Contact us for refund</a>
+          <a class="btn secondary on-light" href="/book">Book another session</a>
+        </div>
+        {{else}}
+        <p style="margin:0;">No charge was made for this booking. We hope to see you another time.</p>
+        <div><a class="btn secondary on-light" href="/book">Book another session</a></div>
+        {{end}}
       </div>
+      {{end}}
+
+      {{range .Bookings}}
+      <article class="panel stack" style="gap:.5rem;" x-data="{open:false}">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap;">
+          <div>
+            <strong>{{.ServiceName}}</strong>
+            <div class="muted" style="font-size:.85rem;">{{formatTime .StartAt "Mon 02 Jan 2006 · 15:04"}} — {{formatTime .EndAt "15:04"}}</div>
+            <div class="muted" style="font-size:.85rem;">{{.LocationName}} · 👩‍⚕️ {{.StaffName}}</div>
+          </div>
+          <span class="badge {{.Status}}">{{.Status.Display}}</span>
+        </div>
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+          {{if eq (printf "%s" .Status) "pending_payment"}}
+            <a class="btn" href="/bookings/{{.ID}}/pay">Pay {{formatIDR .PriceIDR}}</a>
+          {{end}}
+          {{if or (eq (printf "%s" .Status) "confirmed") (eq (printf "%s" .Status) "pending_payment")}}
+            <button class="btn secondary on-light btn-sm" type="button" @click="open=true">Cancel booking</button>
+          {{end}}
+        </div>
+
+        <div class="modal-backdrop" x-show="open" x-transition style="display:none;">
+          <div class="modal" role="dialog" aria-modal="true" aria-label="Confirm cancellation" @click.outside="open=false">
+            <h2 style="margin-top:0;">Cancel this booking?</h2>
+            <dl class="review">
+              <div><dt>Treatment</dt><dd>{{.ServiceName}}</dd></div>
+              <div><dt>When</dt><dd>{{formatTime .StartAt "Mon 02 Jan 2006 · 15:04"}}</dd></div>
+              <div><dt>Location</dt><dd>{{.LocationName}}</dd></div>
+              <div><dt>Price</dt><dd>{{formatIDR .PriceIDR}}</dd></div>
+            </dl>
+            {{if eq (printf "%s" .PaymentStatus) "paid"}}
+            <p class="muted" style="font-size:.9rem;">This booking is <strong>paid</strong>. Cancelling frees your slot immediately; to get your <strong>{{formatIDR .PriceIDR}}</strong> refunded, tap the WhatsApp button shown after cancellation — your booking reference is filled in automatically.</p>
+            {{else}}
+            <p class="muted" style="font-size:.9rem;">No payment has been made, so cancelling is free and nothing will be charged.</p>
+            {{end}}
+            <form method="post" action="/bookings/{{.ID}}/cancel" class="stack">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <label>Reason (optional, helps us improve)
+                <select name="reason">
+                  <option value="">Prefer not to say</option>
+                  <option>Plans changed</option>
+                  <option>Wrong time selected</option>
+                  <option>Baby / mom not feeling well</option>
+                  <option>Found another schedule</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                <button class="btn danger" type="submit">Yes, cancel booking</button>
+                <button class="btn secondary on-light" type="button" @click="open=false">Keep my booking</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </article>
+      {{else}}
+      {{if not .CancelledBooking}}
+      <div class="panel stack" style="text-align:center; align-items:center;">
+        <p class="muted">No bookings yet — your cozy Wangga moment awaits.</p>
+        <a class="btn" href="/book">Book a session</a>
+      </div>
+      {{end}}
+      {{end}}
     </section>
   </main>
+  {{template "footer" .}}
 </body>
 </html>
 {{end}}

@@ -276,17 +276,34 @@ func (r *CatalogRepo) CountSeed(ctx context.Context) (int, error) {
 
 // BusyIntervals returns active booking windows and approved time-offs for staff on a calendar day (UTC bounds passed in).
 func (r *CatalogRepo) BusyIntervals(ctx context.Context, staffID uuid.UUID, from, to time.Time) ([][2]time.Time, error) {
-	const q = `
-		SELECT start_at, end_at FROM bookings
+	booked, off, err := r.BusyDetails(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return append(booked, off...), nil
+}
+
+// BusyDetails splits busy time into customer bookings vs staff time off,
+// so the UI can label unavailable blocks honestly.
+func (r *CatalogRepo) BusyDetails(ctx context.Context, staffID uuid.UUID, from, to time.Time) (booked, off [][2]time.Time, err error) {
+	booked, err = r.intervals(ctx, `SELECT start_at, end_at FROM bookings
 		WHERE staff_id=$1 AND start_at < $3 AND end_at > $2
 		AND (
 			status IN ('confirmed', 'checked_in', 'in_service')
 			OR (status = 'pending_payment' AND (hold_expires_at IS NULL OR hold_expires_at > now()))
-		)
-		UNION ALL
-		SELECT start_at, end_at FROM staff_time_off
-		WHERE staff_id=$1 AND start_at < $3 AND end_at > $2
-	`
+		)`, staffID, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	off, err = r.intervals(ctx, `SELECT start_at, end_at FROM staff_time_off
+		WHERE staff_id=$1 AND start_at < $3 AND end_at > $2`, staffID, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	return booked, off, nil
+}
+
+func (r *CatalogRepo) intervals(ctx context.Context, q string, staffID uuid.UUID, from, to time.Time) ([][2]time.Time, error) {
 	rows, err := r.pool.Query(ctx, q, staffID, from, to)
 	if err != nil {
 		return nil, err

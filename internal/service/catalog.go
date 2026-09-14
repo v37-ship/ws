@@ -132,8 +132,8 @@ func (s *CatalogService) SeedDemo(ctx context.Context) error {
 	}
 	loc := &domain.Location{
 		Name:     "Wangga Kayu Putih",
-		Address:  "Jl. Kayu Putih II No. 32, Pulo Gadung",
-		City:     "Jakarta Timur",
+		Address:  "Studio kayu putih No.32, Kayu Putih, Pulo Gadung",
+		City:     "Jakarta Timur 13260",
 		Timezone: "Asia/Jakarta",
 		Active:   true,
 	}
@@ -188,6 +188,32 @@ func NewAvailabilityService(catalog *repo.CatalogRepo) *AvailabilityService {
 }
 
 func (s *AvailabilityService) Slots(ctx context.Context, locationID, serviceID, staffID uuid.UUID, day time.Time) ([]domain.Slot, error) {
+	detailed, err := s.SlotsDetailed(ctx, locationID, serviceID, staffID, day)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Slot, 0, len(detailed))
+	for _, d := range detailed {
+		if d.Available {
+			out = append(out, d.Slot)
+		}
+	}
+	return out, nil
+}
+
+// PrepBuffer is turnover time reserved after each service (room reset).
+// It blocks new bookings from overlapping it but may run past closing time.
+const PrepBuffer = 10 * time.Minute
+
+// SlotInfo is one bookable grid position plus its availability state,
+// so the UI can show taken blocks dimmed instead of hiding them.
+type SlotInfo struct {
+	Slot      domain.Slot
+	Available bool
+	Reason    string // "" when available, else "booked" or "off"
+}
+
+func (s *AvailabilityService) SlotsDetailed(ctx context.Context, locationID, serviceID, staffID uuid.UUID, day time.Time) ([]SlotInfo, error) {
 	loc, err := s.catalog.LocationByID(ctx, locationID)
 	if err != nil {
 		return nil, err
@@ -217,7 +243,7 @@ func (s *AvailabilityService) Slots(ctx context.Context, locationID, serviceID, 
 		}
 		staffList = filtered
 	}
-	var slots []domain.Slot
+	var slots []SlotInfo
 	duration := time.Duration(svc.DurationMin) * time.Minute
 	now := time.Now().In(tz)
 	for _, st := range staffList {
@@ -225,7 +251,7 @@ func (s *AvailabilityService) Slots(ctx context.Context, locationID, serviceID, 
 		if err != nil {
 			return nil, err
 		}
-		busy, err := s.catalog.BusyIntervals(ctx, st.ID, dayLocal, dayLocal.Add(24*time.Hour))
+		booked, off, err := s.catalog.BusyDetails(ctx, st.ID, dayLocal, dayLocal.Add(24*time.Hour))
 		if err != nil {
 			return nil, err
 		}
@@ -239,9 +265,21 @@ func (s *AvailabilityService) Slots(ctx context.Context, locationID, serviceID, 
 			windowEnd := dayLocal.Add(endHM)
 			for !cursor.Add(duration).After(windowEnd) {
 				slotEnd := cursor.Add(duration)
-				if !cursor.Before(now.Add(30*time.Minute)) && !overlapsAny(cursor, slotEnd, busy) {
-					slots = append(slots, domain.Slot{StartAt: cursor.UTC(), EndAt: slotEnd.UTC(), StaffID: st.ID})
+				if cursor.Before(now.Add(30 * time.Minute)) {
+					cursor = cursor.Add(15 * time.Minute)
+					continue
 				}
+				// The occupied block is service + prep buffer; a candidate
+				// is free only if the whole block avoids busy intervals.
+				blockEnd := slotEnd.Add(PrepBuffer)
+				info := SlotInfo{Slot: domain.Slot{StartAt: cursor.UTC(), EndAt: slotEnd.UTC(), StaffID: st.ID}, Available: true}
+				switch {
+				case overlapsAny(cursor, blockEnd, booked):
+					info.Available, info.Reason = false, "booked"
+				case overlapsAny(cursor, blockEnd, off):
+					info.Available, info.Reason = false, "off"
+				}
+				slots = append(slots, info)
 				cursor = cursor.Add(15 * time.Minute)
 			}
 		}

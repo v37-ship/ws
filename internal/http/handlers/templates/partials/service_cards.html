@@ -1,0 +1,22 @@
+{{define "service_cards.html"}}
+<div class="pick-grid" role="radiogroup" aria-label="Choose a service">
+  {{range .Services}}
+  <label class="pick-card">
+    <input type="radio" name="service_id" value="{{.ID}}" required
+      data-label="{{.Name}}" data-sub="{{formatIDR .PriceIDR}} · {{.DurationMin}} min"
+      hx-get="/book/staff?view=cards" hx-target="#staff-wrap" hx-swap="innerHTML"
+      hx-include="input[name='location_id']:checked" hx-indicator="#stf-ind"
+      hx-on::after-request="document.getElementById('slots-wrap').innerHTML=''"
+      @click="onReclick($el,'svc')"
+      @change="onPick($el,'svc')">>
+    <img src="{{serviceImg .Name}}" alt="" loading="lazy">
+    <span class="pick-name">{{.Name}}</span>
+    {{if .Description}}<span class="pick-desc">{{.Description}}</span>{{end}}
+    <span class="pill-row"><span class="pill">{{.DurationMin}} min</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></span>
+    <span class="pick-check" aria-hidden="true">✓</span>
+  </label>
+  {{else}}
+  <p class="muted">No bookable services at this location right now.</p>
+  {{end}}
+</div>
+{{end}}

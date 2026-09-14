@@ -9,49 +9,183 @@
   {{template "header" .}}
   {{template "toast-region" .}}
   <main>
-    <section class="stack">
+    <section class="stack book-flow">
       <h1 class="page-title">Book a Wangga session</h1>
       {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
-      <form class="panel stack" method="post" action="/book" id="book-form"
-        x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }}">
+
+      <form method="post" action="/book" id="book-form"
+        x-data="{
+          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'Today', time:'', start:'', staff:'',
+          pick(s, st, label){
+            if (this.start === s) { this.clearTime(); return; }
+            this.start=s; this.staff=st; this.time=label||'';
+            document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st;
+            document.querySelectorAll('#slots-wrap .slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false'));
+          },
+          clearTime(){
+            this.start=''; this.staff=''; this.time='';
+            document.getElementById('start_at').value=''; document.getElementById('staff_id_selected').value='';
+            document.querySelectorAll('#slots-wrap .slot').forEach(x=>x.setAttribute('aria-pressed','false'));
+          },
+          markPicked(el){
+            var radios = document.getElementById('book-form').querySelectorAll('input[type=radio]');
+            for (var i = 0; i < radios.length; i++) {
+              if (radios[i].name === el.name) delete radios[i].dataset.was;
+            }
+            el.dataset.was='1';
+          },
+          onPick(el, kind){
+            this.markPicked(el);
+            if (kind==='loc') { this.loc=el.value; }
+            if (kind==='svc') {
+              this.svcLabel=el.dataset.label; this.svcSub=el.dataset.sub;
+              this.staffLabel=''; this.clearTime();
+              document.getElementById('staff_id_selected').value='';
+            }
+            if (kind==='staff') {
+              this.staffLabel=el.dataset.label; this.clearTime();
+              document.getElementById('staff_id_selected').value='';
+            }
+          },
+          onReclick(el, kind){
+            if (el.dataset.was!=='1') return;
+            var self=this;
+            setTimeout(function(){
+              el.checked=false; delete el.dataset.was;
+              if (kind==='loc') {
+                self.loc=''; self.svcLabel=''; self.svcSub=''; self.staffLabel=''; self.clearTime();
+                document.getElementById('service-wrap').innerHTML='';
+                document.getElementById('staff-wrap').innerHTML='';
+                document.getElementById('slots-wrap').innerHTML='';
+              }
+              if (kind==='svc') {
+                self.svcLabel=''; self.svcSub=''; self.staffLabel=''; self.clearTime();
+                document.getElementById('staff_id_selected').value='';
+                document.getElementById('staff-wrap').innerHTML='';
+                document.getElementById('slots-wrap').innerHTML='';
+              }
+              if (kind==='staff') {
+                self.staffLabel=''; self.clearTime();
+                document.getElementById('staff_id_selected').value='';
+                htmx.trigger('#date', 'change');
+              }
+            }, 0);
+          },
+          toggleDay(btn){
+            var dateEl = document.getElementById('date');
+            if (btn.getAttribute('aria-pressed')==='true') {
+              btn.setAttribute('aria-pressed','false'); this.dayLabel='';
+              dateEl.value=''; this.clearTime();
+              document.getElementById('slots-wrap').innerHTML='';
+            } else {
+              this.dayLabel=btn.dataset.label; dateEl.value=btn.dataset.day;
+              htmx.trigger(dateEl, 'change');
+              document.querySelectorAll('.day').forEach(d=>d.setAttribute('aria-pressed','false'));
+              btn.setAttribute('aria-pressed','true');
+            }
+          }
+        }">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <label>Location
-          <select name="location_id" id="location_id" required
-            hx-get="/book/services" hx-target="#service-wrap" hx-swap="innerHTML" hx-include="this" hx-indicator="#svc-ind"
-            hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''">
-            <option value="">Select location</option>
+
+        <ol class="steps" aria-label="Booking progress">
+          <li :class="{'done': svcLabel, 'active': !svcLabel}"><span>1</span> Treatment</li>
+          <li :class="{'done': dayLabel && staffLabel, 'active': svcLabel && !(dayLabel && staffLabel)}"><span>2</span> Schedule</li>
+          <li :class="{'done': time, 'active': (dayLabel && staffLabel) && !time}"><span>3</span> Time</li>
+          <li :class="{'active': time}"><span>4</span> Review</li>
+        </ol>
+
+        <div class="panel stack wiz-step">
+          <h2><span class="step-n">1</span> Choose location &amp; treatment</h2>
+          <p class="muted" style="margin:0; font-size:.85rem;">Tap again to unpick.</p>
+          <div class="pick-row" role="radiogroup" aria-label="Choose a location">
             {{range .Locations}}
-            <option value="{{.ID}}" {{if eq $.LocationID .ID.String}}selected{{end}}>{{.Name}}</option>
+            <label class="pill-pick">
+              <input type="radio" name="location_id" value="{{.ID}}" required
+                {{if eq $.LocationID .ID.String}}checked data-was="1"{{end}}
+                hx-get="/book/services?view=cards" hx-target="#service-wrap" hx-swap="innerHTML"
+                hx-include="this" hx-indicator="#svc-ind"
+                hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''"
+                @click="onReclick($el,'loc')"
+                @change="onPick($el,'loc'); svcLabel=''; svcSub=''; staffLabel=''; time=''">
+              <span>{{.Name}}</span>
+            </label>
             {{end}}
-          </select>
-        </label>
-        <span id="svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading services…</span></span>
-        <div id="service-wrap" aria-live="polite">
-          {{template "services_partial.html" .}}
+          </div>
+          <span id="svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading treatments…</span></span>
+          <div id="service-wrap" aria-live="polite">
+            {{if .Services}}{{template "service_cards.html" .}}{{end}}
+          </div>
+          <span id="stf-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading therapists…</span></span>
+          <div id="staff-wrap" aria-live="polite"></div>
         </div>
-        <div id="staff-wrap" aria-live="polite">
-          {{template "staff_partial.html" .}}
+
+        <div class="panel stack wiz-step" x-show="svcLabel" x-transition>
+          <h2><span class="step-n">2</span> Pick therapist &amp; day</h2>
+          <div class="day-strip" role="group" aria-label="Choose a day">
+            {{range $i, $d := .Days}}
+            <button type="button" class="day" data-day="{{$d.Value}}" data-label="{{$d.Weekday}} {{$d.DayNum}} {{$d.Month}}"
+              aria-pressed="{{if eq $i 0}}true{{else}}false{{end}}"
+              @click="toggleDay($el)">
+              <span class="day-w">{{$d.Weekday}}</span>
+              <span class="day-n">{{$d.DayNum}}</span>
+              <span class="day-m">{{$d.Month}}</span>
+            </button>
+            {{end}}
+          </div>
+          <input type="hidden" name="date" id="date" x-ref="date" value="{{.Date}}"
+            hx-get="/book/slots?view=cards" hx-target="#slots-wrap" hx-swap="innerHTML" hx-trigger="change"
+            hx-include="input[name='location_id']:checked, input[name='service_id']:checked, input[name='staff_id']:checked" hx-indicator="#slot-ind">
+          <span id="slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Finding open slots…</span></span>
+          <div id="slots-wrap" aria-live="polite"></div>
         </div>
-        <label>Date
-          <input type="date" name="date" id="date" required value="{{.Date}}" autocomplete="off"
-            hx-get="/book/slots" hx-target="#slots-wrap" hx-swap="innerHTML" hx-trigger="change" hx-indicator="#slot-ind"
-            hx-include="#location_id,#service_id,#staff_id,#date">
-        </label>
-        <span id="slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Finding open slots…</span></span>
-        <div id="slots-wrap" aria-live="polite">
-          {{template "slots_partial.html" .}}
+
+        <div class="panel stack wiz-step" x-show="time" x-transition id="review">
+          <h2><span class="step-n">3</span> Review &amp; confirm</h2>
+          <dl class="review">
+            <div><dt>Treatment</dt><dd x-text="svcLabel || '—'"></dd></div>
+            <div><dt>Therapist</dt><dd x-text="staffLabel || 'First available'"></dd></div>
+            <div><dt>When</dt><dd><span x-text="dayLabel"></span> · <span x-text="time"></span></dd></div>
+            <div><dt>Price</dt><dd x-text="svcSub || '—'"></dd></div>
+          </dl>
+          <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
+          <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
+          <label>Notes for your therapist <textarea name="notes" rows="2" autocomplete="off" placeholder="Allergies, baby preferences, anything we should know">{{.Notes}}</textarea></label>
+          {{if .User}}
+            <button class="btn big" type="submit" :disabled="!time">Continue to QRIS payment →</button>
+          {{else}}
+            <p class="muted">Please <a href="/login?next=/book">log in</a> to complete booking.</p>
+          {{end}}
         </div>
-        <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
-        <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
-        <label>Notes <textarea name="notes" rows="2" autocomplete="off">{{.Notes}}</textarea></label>
-        {{if .User}}
-          <button class="btn" type="submit" :disabled="!start">Continue to QRIS payment</button>
-        {{else}}
-          <p class="muted">Please <a href="/login?next=/book">log in</a> to complete booking.</p>
-        {{end}}
       </form>
+
+      <div class="sticky-bar">
+        <span id="sticky-summary" class="muted">Choose your treatment to begin</span>
+      </div>
     </section>
   </main>
+  <script>
+    (function () {
+      var form = document.getElementById('book-form');
+      var bar = document.getElementById('sticky-summary');
+      if (!form || !bar) return;
+      function update() {
+        var svc = form.querySelector("input[name='service_id']:checked");
+        var slot = form.querySelector("#slots-wrap .slot[aria-pressed='true']");
+        var parts = [];
+        if (svc) {
+          var card = svc.closest('.pick-card');
+          var name = card ? card.querySelector('.pick-name').textContent : '';
+          if (name) parts.push(name.trim());
+        }
+        if (slot) parts.push(slot.dataset.label || slot.textContent.trim());
+        bar.textContent = parts.length ? parts.join(' · ') : 'Choose your treatment to begin';
+      }
+      document.body.addEventListener('change', update);
+      document.body.addEventListener('click', function () { setTimeout(update, 50); });
+      document.body.addEventListener('htmx:afterSwap', update);
+    })();
+  </script>
+  {{template "footer" .}}
 </body>
 </html>
 {{end}}

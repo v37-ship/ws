@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Baby spa illustration">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff0f6"/>
+      <stop offset="1" stop-color="#ffe0ec"/>
+    </linearGradient>
+    <linearGradient id="tub" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20c5b5"/>
+      <stop offset="1" stop-color="#0ea5a0"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <circle cx="320" cy="60" r="46" fill="#ffd9e6" opacity="0.8"/>
+  <circle cx="60" cy="250" r="60" fill="#ffffff" opacity="0.5"/>
+  <ellipse cx="200" cy="205" rx="120" ry="48" fill="url(#tub)"/>
+  <ellipse cx="200" cy="192" rx="104" ry="36" fill="#8fe3da"/>
+  <path d="M150 165 q10 -22 24 0 q14 -22 24 0 q14 -22 24 0" stroke="#0f6b5c" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <circle cx="200" cy="130" r="26" fill="#ffd9b3"/>
+  <circle cx="191" cy="128" r="3.4" fill="#2a2430"/>
+  <circle cx="209" cy="128" r="3.4" fill="#2a2430"/>
+  <path d="M193 140 q7 6 14 0" stroke="#2a2430" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <circle cx="174" cy="118" r="12" fill="#ffd9b3"/>
+  <circle cx="226" cy="118" r="12" fill="#ffd9b3"/>
+  <g fill="#ffffff" opacity="0.9">
+    <circle cx="110" cy="90" r="7"/>
+    <circle cx="132" cy="70" r="5"/>
+    <circle cx="290" cy="140" r="6"/>
+  </g>
+</svg>

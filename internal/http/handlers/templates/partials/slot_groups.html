@@ -1,0 +1,30 @@
+{{define "slot_groups.html"}}
+<div class="stack">
+  {{if .SlotsError}}<p class="error" role="alert">{{.SlotsError}}</p>{{end}}
+  {{range .SlotGroups}}
+  <div>
+    <strong class="daypart">{{.Title}}</strong>
+    <div class="slot-grid" role="group" aria-label="{{.Title}} slots">
+      {{range .Slots}}
+      {{if .Available}}
+      <button type="button" class="slot" aria-pressed="false"
+        data-start="{{.Slot.StartAt.Format "2006-01-02T15:04:05Z07:00"}}" data-staff="{{.Slot.StaffID}}"
+        data-label="{{formatTime .Slot.StartAt "Mon 2 Jan, 15:04"}}"
+        @click="pick($el.dataset.start, $el.dataset.staff, $el.dataset.label)">
+        {{formatTime .Slot.StartAt "15:04"}}
+      </button>
+      {{else}}
+      <button type="button" class="slot taken" disabled
+        title="{{if eq .Reason "off"}}Therapist unavailable{{else}}Already booked{{end}}">
+        {{formatTime .Slot.StartAt "15:04"}}
+      </button>
+      {{end}}
+      {{end}}
+    </div>
+  </div>
+  {{else}}
+  {{if not .SlotsError}}<p class="muted">No open slots for this day. Try another date or therapist.</p>{{end}}
+  {{end}}
+  <p class="muted legend"><span class="slot taken demo" aria-hidden="true">--:--</span> Dimmed times are already taken — pick another time.</p>
+</div>
+{{end}}

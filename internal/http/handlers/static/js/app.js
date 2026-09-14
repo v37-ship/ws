@@ -41,7 +41,9 @@
   // kept for existing book.html inline script migration.
   document.body.addEventListener("click", function (e) {
     var btn = e.target && e.target.closest ? e.target.closest(".slot[data-start]") : null;
-    if (!btn || btn.hasAttribute("x-data")) return;
+    // Wizard (#book-form) uses Alpine pick(); legacy forms use this fallback.
+    // If Alpine failed to load, fall back here too so slots stay clickable.
+    if (!btn || (typeof window.Alpine !== "undefined" && btn.closest("#book-form"))) return;
     var start = document.getElementById("start_at");
     var staff = document.getElementById("staff_id_selected");
     if (start) start.value = btn.dataset.start || "";

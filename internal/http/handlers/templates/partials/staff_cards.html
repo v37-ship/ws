@@ -1,0 +1,28 @@
+{{define "staff_cards.html"}}
+<div class="pick-grid people" role="radiogroup" aria-label="Choose a therapist">
+  <label class="pick-card person">
+    <input type="radio" name="staff_id" value="" data-label="First available"
+      hx-get="/book/slots?view=cards" hx-target="#slots-wrap" hx-swap="innerHTML"
+      hx-include="input[name='location_id']:checked, input[name='service_id']:checked, #date" hx-indicator="#slot-ind"
+      @click="onReclick($el,'staff')"
+      @change="onPick($el,'staff')">>
+    <span class="avatar" aria-hidden="true">✨</span>
+    <span class="pick-name">First available</span>
+    <span class="pick-desc">Fastest open slot</span>
+    <span class="pick-check" aria-hidden="true">✓</span>
+  </label>
+  {{range .Staff}}
+  <label class="pick-card person">
+    <input type="radio" name="staff_id" value="{{.ID}}" data-label="{{.Name}}"
+      hx-get="/book/slots?view=cards" hx-target="#slots-wrap" hx-swap="innerHTML"
+      hx-include="input[name='location_id']:checked, input[name='service_id']:checked, #date" hx-indicator="#slot-ind"
+      @click="onReclick($el,'staff')"
+      @change="onPick($el,'staff')">>
+    <span class="avatar" aria-hidden="true">👩‍⚕️</span>
+    <span class="pick-name">{{.Name}}</span>
+    {{if .Bio}}<span class="pick-desc">{{.Bio}}</span>{{end}}
+    <span class="pick-check" aria-hidden="true">✓</span>
+  </label>
+  {{end}}
+</div>
+{{end}}

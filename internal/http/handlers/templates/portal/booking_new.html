@@ -19,14 +19,15 @@
 
     {{template "portal_nav" dict "Active" "new_booking" "User" .User}}
 
-    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
-    <form class="panel stack" method="post" action="/portal/bookings/new" id="staff-book-form">
+    <form class="panel stack" method="post" action="/portal/bookings/new" id="staff-book-form"
+      x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', method:'cash', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }}">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
 
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
         <label>Customer (Mom)
-          <select name="customer_id" required>
+          <select name="customer_id" required autocomplete="off">
             <option value="">-- Select Registered Customer --</option>
             {{range .Customers}}
               <option value="{{.ID}}" {{if eq $.CustomerID .ID.String}}selected{{end}}>
@@ -48,7 +49,7 @@
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
         <label>Location / Branch
           <select name="location_id" id="location_id" required
-            hx-get="/book/services" hx-target="#service-wrap" hx-include="this"
+            hx-get="/book/services" hx-target="#service-wrap" hx-swap="innerHTML" hx-include="this" hx-indicator="#staff-svc-ind"
             hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''">
             <option value="">Select location</option>
             {{range .Locations}}
@@ -57,35 +58,37 @@
           </select>
         </label>
       </div>
+      <span id="staff-svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading services…</span></span>
 
-      <div id="service-wrap">
+      <div id="service-wrap" aria-live="polite">
         {{template "services_partial.html" .}}
       </div>
 
-      <div id="staff-wrap">
+      <div id="staff-wrap" aria-live="polite">
         {{template "staff_partial.html" .}}
       </div>
 
       <label>Date
-        <input type="date" name="date" id="date" required value="{{.Date}}"
-          hx-get="/book/slots" hx-target="#slots-wrap"
+        <input type="date" name="date" id="date" required value="{{.Date}}" autocomplete="off"
+          hx-get="/book/slots" hx-target="#slots-wrap" hx-swap="innerHTML" hx-trigger="change" hx-indicator="#staff-slot-ind"
           hx-include="#location_id,#service_id,#staff_id,#date">
       </label>
+      <span id="staff-slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Finding open slots…</span></span>
 
-      <div id="slots-wrap">
+      <div id="slots-wrap" aria-live="polite">
         {{template "slots_partial.html" .}}
       </div>
 
-      <input type="hidden" name="start_at" id="start_at" value="{{.StartAt}}">
-      <input type="hidden" name="staff_id_selected" id="staff_id_selected" value="{{.StaffIDSelected}}">
+      <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
+      <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
 
       <fieldset class="panel stack" style="background:var(--bg-2); border-color:var(--line);">
         <legend style="font-weight:700; color:var(--accent-deep); padding:0 0.5rem;">Payment Information</legend>
-        
+
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
           <label>Payment Method
-            <select name="payment_method" id="payment_method" onchange="handleMethodChange(this.value)">
-              <option value="cash" selected>💵 Cash (Pay at Clinic for Services)</option>
+            <select name="payment_method" id="payment_method" x-model="method">
+              <option value="cash">💵 Cash (Pay at Clinic for Services)</option>
               <option value="qris">📱 QRIS (Instant QR code)</option>
             </select>
           </label>
@@ -93,13 +96,14 @@
           <label>Payment Purpose
             <select name="payment_purpose" id="payment_purpose">
               <option value="service" selected>Full Service Payment</option>
-              <option value="booking_fee" id="opt-booking-fee">Booking Fee / Down Payment (QRIS only)</option>
+              <option value="booking_fee" :disabled="method==='cash'">Booking Fee / Down Payment (QRIS only)</option>
             </select>
           </label>
         </div>
 
-        <p id="cash-warning" class="muted" style="font-size:0.85rem; color:var(--mint-deep); margin:0;">
-          💡 <em>Cash is accepted for services at the clinic counter. Confirms booking immediately upon creation.</em>
+        <p class="muted" style="font-size:0.85rem; margin:0;">
+          <span x-show="method==='cash'">💡 <em>Cash is accepted for services at the clinic counter. Confirms booking immediately upon creation.</em></span>
+          <span x-show="method!=='cash'">💡 <em>QRIS can be used to pay either the booking fee or the full service cost.</em></span>
         </p>
       </fieldset>
 
@@ -107,38 +111,10 @@
         <textarea name="notes" rows="2" placeholder="e.g. Baby skin sensitivity, requested calm music, walk-in mom">{{.Notes}}</textarea>
       </label>
 
-      <button class="btn" type="submit" style="align-self:flex-start;">Confirm &amp; Create Booking</button>
+      <button class="btn" type="submit" style="align-self:flex-start;" :disabled="!start">Confirm &amp; Create Booking</button>
     </form>
   </main>
-
-  <script>
-    function handleMethodChange(val) {
-      const feeOpt = document.getElementById('opt-booking-fee');
-      const purpose = document.getElementById('payment_purpose');
-      const warning = document.getElementById('cash-warning');
-      if (val === 'cash') {
-        feeOpt.disabled = true;
-        if (purpose.value === 'booking_fee') {
-          purpose.value = 'service';
-        }
-        warning.innerHTML = '💡 <em>Cash is accepted for services at the clinic counter. Confirms booking immediately upon creation.</em>';
-      } else {
-        feeOpt.disabled = false;
-        warning.innerHTML = '💡 <em>QRIS can be used to pay either the booking fee or the full service cost.</em>';
-      }
-    }
-
-    document.body.addEventListener('click', function (e) {
-      const btn = e.target.closest('.slot');
-      if (!btn) return;
-      document.getElementById('start_at').value = btn.dataset.start;
-      document.getElementById('staff_id_selected').value = btn.dataset.staff;
-      document.querySelectorAll('.slot').forEach(el => el.classList.remove('selected'));
-      btn.classList.add('selected');
-    });
-
-    handleMethodChange(document.getElementById('payment_method').value);
-  </script>
+  {{template "footer" .}}
 </body>
 </html>
 {{end}}
