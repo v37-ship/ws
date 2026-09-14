@@ -42,13 +42,13 @@
         <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
           <legend style="font-weight:700; padding:0 .5rem;">Daily hours (blank day = closed)</legend>
           <div class="hours-grid">
-            <label>Monday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_1_from"><input type="time" name="hours_1_to"></span></label>
-            <label>Tuesday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_2_from"><input type="time" name="hours_2_to"></span></label>
-            <label>Wednesday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_3_from"><input type="time" name="hours_3_to"></span></label>
-            <label>Thursday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_4_from"><input type="time" name="hours_4_to"></span></label>
-            <label>Friday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_5_from"><input type="time" name="hours_5_to"></span></label>
-            <label>Saturday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_6_from"><input type="time" name="hours_6_to"></span></label>
-            <label>Sunday <span style="display:flex; gap:.25rem;"><input type="time" name="hours_0_from"><input type="time" name="hours_0_to"></span></label>
+            <label class="day-cell">Monday <input type="time" name="hours_1_from"><input type="time" name="hours_1_to"></label>
+            <label class="day-cell">Tuesday <input type="time" name="hours_2_from"><input type="time" name="hours_2_to"></label>
+            <label class="day-cell">Wednesday <input type="time" name="hours_3_from"><input type="time" name="hours_3_to"></label>
+            <label class="day-cell">Thursday <input type="time" name="hours_4_from"><input type="time" name="hours_4_to"></label>
+            <label class="day-cell">Friday <input type="time" name="hours_5_from"><input type="time" name="hours_5_to"></label>
+            <label class="day-cell">Saturday <input type="time" name="hours_6_from"><input type="time" name="hours_6_to"></label>
+            <label class="day-cell">Sunday <input type="time" name="hours_0_from"><input type="time" name="hours_0_to"></label>
           </div>
         </fieldset>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">

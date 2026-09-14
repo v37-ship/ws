@@ -35,10 +35,10 @@
         <legend style="font-weight:700; padding:0 .5rem;">Daily hours (blank day = closed)</legend>
         <div class="hours-grid">
           {{range .Hours}}
-          <label>{{.Name}} <span style="display:flex; gap:.25rem;">
-            <input type="time" name="hours_{{.Num}}_from" value="{{.From}}">
-            <input type="time" name="hours_{{.Num}}_to" value="{{.To}}">
-          </span></label>
+          <label class="day-cell">{{.Name}}
+            <input type="time" name="hours_{{.Num}}_from" value="{{.From}}" aria-label="{{.Name}} open from">
+            <input type="time" name="hours_{{.Num}}_to" value="{{.To}}" aria-label="{{.Name}} open until">
+          </label>
           {{end}}
         </div>
       </fieldset>

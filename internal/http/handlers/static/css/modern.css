@@ -259,12 +259,25 @@
 /* Weekly hours grid (portal service create/edit) */
 .hours-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: .5rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: .6rem;
 }
 .hours-grid > label { min-width: 0; }
-.hours-grid input[type="time"] { min-width: 0; flex: 1; width: 100%; }
+.day-cell {
+  display: grid;
+  gap: .3rem;
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  padding: .55rem .65rem;
+  background: #fff;
+  font-weight: 700;
+  font-size: .85rem;
+}
+.day-cell input[type="time"] { width: 100%; min-width: 0; }
 @media (max-width: 640px) {
+  .hours-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 400px) {
   .hours-grid { grid-template-columns: 1fr; }
 }
 
