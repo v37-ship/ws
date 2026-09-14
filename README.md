@@ -45,6 +45,7 @@ make run
   - **Cash**: Strictly accepted for services only (at clinic counter).
 - **Bidan Schedules & Leave**: Add time-off blockouts for sick leave, doctor visits, or holidays to dynamically prevent booking conflicts.
 - **Service Availability**: Instantly toggle services active/inactive.
+- **Service Catalog**: Add/edit services with price, duration, per-day opening hours, and photo (upload or internet link — gallery, wizard, and homepage follow automatically). Booking slots respect the intersection of service hours and therapist hours.
 
 ### 3. Admin — `/admin`
 - Everything CS can do.

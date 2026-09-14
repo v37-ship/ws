@@ -104,20 +104,10 @@ func New(
 			return "https://wa.me/" + digits + "?text=" + url.QueryEscape(msg)
 		},
 		"serviceImg": func(name string) string {
-			n := strings.ToLower(name)
-			switch {
-			case strings.Contains(n, "baby") || strings.Contains(n, "kid") || strings.Contains(n, "child"):
-				return "/static/img/svc-baby.svg"
-			case strings.Contains(n, "facial") || strings.Contains(n, "face") || strings.Contains(n, "glow"):
-				return "/static/img/svc-facial.svg"
-			case strings.Contains(n, "foot") || strings.Contains(n, "reflex") || strings.Contains(n, "pedicure") || strings.Contains(n, "kaki"):
-				return "/static/img/svc-foot.svg"
-			case strings.Contains(n, "mom") || strings.Contains(n, "massage") || strings.Contains(n, "recovery") ||
-				strings.Contains(n, "maternity") || strings.Contains(n, "postpartum") || strings.Contains(n, "pijat"):
-				return "/static/img/svc-massage.svg"
-			default:
-				return "/static/img/svc-default.svg"
-			}
+			return service.KeywordServiceImage(name)
+		},
+		"servicePhoto": func(svc domain.Service) string {
+			return service.ResolveServiceImage(svc)
 		},
 		"waURL": func(phone, customerName, serviceName, staffName, whenStr, locName string) string {
 			cleanPhone := strings.TrimSpace(phone)
@@ -291,6 +281,7 @@ func (s *Server) Routes(r chi.Router) {
 		_, _ = w.Write([]byte("ready"))
 	})
 	r.Handle("/static/*", http.StripPrefix("/static/", StaticHandler()))
+	r.Get("/uploads/services/{file}", s.ServeServicePhoto)
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
@@ -350,6 +341,8 @@ func (s *Server) Routes(r chi.Router) {
 
 		pr.Get("/services", s.PortalServices)
 		pr.Post("/services", s.PortalCreateService)
+		pr.Get("/services/{id}/edit", s.PortalEditServiceForm)
+		pr.Post("/services/{id}/edit", s.PortalUpdateService)
 		pr.Post("/services/{id}/toggle", s.PortalToggleService)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})

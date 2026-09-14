@@ -44,7 +44,7 @@
     <section class="grid three" style="margin-bottom:2rem">
       {{range .PreviewServices}}
       <article class="panel stack service-card">
-        <img src="{{serviceImg .Name}}" alt="{{.Name}} illustration" loading="lazy"
+        <img src="{{servicePhoto .}}" alt="{{.Name}}" loading="lazy"
           style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">
         <h3 style="margin:0;">{{.Name}}</h3>
         <div class="pill-row"><span class="pill">{{.DurationMin}} min</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></div>

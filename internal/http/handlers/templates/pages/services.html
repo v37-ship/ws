@@ -24,7 +24,7 @@
       <div class="grid three">
         {{range .Services}}
         <article class="panel stack service-card">
-          <img src="{{serviceImg .Name}}" alt="{{.Name}} illustration" loading="lazy"
+          <img src="{{servicePhoto .}}" alt="{{.Name}}" loading="lazy"
             style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">
           <div>
             <h3 style="margin:0 0 0.25rem;">{{.Name}}</h3>
@@ -39,6 +39,7 @@
               <span class="pill">Paused</span>
             {{end}}
           </div>
+          <p class="muted" style="margin:0; font-size:.8rem;">🕒 {{index $.Hours .ID.String}}</p>
           {{if .Active}}
           <a class="btn mint" href="/book?location_id={{.LocationID}}">Book here</a>
           {{else}}

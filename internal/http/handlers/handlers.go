@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -558,7 +560,16 @@ func (s *Server) ServicesPage(w http.ResponseWriter, r *http.Request) {
 		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, false)
 		groups = append(groups, locationServices{Location: l, Services: svcs})
 	}
-	s.render(w, r, "services.html", pageData{"LocationGroups": groups})
+	summaries := make(map[string]string)
+	for _, g := range groups {
+		for _, svc := range g.Services {
+			if _, ok := summaries[svc.ID.String()]; !ok {
+				hours, _ := s.catalog.ListServiceHours(r.Context(), svc.ID)
+				summaries[svc.ID.String()] = service.SummarizeServiceHours(hours)
+			}
+		}
+	}
+	s.render(w, r, "services.html", pageData{"LocationGroups": groups, "Hours": summaries})
 }
 
 func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
@@ -936,25 +947,30 @@ func (s *Server) PortalServices(w http.ResponseWriter, r *http.Request) {
 		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, false)
 		all = append(all, svcs...)
 	}
+	summaries := make(map[string]string, len(all))
+	for _, svc := range all {
+		hours, _ := s.catalog.ListServiceHours(r.Context(), svc.ID)
+		summaries[svc.ID.String()] = service.SummarizeServiceHours(hours)
+	}
 	s.render(w, r, "portal_services.html", pageData{
 		"Locations": locs,
 		"Services":  all,
+		"Hours":     summaries,
 		"Error":     r.URL.Query().Get("error"),
 	})
 }
 
 func (s *Server) PortalCreateService(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+	svc := &domain.Service{Active: true}
+	hours, errMsg := s.parseServiceForm(r, svc, true)
+	if errMsg != "" {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", errMsg)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		http.Redirect(w, r, "/portal/services?error="+url.QueryEscape(errMsg), http.StatusSeeOther)
 		return
-	}
-	lid, _ := uuid.Parse(r.FormValue("location_id"))
-	dur, _ := strconv.Atoi(r.FormValue("duration_min"))
-	price, _ := strconv.ParseInt(r.FormValue("price_idr"), 10, 64)
-	svc := &domain.Service{
-		LocationID: lid, Name: r.FormValue("name"), Description: r.FormValue("description"),
-		DurationMin: dur, PriceIDR: price, Active: true,
 	}
 	if err := s.catalog.SaveService(r.Context(), svc); err != nil {
 		if htmx.IsRequest(r) {
@@ -965,6 +981,7 @@ func (s *Server) PortalCreateService(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/portal/services?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
+	_ = s.catalog.SaveServiceHours(r.Context(), svc.ID, hours)
 	if htmx.IsRequest(r) {
 		s.toast(w, "success", "Service added")
 		htmx.Refresh(w)
@@ -972,6 +989,151 @@ func (s *Server) PortalCreateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/portal/services?toast="+url.QueryEscape("Service added")+"&kind=success", http.StatusSeeOther)
+}
+
+// storeServicePhoto validates and stores an uploaded service photo,
+// setting svc.ImagePath on success. Returns "" on success or when there
+// is nothing to store, else an error message.
+func (s *Server) storeServicePhoto(file io.Reader, closer io.Closer, original string, size int64, svc *domain.Service) string {
+	defer closer.Close()
+	stored, err := service.ValidatePhotoName(original, size)
+	if err != nil {
+		return err.Error()
+	}
+	dir := filepath.Join(s.cfg.UploadDir, "services")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "Could not store photo"
+	}
+	dst, err := os.Create(filepath.Join(dir, stored))
+	if err != nil {
+		s.log.Error("service photo save", "err", err)
+		return "Could not store photo"
+	}
+	if _, err := io.Copy(dst, file); err != nil {
+		_ = dst.Close()
+		return "Could not store photo"
+	}
+	_ = dst.Close()
+	svc.ImagePath = "services/" + stored
+	return ""
+}
+func (s *Server) parseServiceForm(r *http.Request, svc *domain.Service, withLocation bool) ([]domain.ServiceHours, string) {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		if err := r.ParseForm(); err != nil {
+			return nil, "Could not read form"
+		}
+	}
+	if !s.requireCSRF(r) {
+		return nil, "invalid request"
+	}
+	if withLocation {
+		lid, _ := uuid.Parse(r.FormValue("location_id"))
+		svc.LocationID = lid
+	}
+	dur, _ := strconv.Atoi(r.FormValue("duration_min"))
+	price, _ := strconv.ParseInt(r.FormValue("price_idr"), 10, 64)
+	svc.Name = r.FormValue("name")
+	svc.Description = r.FormValue("description")
+	svc.DurationMin = dur
+	svc.PriceIDR = price
+	svc.ImageURL = strings.TrimSpace(r.FormValue("image_url"))
+	if r.FormValue("remove_photo") == "1" && svc.ImagePath != "" {
+		_ = os.Remove(filepath.Join(s.cfg.UploadDir, filepath.Clean(svc.ImagePath)))
+		svc.ImagePath = ""
+	}
+	if file, header, ferr := r.FormFile("photo"); ferr == nil && header.Size > 0 {
+		if msg := s.storeServicePhoto(file, file, header.Filename, header.Size, svc); msg != "" {
+			return nil, msg
+		}
+	}
+	var hours []domain.ServiceHours
+	for d := 0; d < 7; d++ {
+		from := strings.TrimSpace(r.FormValue(fmt.Sprintf("hours_%d_from", d)))
+		to := strings.TrimSpace(r.FormValue(fmt.Sprintf("hours_%d_to", d)))
+		if from == "" || to == "" {
+			continue // closed this weekday
+		}
+		hours = append(hours, domain.ServiceHours{Weekday: d, StartTime: from, EndTime: to})
+	}
+	return hours, ""
+}
+
+type weekdayRow struct {
+	Num  int
+	Name string
+	From string
+	To   string
+}
+
+func weekdayRows(hours []domain.ServiceHours) []weekdayRow {
+	names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+	byDay := map[int]domain.ServiceHours{}
+	for _, h := range hours {
+		byDay[h.Weekday] = h
+	}
+	// Monday-first order for the form grid.
+	order := []int{1, 2, 3, 4, 5, 6, 0}
+	rows := make([]weekdayRow, 0, 7)
+	for _, d := range order {
+		rows = append(rows, weekdayRow{Num: d, Name: names[d], From: byDay[d].StartTime, To: byDay[d].EndTime})
+	}
+	return rows
+}
+
+func (s *Server) PortalEditServiceForm(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	svc, err := s.catalog.GetService(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	hours, _ := s.catalog.ListServiceHours(r.Context(), id)
+	s.render(w, r, "portal_service_edit.html", pageData{
+		"Service": svc,
+		"Hours":   weekdayRows(hours),
+		"Error":   r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) PortalUpdateService(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	svc, err := s.catalog.GetService(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	hours, errMsg := s.parseServiceForm(r, svc, false)
+	if errMsg != "" {
+		http.Redirect(w, r, "/portal/services/"+id.String()+"/edit?error="+url.QueryEscape(errMsg), http.StatusSeeOther)
+		return
+	}
+	if err := s.catalog.SaveService(r.Context(), svc); err != nil {
+		http.Redirect(w, r, "/portal/services/"+id.String()+"/edit?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := s.catalog.SaveServiceHours(r.Context(), svc.ID, hours); err != nil {
+		http.Redirect(w, r, "/portal/services/"+id.String()+"/edit?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/portal/services?toast="+url.QueryEscape("Service updated")+"&kind=success", http.StatusSeeOther)
+}
+
+// ServeServicePhoto serves uploaded service photos (public, traversal-safe).
+func (s *Server) ServeServicePhoto(w http.ResponseWriter, r *http.Request) {
+	file := chi.URLParam(r, "file")
+	if file == "" || strings.Contains(file, "/") || strings.Contains(file, "\\") {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(s.cfg.UploadDir, "services", filepath.Clean(file)))
 }
 
 func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {

@@ -9,7 +9,7 @@
       hx-on::after-request="document.getElementById('slots-wrap').innerHTML=''"
       @click="onReclick($el,'svc')"
       @change="onPick($el,'svc')">>
-    <img src="{{serviceImg .Name}}" alt="" loading="lazy">
+    <img src="{{servicePhoto .}}" alt="" loading="lazy">
     <span class="pick-name">{{.Name}}</span>
     {{if .Description}}<span class="pick-desc">{{.Description}}</span>{{end}}
     <span class="pill-row"><span class="pill">{{.DurationMin}} min</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></span>
