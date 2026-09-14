@@ -5,6 +5,9 @@
     <span class="brand-sub">Baby &amp; Mom Spa</span>
   </a>
   <nav class="nav">
+    <button id="theme-btn" class="theme-btn" type="button" aria-label="Theme: system" onclick="return __wanggaThemeCycle()">
+      <span id="theme-icon" aria-hidden="true">◐</span><span id="theme-label">Auto</span>
+    </button>
     <a href="/services">Services</a>
     {{if .User}}
       {{if .User.Role.IsStaff}}

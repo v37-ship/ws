@@ -1,16 +1,67 @@
 {{define "head"}}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>
+/* Theme ships with the HTML (never a cached JS file) so the toggle works
+   on first paint even with stale assets. Stored choice wins; default is
+   system, which leaves data-theme unset for the CSS media query. */
+window.__wanggaTheme = {
+  order: ["light", "dark", "system"],
+  icons: { light: "☀", dark: "🌙", system: "◐" },
+  labels: { light: "Light", dark: "Dark", system: "Auto" },
+  get: function () {
+    try {
+      var t = localStorage.getItem("wangga-theme");
+      return this.order.indexOf(t) >= 0 ? t : "system";
+    } catch (e) { return "system"; }
+  },
+  paint: function (t) {
+    var b = document.getElementById("theme-btn");
+    if (!b) return;
+    var i = document.getElementById("theme-icon");
+    var l = document.getElementById("theme-label");
+    if (i) i.textContent = this.icons[t];
+    if (l) l.textContent = this.labels[t];
+    b.setAttribute("aria-label", "Theme: " + this.labels[t] + " (tap to change)");
+    b.title = "Theme: " + this.labels[t];
+  },
+  apply: function (t) {
+    if (t === "system") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", t);
+    }
+    try { localStorage.setItem("wangga-theme", t); } catch (e) {}
+    this.paint(t);
+  },
+  cycle: function () {
+    this.apply(this.order[(this.order.indexOf(this.get()) + 1) % this.order.length]);
+    return false;
+  }
+};
+(function () {
+  try {
+    var t = window.__wanggaTheme.get();
+    if (t !== "system") document.documentElement.setAttribute("data-theme", t);
+    var paint = function () { window.__wanggaTheme.paint(window.__wanggaTheme.get()); };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", paint);
+    } else { paint(); }
+  } catch (e) {}
+})();
+function __wanggaThemeCycle() { try { return window.__wanggaTheme.cycle(); } catch (e) { return false; } }
+</script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/app.css">
-<link rel="stylesheet" href="/static/css/modern.css">
+<link rel="stylesheet" href="{{static "css/app.css"}}">
+<link rel="stylesheet" href="{{static "css/modern.css"}}">
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-<script src="/static/js/htmx.min.js" defer></script>
-<script src="/static/js/alpine.min.js" defer></script>
-<script src="/static/js/app.js" defer></script>
+<script src="{{static "js/htmx.min.js"}}" defer></script>
+<script src="{{static "js/alpine.min.js"}}" defer></script>
+<script src="{{static "js/app.js"}}" defer></script>
 {{end}}
 
 {{define "toast-region"}}

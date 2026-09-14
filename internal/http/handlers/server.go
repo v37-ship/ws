@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -109,6 +111,9 @@ func New(
 		"servicePhoto": func(svc domain.Service) string {
 			return service.ResolveServiceImage(svc)
 		},
+		"static": func(path string) string {
+			return "/static/" + strings.TrimPrefix(path, "/") + "?v=" + staticVersion
+		},
 		"staffPhoto": func(st domain.Staff) string {
 			return service.ResolveStaffPhoto(st)
 		},
@@ -167,6 +172,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(buf.Bytes())
 }
 
@@ -183,6 +189,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Vary", "HX-Request")
 	_, _ = w.Write(buf.Bytes())
 }
@@ -266,8 +273,35 @@ func StaticHandler() http.Handler {
 	if err != nil {
 		panic(err)
 	}
-	return http.FileServer(http.FS(sub))
+	files := http.FileServer(http.FS(sub))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Versioned URLs (?v=content-hash) are immutable: any content
+		// change produces a new URL, so browsers never run stale CSS/JS.
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		files.ServeHTTP(w, r)
+	})
 }
+
+// staticVersion is a short hash of all embedded static assets, computed
+// once at startup. Appended as ?v= to asset URLs so deploys bust caches.
+var staticVersion = func() string {
+	h := sha256.New()
+	_ = fs.WalkDir(staticFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		b, err := staticFS.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		h.Write([]byte(path))
+		h.Write(b)
+		return nil
+	})
+	return hex.EncodeToString(h.Sum(nil))[:12]
+}()
 
 //go:embed all:static
 var staticFS embed.FS

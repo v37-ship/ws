@@ -1,5 +1,13 @@
 // Global HTMX + Alpine helpers.
 (function () {
+  // Theme button visuals sync. The cycle logic lives in the inline head
+  // script (window.__wanggaTheme) so the toggle works even with a stale
+  // cached app.js; this just repaints the label after load.
+  try {
+    if (window.__wanggaTheme) {
+      window.__wanggaTheme.paint(window.__wanggaTheme.get());
+    }
+  } catch (e) { /* ignore */ }
   // Toasts via HX-Trigger: {"toast": {"kind": "success", "message": "..."}}
   document.body.addEventListener("toast", function (e) {
     var d = e.detail || {};
