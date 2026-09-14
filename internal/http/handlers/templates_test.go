@@ -35,7 +35,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"admin_cs.html", "admin_customer_reset.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
-		"portal_customer_detail.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html",
+		"portal_customer_detail.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
 	}
 	for _, name := range pages {
 		data := pageData{
@@ -47,6 +47,8 @@ func TestTemplatesExecute(t *testing.T) {
 		switch name {
 		case "pay.html", "portal_booking_detail.html":
 			data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
+		case "portal_staff_edit.html":
+			data["Staff"] = domain.Staff{}
 		case "admin_cs.html":
 			data["CSUsers"] = []domain.User{}
 		case "portal_customer_detail.html":

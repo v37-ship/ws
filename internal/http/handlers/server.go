@@ -109,6 +109,9 @@ func New(
 		"servicePhoto": func(svc domain.Service) string {
 			return service.ResolveServiceImage(svc)
 		},
+		"staffPhoto": func(st domain.Staff) string {
+			return service.ResolveStaffPhoto(st)
+		},
 		"waURL": func(phone, customerName, serviceName, staffName, whenStr, locName string) string {
 			cleanPhone := strings.TrimSpace(phone)
 			cleanPhone = strings.ReplaceAll(cleanPhone, "-", "")
@@ -282,6 +285,7 @@ func (s *Server) Routes(r chi.Router) {
 	})
 	r.Handle("/static/*", http.StripPrefix("/static/", StaticHandler()))
 	r.Get("/uploads/services/{file}", s.ServeServicePhoto)
+	r.Get("/uploads/staff/{file}", s.ServeStaffPhoto)
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
@@ -339,6 +343,9 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/schedule/time-off", s.PortalCreateTimeOff)
 		pr.Post("/schedule/time-off/{id}/delete", s.PortalDeleteTimeOff)
 		pr.Post("/staff", s.PortalCreateStaff)
+		pr.Get("/staff/{id}/edit", s.PortalEditStaffForm)
+		pr.Post("/staff/{id}/edit", s.PortalUpdateStaff)
+		pr.Post("/staff/{id}/delete", s.PortalDeleteStaff)
 		pr.Get("/staff/{id}/hours", s.PortalStaffHoursForm)
 		pr.Post("/staff/{id}/hours", s.PortalSaveStaffHours)
 

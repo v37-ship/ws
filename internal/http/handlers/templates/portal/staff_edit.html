@@ -1,0 +1,60 @@
+{{define "portal_staff_edit.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Edit {{.Staff.Name}} — Staff Portal</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack" style="max-width:720px; margin:0 auto;">
+    <div>
+      <a href="/portal/schedule" class="muted">&larr; Back to team</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">Edit therapist</h1>
+    </div>
+
+    {{template "portal_nav" dict "Active" "schedule" "User" .User}}
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <form class="panel stack" method="post" action="/portal/staff/{{.Staff.ID}}/edit" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Name <input name="name" required value="{{.Staff.Name}}" autocomplete="off"></label>
+      <label>Bio <textarea name="bio" rows="2">{{.Staff.Bio}}</textarea></label>
+      <div class="stack" style="background:var(--bg-2); border-radius:.9rem; padding:.9rem 1rem;">
+        <strong>Profile picture</strong>
+        <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
+          {{if staffPhoto .Staff}}
+          <img src="{{staffPhoto .Staff}}" alt="Current picture" style="width:5rem; height:5rem; border-radius:9999px; object-fit:cover; background:#fff;">
+          {{else}}
+          <span class="avatar" aria-hidden="true" style="width:5rem; height:5rem; font-size:2.2rem;">👩‍⚕️</span>
+          {{end}}
+          <div style="flex:1; min-width:220px;" class="stack">
+            <label>Replace upload (JPG/PNG/WebP, max 2 MB) <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+            <label>…or picture link <input name="photo_url" value="{{.Staff.PhotoURL}}" placeholder="https://…" autocomplete="off"></label>
+          </div>
+        </div>
+        {{if .Staff.PhotoPath}}<label style="font-weight:400;"><input type="checkbox" name="remove_photo" value="1" style="width:auto; display:inline;"> Remove uploaded photo</label>{{end}}
+        <p class="muted" style="margin:0; font-size:.85rem;">A new upload replaces the current picture; otherwise it stays as shown.</p>
+      </div>
+      <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
+        <legend style="font-weight:700; padding:0 .5rem;">Can perform</legend>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:.25rem;">
+          {{range .Services}}
+          <label style="display:flex; gap:.5rem; align-items:center; font-weight:500;">
+            <input type="checkbox" name="service_ids" value="{{.ID}}" style="width:auto;" {{if index $.Have .ID.String}}checked{{end}}> {{.Name}}
+          </label>
+          {{end}}
+        </div>
+      </fieldset>
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+        <button class="btn" type="submit">Save changes</button>
+        <a class="btn secondary on-light" href="/portal/staff/{{.Staff.ID}}/hours">Edit weekly hours</a>
+      </div>
+    </form>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

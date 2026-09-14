@@ -22,7 +22,7 @@
 
     <details class="panel stack">
       <summary style="cursor:pointer; font-weight:700;">+ Add therapist</summary>
-      <form class="stack" method="post" action="/portal/staff">
+      <form class="stack" method="post" action="/portal/staff" enctype="multipart/form-data">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
           <label>Branch
@@ -33,6 +33,10 @@
           <label>Name <input name="name" required autocomplete="off" placeholder="e.g. Bidan Sari"></label>
         </div>
         <label>Bio <textarea name="bio" rows="2" placeholder="Certifications, specialties"></textarea></label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>Photo upload (JPG/PNG/WebP, max 2 MB) <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>…or picture link <input name="photo_url" placeholder="https://…" autocomplete="off"></label>
+        </div>
         <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
           <legend style="font-weight:700; padding:0 .5rem;">Can perform</legend>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:.25rem;">
@@ -63,8 +67,15 @@
           {{range .Staff}}
             <tr>
               <td>
-                <strong>{{.Name}}</strong><br>
-                <small class="muted">{{.Bio}}</small>
+                <div style="display:flex; gap:.6rem; align-items:center;">
+                  {{if staffPhoto .}}
+                  <img src="{{staffPhoto .}}" alt="" loading="lazy" style="width:2.6rem; height:2.6rem; border-radius:9999px; object-fit:cover; background:var(--bg-2); flex:none;">
+                  {{else}}
+                  <span class="avatar" aria-hidden="true" style="width:2.6rem; height:2.6rem; font-size:1.3rem;">👩‍⚕️</span>
+                  {{end}}
+                  <div><strong>{{.Name}}</strong><br>
+                  <small class="muted">{{.Bio}}</small></div>
+                </div>
               </td>
               <td><small>{{range $i, $s := index $.StaffSvcs .ID.String}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="muted">—</span>{{end}}</small></td>
               <td>
@@ -76,12 +87,17 @@
               </td>
               <td>
                 <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+                  <a href="/portal/staff/{{.ID}}/edit" class="btn secondary on-light btn-sm">Edit</a>
                   <a href="/portal/staff/{{.ID}}/hours" class="btn secondary on-light btn-sm">Hours</a>
                   <form method="post" action="/portal/staff/{{.ID}}/toggle" hx-post="/portal/staff/{{.ID}}/toggle" hx-swap="none" style="display:inline;">
                     <input type="hidden" name="csrf" value="{{$.CSRF}}">
                     <button type="submit" class="btn secondary on-light btn-sm" hx-disabled-elt="this">
                       {{if .Active}}Pause{{else}}Activate{{end}}
                     </button>
+                  </form>
+                  <form method="post" action="/portal/staff/{{.ID}}/delete" hx-post="/portal/staff/{{.ID}}/delete" hx-swap="none" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="Remove {{.Name}}? Only possible when they have no booking history." hx-disabled-elt="this">Remove</button>
                   </form>
                 </div>
               </td>

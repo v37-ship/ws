@@ -828,7 +828,12 @@ func (s *Server) PortalSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) PortalCreateStaff(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid", http.StatusBadRequest)
+			return
+		}
+	}
 	if !s.requireCSRF(r) {
 		http.Error(w, "invalid", http.StatusBadRequest)
 		return
@@ -840,7 +845,18 @@ func (s *Server) PortalCreateStaff(w http.ResponseWriter, r *http.Request) {
 			serviceIDs = append(serviceIDs, id)
 		}
 	}
-	st := &domain.Staff{LocationID: lid, Name: r.FormValue("name"), Bio: r.FormValue("bio"), Active: true}
+	st := &domain.Staff{
+		LocationID: lid, Name: r.FormValue("name"), Bio: r.FormValue("bio"), Active: true,
+		PhotoURL: strings.TrimSpace(r.FormValue("photo_url")),
+	}
+	if file, header, ferr := r.FormFile("photo"); ferr == nil && header.Size > 0 {
+		rel, msg := s.storeUpload(file, file, header.Filename, header.Size, "staff")
+		if msg != "" {
+			http.Redirect(w, r, "/portal/schedule?error="+url.QueryEscape(msg), http.StatusSeeOther)
+			return
+		}
+		st.PhotoPath = rel
+	}
 	if err := s.catalog.SaveStaff(r.Context(), st, serviceIDs); err != nil {
 		http.Redirect(w, r, "/portal/schedule?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -952,31 +968,29 @@ func (s *Server) PortalCreateService(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/portal/services?toast="+url.QueryEscape("Service added")+"&kind=success", http.StatusSeeOther)
 }
 
-// storeServicePhoto validates and stores an uploaded service photo,
-// setting svc.ImagePath on success. Returns "" on success or when there
-// is nothing to store, else an error message.
-func (s *Server) storeServicePhoto(file io.Reader, closer io.Closer, original string, size int64, svc *domain.Service) string {
+// storeUpload validates and stores an uploaded picture under
+// <UploadDir>/<subdir>, returning the relative path or an error message.
+func (s *Server) storeUpload(file io.Reader, closer io.Closer, original string, size int64, subdir string) (string, string) {
 	defer closer.Close()
 	stored, err := service.ValidatePhotoName(original, size)
 	if err != nil {
-		return err.Error()
+		return "", err.Error()
 	}
-	dir := filepath.Join(s.cfg.UploadDir, "services")
+	dir := filepath.Join(s.cfg.UploadDir, subdir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "Could not store photo"
+		return "", "Could not store photo"
 	}
 	dst, err := os.Create(filepath.Join(dir, stored))
 	if err != nil {
-		s.log.Error("service photo save", "err", err)
-		return "Could not store photo"
+		s.log.Error("photo save", "err", err)
+		return "", "Could not store photo"
 	}
 	if _, err := io.Copy(dst, file); err != nil {
 		_ = dst.Close()
-		return "Could not store photo"
+		return "", "Could not store photo"
 	}
 	_ = dst.Close()
-	svc.ImagePath = "services/" + stored
-	return ""
+	return subdir + "/" + stored, ""
 }
 func (s *Server) parseServiceForm(r *http.Request, svc *domain.Service, withLocation bool) ([]domain.ServiceHours, string) {
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
@@ -1003,9 +1017,11 @@ func (s *Server) parseServiceForm(r *http.Request, svc *domain.Service, withLoca
 		svc.ImagePath = ""
 	}
 	if file, header, ferr := r.FormFile("photo"); ferr == nil && header.Size > 0 {
-		if msg := s.storeServicePhoto(file, file, header.Filename, header.Size, svc); msg != "" {
+		rel, msg := s.storeUpload(file, file, header.Filename, header.Size, "services")
+		if msg != "" {
 			return nil, msg
 		}
+		svc.ImagePath = rel
 	}
 	var hours []domain.ServiceHours
 	for d := 0; d < 7; d++ {
@@ -1131,6 +1147,117 @@ func (s *Server) PortalToggleStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/portal/schedule", http.StatusSeeOther)
+}
+
+func (s *Server) PortalEditStaffForm(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	st, err := s.catalog.GetStaff(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	svcs, _ := s.catalog.ListServices(r.Context(), st.LocationID, false)
+	current, _ := s.catalog.StaffServiceIDs(r.Context(), id)
+	have := make(map[string]bool, len(current))
+	for _, sid := range current {
+		have[sid.String()] = true
+	}
+	s.render(w, r, "portal_staff_edit.html", pageData{
+		"Staff": st, "Services": svcs, "Have": have,
+		"Error": r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) PortalUpdateStaff(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid", http.StatusBadRequest)
+			return
+		}
+	}
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	st, err := s.catalog.GetStaff(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var serviceIDs []uuid.UUID
+	for _, v := range r.Form["service_ids"] {
+		if sid, err := uuid.Parse(v); err == nil {
+			serviceIDs = append(serviceIDs, sid)
+		}
+	}
+	st.Name = r.FormValue("name")
+	st.Bio = r.FormValue("bio")
+	st.PhotoURL = strings.TrimSpace(r.FormValue("photo_url"))
+	if r.FormValue("remove_photo") == "1" && st.PhotoPath != "" {
+		_ = os.Remove(filepath.Join(s.cfg.UploadDir, filepath.Clean(st.PhotoPath)))
+		st.PhotoPath = ""
+	}
+	if file, header, ferr := r.FormFile("photo"); ferr == nil && header.Size > 0 {
+		rel, msg := s.storeUpload(file, file, header.Filename, header.Size, "staff")
+		if msg != "" {
+			http.Redirect(w, r, "/portal/staff/"+id.String()+"/edit?error="+url.QueryEscape(msg), http.StatusSeeOther)
+			return
+		}
+		st.PhotoPath = rel
+	}
+	if err := s.catalog.SaveStaff(r.Context(), st, serviceIDs); err != nil {
+		http.Redirect(w, r, "/portal/staff/"+id.String()+"/edit?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/portal/schedule?toast="+url.QueryEscape("Therapist updated")+"&kind=success", http.StatusSeeOther)
+}
+
+// ServeStaffPhoto serves uploaded therapist photos (public, traversal-safe).
+func (s *Server) ServeStaffPhoto(w http.ResponseWriter, r *http.Request) {
+	file := chi.URLParam(r, "file")
+	if file == "" || strings.Contains(file, "/") || strings.Contains(file, "\\") {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(s.cfg.UploadDir, "staff", filepath.Clean(file)))
+}
+
+func (s *Server) PortalDeleteStaff(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.catalog.DeleteStaff(r.Context(), id); err != nil {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", err.Error())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		http.Redirect(w, r, "/portal/schedule?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Therapist removed")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/portal/schedule?toast="+url.QueryEscape("Therapist removed")+"&kind=success", http.StatusSeeOther)
 }
 
 func (s *Server) PortalStaffHoursForm(w http.ResponseWriter, r *http.Request) {
