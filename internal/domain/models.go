@@ -53,8 +53,18 @@ type Service struct {
 	DurationMin int
 	PriceIDR    int64
 	Active      bool
+	ImagePath   string // local upload under uploads/services/
+	ImageURL    string // internet picture link
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type ServiceHours struct {
+	ID        uuid.UUID
+	ServiceID uuid.UUID
+	Weekday   int    // 0=Sunday .. 6=Saturday
+	StartTime string // HH:MM
+	EndTime   string // HH:MM
 }
 
 type EmploymentType string

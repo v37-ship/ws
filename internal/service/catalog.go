@@ -3,6 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"spa-booking/internal/domain"
@@ -53,11 +57,152 @@ func (s *CatalogService) SaveService(ctx context.Context, svc *domain.Service) e
 	if svc.Name == "" || svc.DurationMin <= 0 || svc.PriceIDR < 0 || svc.LocationID == uuid.Nil {
 		return fmt.Errorf("%w: invalid service", ErrValidation)
 	}
+	if err := ValidateImageURL(svc.ImageURL); err != nil {
+		return err
+	}
 	if svc.ID == uuid.Nil {
 		svc.Active = true
 		return s.catalog.CreateService(ctx, svc)
 	}
 	return s.catalog.UpdateService(ctx, svc)
+}
+
+func (s *CatalogService) ListServiceHours(ctx context.Context, serviceID uuid.UUID) ([]domain.ServiceHours, error) {
+	return s.catalog.ListServiceHours(ctx, serviceID)
+}
+
+// SaveServiceHours replaces the weekly availability windows for a service.
+// An empty slice (or a weekday with no row) means closed that weekday;
+// pass a row per open day with HH:MM times where end > start.
+func (s *CatalogService) SaveServiceHours(ctx context.Context, serviceID uuid.UUID, hours []domain.ServiceHours) error {
+	for _, h := range hours {
+		if h.Weekday < 0 || h.Weekday > 6 {
+			return fmt.Errorf("%w: invalid weekday", ErrValidation)
+		}
+		if !validHM(h.StartTime) || !validHM(h.EndTime) || h.StartTime >= h.EndTime {
+			return fmt.Errorf("%w: invalid hours (use HH:MM, end after start)", ErrValidation)
+		}
+		h.ServiceID = serviceID
+	}
+	return s.catalog.ReplaceServiceHours(ctx, serviceID, hours)
+}
+
+func validHM(v string) bool {
+	if len(v) != 5 || v[2] != ':' {
+		return false
+	}
+	t, err := time.Parse("15:04", v)
+	if err != nil {
+		return false
+	}
+	return t.Format("15:04") == v
+}
+
+// MaxServicePhotoBytes caps service photo uploads at 2 MB.
+const MaxServicePhotoBytes = 2 << 20
+
+var allowedPhotoExts = map[string]bool{
+	".jpg": true, ".jpeg": true, ".png": true, ".webp": true,
+}
+
+// ValidatePhotoName checks an uploaded filename and returns a safe storage name.
+func ValidatePhotoName(original string, size int64) (string, error) {
+	if size > MaxServicePhotoBytes {
+		return "", fmt.Errorf("%w: photo must be under 2 MB", ErrValidation)
+	}
+	ext := strings.ToLower(filepath.Ext(original))
+	if !allowedPhotoExts[ext] {
+		return "", fmt.Errorf("%w: photo must be JPG, PNG or WebP", ErrValidation)
+	}
+	return uuid.NewString() + ext, nil
+}
+
+// ValidateImageURL allows empty (fallback illustration) or an http(s) image link.
+func ValidateImageURL(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("%w: picture link must be an http(s) URL", ErrValidation)
+	}
+	ext := strings.ToLower(filepath.Ext(u.Path))
+	if ext != "" && !allowedPhotoExts[ext] && ext != ".gif" {
+		return fmt.Errorf("%w: picture link must point to an image", ErrValidation)
+	}
+	return nil
+}
+
+// ResolveServiceImage picks the display picture: local upload first, then
+// internet link, then the built-in keyword illustration.
+func ResolveServiceImage(svc domain.Service) string {
+	if svc.ImagePath != "" {
+		return "/uploads/services/" + path.Base(svc.ImagePath)
+	}
+	if strings.TrimSpace(svc.ImageURL) != "" {
+		return strings.TrimSpace(svc.ImageURL)
+	}
+	return KeywordServiceImage(svc.Name)
+}
+
+// SummarizeServiceHours renders weekly windows compactly, e.g.
+// "Mon–Fri 15:00–20:00 · Sat 09:00–12:00 · closed Sun".
+func SummarizeServiceHours(hours []domain.ServiceHours) string {
+	if len(hours) == 0 {
+		return "All day, every day"
+	}
+	short := []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+	byDay := map[int]domain.ServiceHours{}
+	for _, h := range hours {
+		byDay[h.Weekday] = h
+	}
+	order := []int{1, 2, 3, 4, 5, 6, 0}
+	type span struct {
+		days   []int
+		window string
+	}
+	var spans []span
+	for _, d := range order {
+		h, ok := byDay[d]
+		if !ok {
+			continue
+		}
+		w := h.StartTime + "–" + h.EndTime
+		if n := len(spans); n > 0 && spans[n-1].window == w {
+			spans[n-1].days = append(spans[n-1].days, d)
+		} else {
+			spans = append(spans, span{days: []int{d}, window: w})
+		}
+	}
+	parts := make([]string, 0, len(spans)+1)
+	for _, sp := range spans {
+		label := short[sp.days[0]]
+		if len(sp.days) > 1 {
+			label += "–" + short[sp.days[len(sp.days)-1]]
+		}
+		parts = append(parts, label+" "+sp.window)
+	}
+	if len(byDay) < 7 {
+		parts = append(parts, "closed other days")
+	}
+	return strings.Join(parts, " · ")
+}
+func KeywordServiceImage(name string) string {
+	n := strings.ToLower(name)
+	switch {
+	case strings.Contains(n, "baby") || strings.Contains(n, "kid") || strings.Contains(n, "child"):
+		return "/static/img/svc-baby.svg"
+	case strings.Contains(n, "facial") || strings.Contains(n, "face") || strings.Contains(n, "glow"):
+		return "/static/img/svc-facial.svg"
+	case strings.Contains(n, "foot") || strings.Contains(n, "reflex") || strings.Contains(n, "pedicure") || strings.Contains(n, "kaki"):
+		return "/static/img/svc-foot.svg"
+	case strings.Contains(n, "mom") || strings.Contains(n, "massage") || strings.Contains(n, "recovery") ||
+		strings.Contains(n, "maternity") || strings.Contains(n, "postpartum") || strings.Contains(n, "pijat"):
+		return "/static/img/svc-massage.svg"
+	default:
+		return "/static/img/svc-default.svg"
+	}
 }
 
 func (s *CatalogService) ListStaff(ctx context.Context, locationID uuid.UUID, activeOnly bool) ([]domain.Staff, error) {
@@ -246,6 +391,15 @@ func (s *AvailabilityService) SlotsDetailed(ctx context.Context, locationID, ser
 	var slots []SlotInfo
 	duration := time.Duration(svc.DurationMin) * time.Minute
 	now := time.Now().In(tz)
+	svcHours, err := s.catalog.ListServiceHours(ctx, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	svcWindow := serviceWindowFor(svcHours, int(dayLocal.Weekday()), dayLocal)
+	if len(svcHours) > 0 && svcWindow == nil {
+		// Service has configured hours but is closed this weekday.
+		return nil, nil
+	}
 	for _, st := range staffList {
 		hours, err := s.catalog.ListStaffHours(ctx, st.ID)
 		if err != nil {
@@ -263,6 +417,15 @@ func (s *AvailabilityService) SlotsDetailed(ctx context.Context, locationID, ser
 			startHM, endHM := parseHM(h.StartTime), parseHM(h.EndTime)
 			cursor := dayLocal.Add(startHM)
 			windowEnd := dayLocal.Add(endHM)
+			// Intersect staff hours with the service's own daily window.
+			if svcWindow != nil {
+				if svcWindow[0].After(cursor) {
+					cursor = svcWindow[0]
+				}
+				if svcWindow[1].Before(windowEnd) {
+					windowEnd = svcWindow[1]
+				}
+			}
 			for !cursor.Add(duration).After(windowEnd) {
 				slotEnd := cursor.Add(duration)
 				if cursor.Before(now.Add(30 * time.Minute)) {
@@ -291,6 +454,22 @@ func parseHM(s string) time.Duration {
 	var hh, mm int
 	_, _ = fmt.Sscanf(s, "%d:%d", &hh, &mm)
 	return time.Duration(hh)*time.Hour + time.Duration(mm)*time.Minute
+}
+
+// serviceWindowFor returns the service's [start, end] window for a weekday,
+// or nil when the service has no hours configured (available all day).
+func serviceWindowFor(hours []domain.ServiceHours, weekday int, dayLocal time.Time) *[2]time.Time {
+	for _, h := range hours {
+		if h.Weekday != weekday {
+			continue
+		}
+		if !validHM(h.StartTime) || !validHM(h.EndTime) || h.StartTime >= h.EndTime {
+			continue
+		}
+		w := [2]time.Time{dayLocal.Add(parseHM(h.StartTime)), dayLocal.Add(parseHM(h.EndTime))}
+		return &w
+	}
+	return nil
 }
 
 func overlapsAny(start, end time.Time, busy [][2]time.Time) bool {
