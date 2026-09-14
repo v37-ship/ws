@@ -414,4 +414,6 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 640px) {
   .site-header { align-items: flex-start; flex-direction: column; }
   .hero-bleed { min-height: 70vh; }
+  .portal-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: thin; }
+  .portal-tab { white-space: nowrap; flex: none; }
 }

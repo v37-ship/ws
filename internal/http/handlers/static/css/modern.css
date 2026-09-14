@@ -255,3 +255,18 @@
 .slot.taken.demo { opacity: .35; }
 .legend { font-size: .8rem; display: flex; align-items: center; gap: .4rem; }
 .legend .slot { font-size: .7rem; padding: .1rem .4rem; }
+
+/* Weekly hours grid (portal service create/edit) */
+.hours-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .5rem;
+}
+.hours-grid > label { min-width: 0; }
+.hours-grid input[type="time"] { min-width: 0; flex: 1; width: 100%; }
+@media (max-width: 640px) {
+  .hours-grid { grid-template-columns: 1fr; }
+}
+
+/* Safety: never allow sideways page scroll */
+html, body { overflow-x: clip; max-width: 100%; }
