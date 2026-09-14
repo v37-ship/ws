@@ -31,11 +31,11 @@ func TestTemplatesExecute(t *testing.T) {
 		"home.html", "book.html", "bookings.html", "login.html", "pay.html",
 		"register.html", "services.html",
 		"admin_home.html", "admin_locations.html",
-		"admin_staff.html", "admin_staff_hours.html", "admin_bookings.html",
+		"admin_bookings.html",
 		"admin_cs.html", "admin_customer_reset.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
-		"portal_customer_detail.html", "portal_schedule.html", "portal_services.html",
+		"portal_customer_detail.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html",
 	}
 	for _, name := range pages {
 		data := pageData{

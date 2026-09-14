@@ -338,6 +338,9 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Get("/schedule", s.PortalSchedule)
 		pr.Post("/schedule/time-off", s.PortalCreateTimeOff)
 		pr.Post("/schedule/time-off/{id}/delete", s.PortalDeleteTimeOff)
+		pr.Post("/staff", s.PortalCreateStaff)
+		pr.Get("/staff/{id}/hours", s.PortalStaffHoursForm)
+		pr.Post("/staff/{id}/hours", s.PortalSaveStaffHours)
 
 		pr.Get("/services", s.PortalServices)
 		pr.Post("/services", s.PortalCreateService)
@@ -357,10 +360,10 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/services", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/portal/services", http.StatusSeeOther)
 		})
-		ar.Get("/staff", s.AdminStaff)
-		ar.Post("/staff", s.AdminCreateStaff)
-		ar.Get("/staff/{id}/hours", s.AdminStaffHours)
-		ar.Post("/staff/{id}/hours", s.AdminSaveStaffHours)
+		// Staff management moved to the portal Team page; keep old admin URL working.
+		ar.Get("/staff", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/portal/schedule", http.StatusSeeOther)
+		})
 		ar.Get("/bookings", s.AdminBookings)
 
 		// CS Accounts Management

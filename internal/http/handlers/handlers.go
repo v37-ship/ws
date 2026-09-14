@@ -442,91 +442,6 @@ func (s *Server) AdminCreateLocation(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/locations", http.StatusSeeOther)
 }
 
-func (s *Server) AdminStaff(w http.ResponseWriter, r *http.Request) {
-	locs, _ := s.catalog.ListLocations(r.Context(), false)
-	var staff []domain.Staff
-	var services []domain.Service
-	for _, l := range locs {
-		st, _ := s.catalog.ListStaff(r.Context(), l.ID, false)
-		staff = append(staff, st...)
-		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, true)
-		services = append(services, svcs...)
-	}
-	s.render(w, r, "admin_staff.html", pageData{"Locations": locs, "Staff": staff, "Services": services})
-}
-
-func (s *Server) AdminCreateStaff(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
-		return
-	}
-	lid, _ := uuid.Parse(r.FormValue("location_id"))
-	var serviceIDs []uuid.UUID
-	for _, v := range r.Form["service_ids"] {
-		if id, err := uuid.Parse(v); err == nil {
-			serviceIDs = append(serviceIDs, id)
-		}
-	}
-	st := &domain.Staff{LocationID: lid, Name: r.FormValue("name"), Bio: r.FormValue("bio"), Active: true}
-	if err := s.catalog.SaveStaff(r.Context(), st, serviceIDs); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/admin/staff", http.StatusSeeOther)
-}
-
-func (s *Server) AdminStaffHours(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	st, err := s.catalog.GetStaff(r.Context(), id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	hours, _ := s.catalog.StaffHours(r.Context(), id)
-	var b strings.Builder
-	for _, h := range hours {
-		b.WriteString(strconv.Itoa(h.Weekday) + " " + h.StartTime + " " + h.EndTime + "\n")
-	}
-	s.render(w, r, "admin_staff_hours.html", pageData{"Staff": st, "HoursText": b.String()})
-}
-
-func (s *Server) AdminSaveStaffHours(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
-		return
-	}
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	var hours []domain.StaffHours
-	for _, line := range strings.Split(r.FormValue("hours"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) != 3 {
-			continue
-		}
-		wd, _ := strconv.Atoi(parts[0])
-		hours = append(hours, domain.StaffHours{Weekday: wd, StartTime: parts[1], EndTime: parts[2]})
-	}
-	if err := s.catalog.SaveStaffHours(r.Context(), id, hours); err != nil {
-		st, _ := s.catalog.GetStaff(r.Context(), id)
-		s.render(w, r, "admin_staff_hours.html", pageData{"Staff": st, "HoursText": r.FormValue("hours"), "Error": err.Error()})
-		return
-	}
-	http.Redirect(w, r, "/admin/staff", http.StatusSeeOther)
-}
-
 func (s *Server) AdminBookings(w http.ResponseWriter, r *http.Request) {
 	list, err := s.book.ListAdmin(r.Context())
 	if err != nil {
@@ -878,19 +793,59 @@ func (s *Server) PortalCustomerDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) PortalSchedule(w http.ResponseWriter, r *http.Request) {
-	locs, _ := s.catalog.ListLocations(r.Context(), true)
+	locs, _ := s.catalog.ListLocations(r.Context(), false)
 	var staff []domain.Staff
+	var services []domain.Service
 	for _, l := range locs {
 		st, _ := s.catalog.ListStaff(r.Context(), l.ID, false)
 		staff = append(staff, st...)
+		svcs, _ := s.catalog.ListServices(r.Context(), l.ID, true)
+		services = append(services, svcs...)
+	}
+	svcNames := make(map[string]string, len(services))
+	for _, svc := range services {
+		svcNames[svc.ID.String()] = svc.Name
+	}
+	staffServices := make(map[string][]string, len(staff))
+	for _, st := range staff {
+		ids, _ := s.catalog.StaffServiceIDs(r.Context(), st.ID)
+		for _, id := range ids {
+			if name, ok := svcNames[id.String()]; ok {
+				staffServices[st.ID.String()] = append(staffServices[st.ID.String()], name)
+			}
+		}
 	}
 	timeOffs, _ := s.catalog.ListStaffTimeOff(r.Context(), uuid.Nil)
 	s.render(w, r, "portal_schedule.html", pageData{
-		"Staff":    staff,
-		"TimeOffs": timeOffs,
-		"Success":  r.URL.Query().Get("success"),
-		"Error":    r.URL.Query().Get("error"),
+		"Locations": locs,
+		"Staff":     staff,
+		"Services":  services,
+		"StaffSvcs": staffServices,
+		"TimeOffs":  timeOffs,
+		"Success":   r.URL.Query().Get("success"),
+		"Error":     r.URL.Query().Get("error"),
 	})
+}
+
+func (s *Server) PortalCreateStaff(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	lid, _ := uuid.Parse(r.FormValue("location_id"))
+	var serviceIDs []uuid.UUID
+	for _, v := range r.Form["service_ids"] {
+		if id, err := uuid.Parse(v); err == nil {
+			serviceIDs = append(serviceIDs, id)
+		}
+	}
+	st := &domain.Staff{LocationID: lid, Name: r.FormValue("name"), Bio: r.FormValue("bio"), Active: true}
+	if err := s.catalog.SaveStaff(r.Context(), st, serviceIDs); err != nil {
+		http.Redirect(w, r, "/portal/schedule?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/portal/schedule?toast="+url.QueryEscape("Therapist added")+"&kind=success", http.StatusSeeOther)
 }
 
 func (s *Server) PortalCreateTimeOff(w http.ResponseWriter, r *http.Request) {
@@ -937,6 +892,12 @@ func (s *Server) PortalDeleteTimeOff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.catalog.DeleteStaffTimeOff(r.Context(), id)
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Time-off removed")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	http.Redirect(w, r, "/portal/schedule?success=Time-off+removed", http.StatusSeeOther)
 }
 
@@ -1163,7 +1124,81 @@ func (s *Server) PortalToggleStaff(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		_ = s.catalog.ToggleStaffActive(r.Context(), id)
 	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Therapist status updated")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	http.Redirect(w, r, "/portal/schedule", http.StatusSeeOther)
+}
+
+func (s *Server) PortalStaffHoursForm(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	st, err := s.catalog.GetStaff(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	hours, _ := s.catalog.StaffHours(r.Context(), id)
+	rows := make([]weekdayRow, 0, 7)
+	names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+	byDay := map[int]domain.StaffHours{}
+	for _, h := range hours {
+		byDay[h.Weekday] = h
+	}
+	for _, d := range []int{1, 2, 3, 4, 5, 6, 0} {
+		rows = append(rows, weekdayRow{Num: d, Name: names[d], From: byDay[d].StartTime, To: byDay[d].EndTime})
+	}
+	s.render(w, r, "portal_staff_hours.html", pageData{
+		"Staff": st,
+		"Hours": rows,
+		"Error": r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) PortalSaveStaffHours(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var hours []domain.StaffHours
+	for d := 0; d < 7; d++ {
+		from := strings.TrimSpace(r.FormValue(fmt.Sprintf("hours_%d_from", d)))
+		to := strings.TrimSpace(r.FormValue(fmt.Sprintf("hours_%d_to", d)))
+		if from == "" || to == "" {
+			continue // closed this weekday
+		}
+		hours = append(hours, domain.StaffHours{Weekday: d, StartTime: from, EndTime: to})
+	}
+	if err := s.catalog.SaveStaffHours(r.Context(), id, hours); err != nil {
+		st, _ := s.catalog.GetStaff(r.Context(), id)
+		names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+		byDay := map[int]domain.StaffHours{}
+		for _, h := range hours {
+			byDay[h.Weekday] = h
+		}
+		rows := make([]weekdayRow, 0, 7)
+		for _, d := range []int{1, 2, 3, 4, 5, 6, 0} {
+			rows = append(rows, weekdayRow{Num: d, Name: names[d], From: byDay[d].StartTime, To: byDay[d].EndTime})
+		}
+		_ = st
+		s.render(w, r, "portal_staff_hours.html", pageData{
+			"Staff": st, "Hours": rows, "Error": err.Error(),
+		})
+		return
+	}
+	http.Redirect(w, r, "/portal/schedule?toast="+url.QueryEscape("Working hours saved")+"&kind=success", http.StatusSeeOther)
 }
 
 // Admin CS & Password Handlers

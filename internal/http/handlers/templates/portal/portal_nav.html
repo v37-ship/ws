@@ -5,7 +5,7 @@
   <a href="/portal/bookings/new" class="portal-tab {{if eq .Active "new_booking"}}active{{end}}">➕ New Booking (CS)</a>
   <a href="/portal/customers" class="portal-tab {{if eq .Active "customers"}}active{{end}}">👶 Customers</a>
   <a href="/portal/customers/new" class="portal-tab {{if eq .Active "new_customer"}}active{{end}}">➕ Register Customer</a>
-  <a href="/portal/schedule" class="portal-tab {{if eq .Active "schedule"}}active{{end}}">👩‍⚕️ Bidan Roster & Leave</a>
+  <a href="/portal/schedule" class="portal-tab {{if eq .Active "schedule"}}active{{end}}">👩‍⚕️ Team</a>
   <a href="/portal/services" class="portal-tab {{if eq .Active "services"}}active{{end}}">💆‍♀️ Services</a>
   {{if .User}}
     {{if eq (printf "%s" .User.Role) "admin"}}

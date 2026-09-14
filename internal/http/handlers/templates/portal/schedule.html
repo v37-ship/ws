@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Bidan Schedules &amp; Leave — Staff Portal</title>
+  <title>Team — Staff Portal</title>
   {{template "head" .}}
 </head>
 <body>
@@ -11,26 +11,52 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Bidan Schedules &amp; Leave Exceptions</h1>
-        <p class="muted">Manage therapist availability, blockouts, and vacation/sick leave.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">Team — Therapists &amp; Schedules</h1>
+        <p class="muted">Central management for bidan &amp; therapists: profiles, weekly hours, availability, and leave.</p>
       </div>
     </div>
 
     {{template "portal_nav" dict "Active" "schedule" "User" .User}}
 
-    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
-    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
-      <!-- Active Bidan List -->
-      <div class="panel stack">
-        <h2>Bidan &amp; Therapists</h2>
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">+ Add therapist</summary>
+      <form class="stack" method="post" action="/portal/staff">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>Branch
+            <select name="location_id" required>
+              {{range .Locations}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+          </label>
+          <label>Name <input name="name" required autocomplete="off" placeholder="e.g. Bidan Sari"></label>
+        </div>
+        <label>Bio <textarea name="bio" rows="2" placeholder="Certifications, specialties"></textarea></label>
+        <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
+          <legend style="font-weight:700; padding:0 .5rem;">Can perform</legend>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:.25rem;">
+            {{range .Services}}
+            <label style="display:flex; gap:.5rem; align-items:center; font-weight:500;">
+              <input type="checkbox" name="service_ids" value="{{.ID}}" style="width:auto;"> {{.Name}}
+            </label>
+            {{end}}
+          </div>
+        </fieldset>
+        <button class="btn" type="submit">Add therapist</button>
+      </form>
+    </details>
+
+    <div class="panel table-cards">
+      <h2>Therapists</h2>
+      <div style="overflow-x:auto;" aria-live="polite">
         <table class="table">
           <thead>
             <tr>
-              <th>Bidan Name</th>
+              <th>Therapist</th>
+              <th>Services</th>
               <th>Status</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -40,6 +66,7 @@
                 <strong>{{.Name}}</strong><br>
                 <small class="muted">{{.Bio}}</small>
               </td>
+              <td><small>{{range $i, $s := index $.StaffSvcs .ID.String}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="muted">—</span>{{end}}</small></td>
               <td>
                 {{if .Active}}
                   <span class="badge confirmed">Available</span>
@@ -48,84 +75,89 @@
                 {{end}}
               </td>
               <td>
-                <form method="post" action="/portal/staff/{{.ID}}/toggle" style="display:inline;">
-                  <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                  <button type="submit" class="btn secondary on-light btn-sm">
-                    {{if .Active}}Pause{{else}}Activate{{end}}
-                  </button>
-                </form>
+                <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+                  <a href="/portal/staff/{{.ID}}/hours" class="btn secondary on-light btn-sm">Hours</a>
+                  <form method="post" action="/portal/staff/{{.ID}}/toggle" hx-post="/portal/staff/{{.ID}}/toggle" hx-swap="none" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" hx-disabled-elt="this">
+                      {{if .Active}}Pause{{else}}Activate{{end}}
+                    </button>
+                  </form>
+                </div>
               </td>
             </tr>
+          {{else}}
+            <tr><td colspan="4" class="muted" style="text-align:center; padding:2rem;">No therapists yet. Add the first one above.</td></tr>
           {{end}}
           </tbody>
         </table>
       </div>
+    </div>
 
-      <!-- Add Leave / Time-Off Blockout -->
-      <div class="panel stack">
-        <h2>Block Time-Off / Leave for Bidan</h2>
-        <p class="muted">Prevent bookings during sick leave, doctor visits, or holidays.</p>
-        
-        <form method="post" action="/portal/schedule/time-off" class="stack">
-          <input type="hidden" name="csrf" value="{{.CSRF}}">
-          <label>Select Bidan / Staff *
+    <div class="panel stack">
+      <h2>Block time-off / leave</h2>
+      <p class="muted">Prevent bookings during sick leave, doctor visits, or holidays.</p>
+      <form method="post" action="/portal/schedule/time-off" class="stack">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>Therapist *
             <select name="staff_id" required>
-              <option value="">-- Choose Bidan --</option>
+              <option value="">-- Choose therapist --</option>
               {{range .Staff}}
                 <option value="{{.ID}}">{{.Name}}</option>
               {{end}}
             </select>
           </label>
-
-          <label>Start Time (WIB) *
+          <label>Reason / note
+            <input type="text" name="reason" placeholder="e.g. Annual leave, Doctor visit" required autocomplete="off">
+          </label>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>Start (WIB) *
             <input type="datetime-local" name="start_at" required>
           </label>
-
-          <label>End Time (WIB) *
+          <label>End (WIB) *
             <input type="datetime-local" name="end_at" required>
           </label>
-
-          <label>Reason / Note
-            <input type="text" name="reason" placeholder="e.g. Annual leave, Doctor visit, Emergency" required>
-          </label>
-
-          <button type="submit" class="btn">Add Time-Off Blockout</button>
-        </form>
-      </div>
+        </div>
+        <button type="submit" class="btn" style="align-self:flex-start;">Add time-off blockout</button>
+      </form>
     </div>
 
-    <!-- Active Time-Off Blockouts Table -->
-    <div class="panel stack">
-      <h2>Upcoming Time-Off &amp; Leave Blockouts</h2>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Bidan</th>
-            <th>From</th>
-            <th>Until</th>
-            <th>Reason</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-        {{range .TimeOffs}}
-          <tr>
-            <td>👩‍⚕️ <strong>{{.StaffName}}</strong></td>
-            <td>{{formatTime .StartAt "Mon, 02 Jan 15:04"}} WIB</td>
-            <td>{{formatTime .EndAt "Mon, 02 Jan 15:04"}} WIB</td>
-            <td>{{.Reason}}</td>
-            <td>
-              <form method="post" action="/portal/schedule/time-off/{{.ID}}/delete" onsubmit="return confirm('Remove this time-off block?')">
-                <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);">Remove</button>
-              </form>
-            </td>
-          </tr>
-        {{else}}
-          <tr><td colspan="5" class="muted">No scheduled time-offs. All therapists on normal schedule.</td></tr>
-        {{end}}
-        </tbody>
-      </table>
+    <div class="panel table-cards">
+      <h2>Upcoming time-off &amp; leave</h2>
+      <div style="overflow-x:auto;" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Therapist</th>
+              <th>From</th>
+              <th>Until</th>
+              <th>Reason</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .TimeOffs}}
+            <tr>
+              <td>👩‍⚕️ <strong>{{.StaffName}}</strong></td>
+              <td>{{formatTime .StartAt "Mon, 02 Jan 15:04"}} WIB</td>
+              <td>{{formatTime .EndAt "Mon, 02 Jan 15:04"}} WIB</td>
+              <td>{{.Reason}}</td>
+              <td>
+                <form method="post" action="/portal/schedule/time-off/{{.ID}}/delete"
+                  hx-post="/portal/schedule/time-off/{{.ID}}/delete" hx-swap="none" style="display:inline;">
+                  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                  <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="Remove this time-off block?" hx-disabled-elt="this">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="5" class="muted">No scheduled time-offs. All therapists on normal schedule.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
   {{template "footer" .}}
