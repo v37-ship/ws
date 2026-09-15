@@ -22,7 +22,7 @@ First run (existing `pgdata` volume needs the DB created once):
 
 ```bash
 docker compose up -d postgres umami
-docker exec ws-postgres-1 psql -U spa -d spa -c "CREATE DATABASE umami;"
+docker compose exec postgres psql -U spa -d spa -c "CREATE DATABASE umami;"
 docker compose up -d umami  # Umami creates its own tables on boot
 ```
 
@@ -56,42 +56,106 @@ Without Midtrans keys in local dev, payment pages show a **Simulate successful p
 
 ## Deploy to another machine (fresh install)
 
-Free ports required on the new machine: `5432, 8025, 1025, 8030, 8088, 8089`.
+This guide moves **no data** — the new machine boots to a clean, demo-seeded instance. Old bookings, customers, CVs, and photos stay on the old machine.
 
-`.env` is gitignored and never transfers — every machine gets its own from `.env.example`. Always generate a fresh session secret per machine (sharing one lets machines forge each other's sessions):
+### Before you start (both targets)
+
+**1. Free ports.** These host ports must be free on the new machine:
+
+| Port | Service |
+|------|---------|
+| 5432 | Postgres |
+| 8025 / 1025 | Mailpit UI / SMTP |
+| 8030 | Umami dashboard |
+| 8088 | App |
+| 8089 | Caddy proxy |
+
+Check occupancy — Windows (PowerShell): `netstat -ano | findstr "8088 8030 5432"` (no output = free). Linux: `ss -tlnp | grep -E '8088|8030|5432'` (no output = free).
+
+**2. Configure `.env`.** It is gitignored and never transfers — every machine gets its own:
 
 ```bash
-openssl rand -hex 32   # → paste as SESSION_SECRET
+cp .env.example .env
 ```
 
-First boot self-provisions: Goose migrations auto-run, the admin is auto-created from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, and the demo catalog is seeded. Uploads start empty (old CVs/photos stay on the old machine — this guide moves no data).
+| Variable | Action |
+|----------|--------|
+| `SESSION_SECRET` | **Always fresh per machine:** `openssl rand -hex 32` (Git Bash on Windows works too). Sharing one secret lets machines forge each other's sessions. |
+| `ADMIN_PASSWORD` | Set a new strong password (first boot creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD`). |
+| `BASE_URL` | The machine's public URL (`http://localhost:8088` for local, `https://wangga.biz.id` for the live server). |
+| `APP_ENV` | `production` on a live server (enables Secure cookies); leave `development` locally. |
+| `CONTACT_*` | Copy as-is (same business info everywhere). |
+| `MIDTRANS_*` | Sandbox keys for testing, production keys for live. Empty = "Simulate successful payment" button. |
+| `ANALYTICS_*` | Leave empty for now — set after the Umami first-run in step D. |
 
-### A. Same setup (Windows + WSL + Docker Desktop)
+**3. Know what first boot does** (so "is it working?" has a concrete answer): Goose migrations run → admin auto-created → demo catalog seeded (location "Wangga Kayu Putih" + services "Baby Spa Soft" and "Mom Recovery Massage"). Success = you can log in as admin and see that catalog in `/portal/services`.
 
-1. Install Docker Desktop with the WSL2 backend; enable **Start Docker Desktop when you log in**.
-2. Clone the repo **inside WSL home** (not `/mnt/c` — bind mounts are slow there):
+### A. Same setup (Windows + WSL + Docker Desktop) — ~20 min
+
+1. Install **Docker Desktop** (tick *Use WSL 2*) from docker.com. Open a WSL terminal and confirm your distro: `wsl -l -v` (needs STATE `Running`, VERSION `2`).
+2. Docker Desktop → Settings → General → ✅ **Start Docker Desktop when you log in**.
+3. Clone **inside WSL home** (not `/mnt/c` — bind mounts are slow there):
    ```bash
    git clone https://github.com/v37-ship/ws.git
    cd ws
-   cp .env.example .env   # set SESSION_SECRET, ADMIN_PASSWORD, Midtrans keys
+   cp .env.example .env   # fill in per the table above
    ./scripts/deploy-local.sh
    ```
-3. Tunnel: install `cloudflared` on Windows with the **same tunnel token** (Zero Trust dashboard → your tunnel → Install connector — the DNS records already point at the tunnel ID, so no DNS changes). Serve one machine at a time: stop the old connector when cutting over.
-4. Umami: one-time `CREATE DATABASE umami` (see Visitor analytics), first login + new Website ID → set `ANALYTICS_URL`/`ANALYTICS_SITE_ID` in the new `.env` → `docker compose up -d app`.
-
-### B. Linux server (native Docker Engine)
-
-1. Install Docker Engine + the compose plugin; `sudo systemctl enable --now docker`.
-2. Clone, configure, deploy:
+   Success ends with: `LOCAL DEPLOY OK -> http://localhost:8088 (proxy: ..., mail: ...)`.
+4. Verify, in order:
    ```bash
-   git clone https://github.com/v37-ship/ws.git
-   cd ws
-   cp .env.example .env
+   docker ps                  # 5 containers Up: postgres, mailpit, app, caddy, umami
+   curl -fsS http://localhost:8088/healthz && curl -fsS http://localhost:8088/readyz
    ```
-   Set: fresh `SESSION_SECRET`, `ADMIN_PASSWORD`, `APP_ENV=production` (Secure cookies), `BASE_URL=https://wangga.biz.id`, Midtrans production keys. Then `./scripts/deploy-local.sh` (works unchanged; `restart: unless-stopped` + enabled docker service = reboot survival).
-3. Tunnel: install `cloudflared` (`cloudflared service install <token>` with the same tunnel token) — same single-server-at-a-time note as above.
-4. Firewall: the tunnel only needs **outbound** HTTPS — keep everything else closed (`8088/8030/8025` must not be public; the Umami dashboard is already gated by Cloudflare Access).
-5. Umami first-run as in step A.4 (new Website ID per install).
+   Then open http://localhost:8088, log in as admin, and check `/portal/services` shows the seeded catalog.
+
+### B. Linux server (native Docker Engine, Ubuntu) — ~25 min
+
+1. Install Docker Engine + compose plugin:
+   ```bash
+   sudo apt update && sudo apt install -y docker.io docker-compose-plugin
+   sudo systemctl enable --now docker
+   sudo usermod -aG docker $USER   # re-login after this for passwordless docker
+   ```
+2. Clone, configure, deploy (same commands as Guide A, step 3). Production `.env` values: `APP_ENV=production`, `BASE_URL=https://wangga.biz.id`, production Midtrans keys.
+3. Firewall — the tunnel only needs **outbound** HTTPS. Keep everything else closed:
+   ```bash
+   sudo ufw allow OpenSSH
+   sudo ufw deny 8088/tcp && sudo ufw deny 8030/tcp && sudo ufw deny 8025/tcp
+   sudo ufw enable
+   ```
+   (The Umami dashboard stays reachable via its tunnel hostname, gated by Cloudflare Access.)
+4. Verify with the same checks as Guide A, step 4, using `ss -tlnp` for port inspection. Reboot survival comes from `restart: unless-stopped` + the enabled docker service — confirm once with a real reboot.
+
+### C. Tunnel cutover (both targets)
+
+Your tunnel is dashboard-managed, so connectors are disposable — DNS already points at the tunnel ID and never changes.
+
+1. Zero Trust dashboard → Networks → Tunnels → your tunnel → **Connectors** tab → copy the install command for the new machine's OS (Windows service / Linux service) using the **same tunnel token**.
+2. Install + start the connector on the new machine. Confirm it appears in the Connectors tab with status `Connected`.
+3. Cutover, in this order: verify the site + Umami hostname through the **new** connector → stop the **old** connector (`Stop-Service cloudflared` / `systemctl stop cloudflared`) → delete the old connector row in the dashboard.
+4. Rollback (DNS untouched, so it's instant): restart the old connector, stop the new one.
+
+Expect a brief Cloudflare `502` on the site while the new machine's app container is still starting (~1 min) — normal, resolves itself.
+
+### D. Umami first-run (both targets)
+
+1. `docker compose exec postgres psql -U spa -d spa -c "CREATE DATABASE umami;"` (skip on fresh clones — `docker/postgres-init/` already did it), then `docker compose up -d umami`.
+2. Open the dashboard (`http://localhost:8030` locally), log in `admin` / `umami` → **change the password immediately** (avatar → Profile → Change password).
+3. **Add Website**: name `Wangga`, domain `wangga.biz.id` → open the website → copy the **Website ID** (from the URL or Settings).
+4. Back in `.env`: set `ANALYTICS_URL` (local `http://localhost:8030`, or `https://umami.wangga.biz.id` once the tunnel hostname exists) + `ANALYTICS_SITE_ID=<id>`, then restart only the app (no rebuild): `docker compose up -d app`.
+5. Confirm the snippet renders: `curl -s http://localhost:8088/ | grep -o 'script.js'` → shows your Umami host. Then visit the site and watch the visit land in Umami realtime.
+
+### E. Troubleshooting
+
+| Symptom | Cause → Fix |
+|---------|-------------|
+| `curl healthz` fails after deploy | App still starting — `deploy-local.sh` already waits ~3 min; check `docker compose ps` and `docker compose logs app`. |
+| Umami container CrashLoops | `umami` database missing → step D.1, then `docker compose up -d umami`. |
+| Tunnel shows `502` for >2 min | Connector can't reach the app: from the tunnel machine, `curl http://localhost:8088/healthz` must answer. On Windows, the tunnel and Docker must share the same localhost view (both on the host, not split across WSL distros). |
+| Tracker loads but no visits recorded | Hostname-mismatch rule: Umami drops visits whose hostname ≠ Website domain. Localhost visits need a second Website with domain `localhost`. |
+| `.env` changes seem ignored | Compose bakes env at container creation — always follow edits with `docker compose up -d app` (or the affected service). |
+| Port already in use | Free it or remap the host side in `docker-compose.yml` (e.g. `"8088:8080"` → `"8090:8080`), then update `BASE_URL` to match. |
 
 ## Local Go run
 
