@@ -54,6 +54,45 @@ plus one DNS CNAME per hostname to `<tunnel-id>.cfargotunnel.com`. Protect `umam
 
 Without Midtrans keys in local dev, payment pages show a **Simulate successful payment** button.
 
+## Deploy to another machine (fresh install)
+
+Free ports required on the new machine: `5432, 8025, 1025, 8030, 8088, 8089`.
+
+`.env` is gitignored and never transfers — every machine gets its own from `.env.example`. Always generate a fresh session secret per machine (sharing one lets machines forge each other's sessions):
+
+```bash
+openssl rand -hex 32   # → paste as SESSION_SECRET
+```
+
+First boot self-provisions: Goose migrations auto-run, the admin is auto-created from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, and the demo catalog is seeded. Uploads start empty (old CVs/photos stay on the old machine — this guide moves no data).
+
+### A. Same setup (Windows + WSL + Docker Desktop)
+
+1. Install Docker Desktop with the WSL2 backend; enable **Start Docker Desktop when you log in**.
+2. Clone the repo **inside WSL home** (not `/mnt/c` — bind mounts are slow there):
+   ```bash
+   git clone https://github.com/v37-ship/ws.git
+   cd ws
+   cp .env.example .env   # set SESSION_SECRET, ADMIN_PASSWORD, Midtrans keys
+   ./scripts/deploy-local.sh
+   ```
+3. Tunnel: install `cloudflared` on Windows with the **same tunnel token** (Zero Trust dashboard → your tunnel → Install connector — the DNS records already point at the tunnel ID, so no DNS changes). Serve one machine at a time: stop the old connector when cutting over.
+4. Umami: one-time `CREATE DATABASE umami` (see Visitor analytics), first login + new Website ID → set `ANALYTICS_URL`/`ANALYTICS_SITE_ID` in the new `.env` → `docker compose up -d app`.
+
+### B. Linux server (native Docker Engine)
+
+1. Install Docker Engine + the compose plugin; `sudo systemctl enable --now docker`.
+2. Clone, configure, deploy:
+   ```bash
+   git clone https://github.com/v37-ship/ws.git
+   cd ws
+   cp .env.example .env
+   ```
+   Set: fresh `SESSION_SECRET`, `ADMIN_PASSWORD`, `APP_ENV=production` (Secure cookies), `BASE_URL=https://wangga.biz.id`, Midtrans production keys. Then `./scripts/deploy-local.sh` (works unchanged; `restart: unless-stopped` + enabled docker service = reboot survival).
+3. Tunnel: install `cloudflared` (`cloudflared service install <token>` with the same tunnel token) — same single-server-at-a-time note as above.
+4. Firewall: the tunnel only needs **outbound** HTTPS — keep everything else closed (`8088/8030/8025` must not be public; the Umami dashboard is already gated by Cloudflare Access).
+5. Umami first-run as in step A.4 (new Website ID per install).
+
 ## Local Go run
 
 ```bash
