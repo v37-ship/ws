@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"spa-booking/internal/auth"
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
@@ -47,7 +48,7 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) LoginForm(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, "login.html", pageData{"Next": r.URL.Query().Get("next")})
+	s.render(w, r, "login.html", pageData{"Next": r.URL.Query().Get("next"), "Success": r.URL.Query().Get("success")})
 }
 
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
@@ -1426,6 +1427,48 @@ func (s *Server) AdminCustomerResetForm(w http.ResponseWriter, r *http.Request) 
 		"Success":  r.URL.Query().Get("success"),
 		"Error":    r.URL.Query().Get("error"),
 	})
+}
+
+func (s *Server) AdminPasswordForm(w http.ResponseWriter, r *http.Request) {
+	u := middleware.UserFrom(r.Context())
+	if u == nil {
+		http.Redirect(w, r, "/login?next=/admin/password", http.StatusSeeOther)
+		return
+	}
+	s.render(w, r, "admin_password.html", pageData{
+		"Email":   u.Email,
+		"Success": r.URL.Query().Get("success"),
+		"Error":   r.URL.Query().Get("error"),
+	})
+}
+
+func (s *Server) AdminChangePassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	if u == nil {
+		http.Redirect(w, r, "/login?next=/admin/password", http.StatusSeeOther)
+		return
+	}
+	fail := func(msg string) {
+		http.Redirect(w, r, "/admin/password?error="+url.QueryEscape(msg), http.StatusSeeOther)
+	}
+	if !auth.CheckPassword(u.PasswordHash, r.FormValue("current_password")) {
+		fail("Current password is incorrect")
+		return
+	}
+	newPass := r.FormValue("new_password")
+	if newPass != r.FormValue("confirm_password") {
+		fail("New passwords do not match")
+		return
+	}
+	if err := s.auth.ResetPassword(r.Context(), u.ID, newPass); err != nil {
+		fail(err.Error())
+		return
+	}
+	http.Redirect(w, r, "/login?success="+url.QueryEscape("Password changed. Please log in again."), http.StatusSeeOther)
 }
 
 func (s *Server) AdminResetCustomerPassword(w http.ResponseWriter, r *http.Request) {
