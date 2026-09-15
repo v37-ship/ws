@@ -55,6 +55,7 @@ func main() {
 	mailer := email.NewSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
 	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
+	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
 	careerSvc := service.NewCareerService(careers)
 
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
@@ -71,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, careerSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

@@ -13,7 +13,7 @@ import (
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
 func TestTemplatesParse(t *testing.T) {
-	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil)
+	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestTemplatesParse(t *testing.T) {
 // html/template applies contextual escaping at execution time, so parse-only
 // tests miss errors like stray quotes inside attribute values.
 func TestTemplatesExecute(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -36,6 +36,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
 		"portal_customer_detail.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
+		"portal_reports.html",
 	}
 	for _, name := range pages {
 		data := pageData{
@@ -48,12 +49,18 @@ func TestTemplatesExecute(t *testing.T) {
 		switch name {
 		case "pay.html", "portal_booking_detail.html":
 			data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
+			data["Refundable"] = int64(0)
 		case "portal_staff_edit.html":
 			data["Staff"] = domain.Staff{}
 		case "admin_cs.html":
 			data["CSUsers"] = []domain.User{}
 		case "portal_customer_detail.html":
 			data["Bookings"] = []domain.Booking{}
+		case "portal_reports.html":
+			data["Summary"] = domain.ReportSummary{}
+			data["Month"] = "2026-09"
+			data["Lines"] = []domain.ReportLine{}
+			data["Refunds"] = []domain.ReportRefund{}
 		}
 		var buf bytes.Buffer
 		if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
@@ -76,7 +83,7 @@ func TestTemplatesExecute(t *testing.T) {
 // TestTemplatesBothLanguages renders key public pages in EN + ID and fails
 // on missing-key leaks (t returns the key itself when absent).
 func TestTemplatesBothLanguages(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -90,7 +97,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 			"portal_customer_new.html", "portal_customer_detail.html", "portal_schedule.html",
 			"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-			"portal_service_edit.html",
+			"portal_service_edit.html", "portal_reports.html",
 		} {
 			data := pageData{
 				"Lang": lang,
@@ -102,6 +109,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			switch name {
 			case "pay.html", "portal_booking_detail.html":
 				data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
+				data["Refundable"] = int64(0)
 			case "portal_staff_edit.html":
 				data["Staff"] = domain.Staff{}
 			case "admin_cs.html":
@@ -112,6 +120,11 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Service"] = domain.Service{}
 			case "admin_job_applications.html":
 				data["Job"] = domain.Job{}
+			case "portal_reports.html":
+				data["Summary"] = domain.ReportSummary{}
+				data["Month"] = "2026-09"
+				data["Lines"] = []domain.ReportLine{}
+				data["Refunds"] = []domain.ReportRefund{}
 			}
 			var buf bytes.Buffer
 			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
@@ -140,6 +153,12 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			}
 			if lang == "en" && name == "admin_cs.html" && !contains(out, "Customer Service (CS) Management") {
 				t.Errorf("admin_cs.html (en): missing English title")
+			}
+			if lang == "id" && name == "portal_reports.html" && !contains(out, "Laporan pendapatan") {
+				t.Errorf("portal_reports.html (id): missing Indonesian title")
+			}
+			if lang == "en" && name == "portal_reports.html" && !contains(out, "Revenue report") {
+				t.Errorf("portal_reports.html (en): missing English title")
 			}
 		}
 		// HTMX partials must also render in both languages without missing-key leaks

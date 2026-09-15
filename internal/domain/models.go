@@ -275,6 +275,64 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+// Refund records money returned to a customer (cash basis: it deducts
+// from the month it was recorded in, not the original payment month).
+type Refund struct {
+	ID          uuid.UUID
+	BookingID   uuid.UUID
+	AmountIDR   int64
+	Reason      string
+	CreatedByID *uuid.UUID
+	CreatedBy   string
+	CreatedAt   time.Time
+}
+
+// ReportLine is one paid payment row in a monthly revenue report.
+type ReportLine struct {
+	PaymentID     uuid.UUID
+	BookingID     uuid.UUID
+	AmountIDR     int64
+	PaymentMethod PaymentMethod
+	Purpose       PaymentPurpose
+	PaidAt        time.Time
+	StartAt       time.Time
+	CustomerName  string
+	ServiceName   string
+	StaffName     string
+	LocationName  string
+	LocationID    uuid.UUID
+	Status        BookingStatus
+}
+
+// ReportRefund is one recorded refund row in a monthly revenue report.
+type ReportRefund struct {
+	Refund
+	CustomerName string
+	ServiceName  string
+	LocationName string
+	LocationID   uuid.UUID
+}
+
+// ReportSummary aggregates a month: Net = Gross - Refunds.
+type ReportSummary struct {
+	Month       string // YYYY-MM
+	GrossIDR    int64
+	RefundIDR   int64
+	NetIDR      int64
+	Count       int
+	RefundCnt   int
+	QRISIDR     int64
+	CashIDR     int64
+	ServiceRows []NameTotal // sorted desc
+	StaffRows   []NameTotal // sorted desc
+}
+
+// NameTotal is a named amount row (service / staff breakdowns).
+type NameTotal struct {
+	Name  string
+	Total int64
+}
+
 type Slot struct {
 	StartAt time.Time
 	EndAt   time.Time

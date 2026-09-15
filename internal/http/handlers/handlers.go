@@ -641,12 +641,21 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	staffList, _ := s.catalog.ListStaff(r.Context(), b.LocationID, true)
 	logs, _ := s.book.ListLogs(r.Context(), b.ID)
+	pay, payRefunds, refundedTotal, _ := s.reports.BookingRefunds(r.Context(), b.ID)
+	var refundable int64
+	if pay != nil && pay.Status == domain.PaymentPaid {
+		refundable = pay.AmountIDR - refundedTotal
+	}
 	s.render(w, r, "portal_booking_detail.html", pageData{
-		"Booking":   b,
-		"StaffList": staffList,
-		"Logs":      logs,
-		"Success":   r.URL.Query().Get("success"),
-		"Error":     r.URL.Query().Get("error"),
+		"Booking":       b,
+		"StaffList":     staffList,
+		"Logs":          logs,
+		"Payment":       pay,
+		"Refunds":       payRefunds,
+		"RefundedTotal": refundedTotal,
+		"Refundable":    refundable,
+		"Success":       r.URL.Query().Get("success"),
+		"Error":         r.URL.Query().Get("error"),
 	})
 }
 

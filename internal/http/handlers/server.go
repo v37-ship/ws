@@ -37,6 +37,7 @@ type Server struct {
 	catalog    *service.CatalogService
 	avail      *service.AvailabilityService
 	book       *service.BookingService
+	reports    *service.ReportService
 	career     *service.CareerService
 	tpl        *template.Template
 	csrfSecure bool
@@ -49,6 +50,7 @@ func New(
 	catalog *service.CatalogService,
 	avail *service.AvailabilityService,
 	book *service.BookingService,
+	reports *service.ReportService,
 	career *service.CareerService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
@@ -147,7 +149,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, career: career,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -467,6 +469,10 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Get("/bookings/{id}", s.PortalBookingDetail)
 		pr.Post("/bookings/{id}/status", s.PortalUpdateBookingStatus)
 		pr.Post("/bookings/{id}/reschedule", s.PortalRescheduleBooking)
+		pr.Post("/bookings/{id}/refunds", s.PortalRecordRefund)
+
+		pr.Get("/reports", s.PortalReports)
+		pr.Get("/reports.csv", s.PortalReportsCSV)
 
 		pr.Get("/customers", s.PortalCustomers)
 		pr.Get("/customers/new", s.PortalNewCustomerForm)

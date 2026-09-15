@@ -1,0 +1,121 @@
+{{define "portal_reports.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "r.title"}} — Staff Portal</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "r.title"}} · {{.Month}}</h1>
+        <p class="muted">{{t .Lang "r.sub"}}</p>
+      </div>
+      <div class="no-print" style="display:flex; gap:0.5rem;">
+        <a class="btn secondary on-light" href="/portal/reports.csv?month={{.Month}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.csv"}}</a>
+        <button class="btn" type="button" onclick="window.print()">{{t .Lang "r.print"}}</button>
+      </div>
+    </div>
+
+    {{template "portal_nav" dict "Active" "reports" "User" .User "Lang" $.Lang}}
+
+    <form class="panel no-print" method="get" action="/portal/reports" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+      <label>{{t .Lang "r.month"}}
+        <input type="month" name="month" value="{{.Month}}" required>
+      </label>
+      <label>{{t .Lang "r.loc"}}
+        <select name="location_id">
+          <option value="">{{t .Lang "r.all"}}</option>
+          {{range .Locations}}<option value="{{.ID}}" {{if eq (printf "%s" .ID) $.LocID}}selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </label>
+      <button class="btn" type="submit">{{t .Lang "r.go"}}</button>
+    </form>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+      <div class="panel stat-card"><div class="muted">{{t .Lang "r.gross"}} ({{.Summary.Count}}×)</div><div style="font-size:1.4rem; font-weight:800;">{{formatIDR .Summary.GrossIDR}}</div></div>
+      <div class="panel stat-card"><div class="muted">{{t .Lang "r.refunds"}} ({{.Summary.RefundCnt}}×)</div><div style="font-size:1.4rem; font-weight:800; color:var(--danger);">−{{formatIDR .Summary.RefundIDR}}</div></div>
+      <div class="panel stat-card"><div class="muted">{{t .Lang "r.net"}}</div><div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Summary.NetIDR}}</div></div>
+      <div class="panel stat-card"><div class="muted">QRIS / {{t .Lang "r.cash"}}</div><div style="font-weight:700;">{{formatIDR .Summary.QRISIDR}} / {{formatIDR .Summary.CashIDR}}</div></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.5rem;">
+      <div class="panel">
+        <h2>{{t .Lang "r.bysvc"}}</h2>
+        <table class="table">
+          <tbody>
+          {{range .Summary.ServiceRows}}
+            <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
+          {{else}}
+            <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h2>{{t .Lang "r.bystaff"}}</h2>
+        <table class="table">
+          <tbody>
+          {{range .Summary.StaffRows}}
+            <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
+          {{else}}
+            <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>{{t .Lang "r.lines"}} ({{len .Lines}})</h2>
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead><tr><th>{{t .Lang "r.th.date"}}</th><th>{{t .Lang "r.th.cust"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.staff"}}</th><th>{{t .Lang "r.th.meth"}}</th><th style="text-align:right;">{{t .Lang "r.th.amt"}}</th></tr></thead>
+          <tbody>
+          {{range .Lines}}
+            <tr>
+              <td><small>{{formatTime .PaidAt "02 Jan 15:04"}}</small></td>
+              <td>{{.CustomerName}}</td>
+              <td>{{.ServiceName}}</td>
+              <td>{{.StaffName}}</td>
+              <td>{{.PaymentMethod}}</td>
+              <td style="text-align:right; font-weight:700;">{{formatIDR .AmountIDR}}</td>
+            </tr>
+          {{else}}
+            <tr><td colspan="6" class="muted">{{t .Lang "r.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {{if .Refunds}}
+    <div class="panel">
+      <h2>{{t .Lang "r.reflines"}} ({{len .Refunds}})</h2>
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead><tr><th>{{t .Lang "r.th.date"}}</th><th>{{t .Lang "r.th.cust"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.reason"}}</th><th>{{t .Lang "r.th.by"}}</th><th style="text-align:right;">{{t .Lang "r.th.amt"}}</th></tr></thead>
+          <tbody>
+          {{range .Refunds}}
+            <tr>
+              <td><small>{{formatTime .CreatedAt "02 Jan 15:04"}}</small></td>
+              <td>{{.CustomerName}}</td>
+              <td>{{.ServiceName}}</td>
+              <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
+              <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
+              <td style="text-align:right; font-weight:700; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{end}}
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

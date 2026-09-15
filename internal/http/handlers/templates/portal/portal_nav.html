@@ -7,6 +7,7 @@
   <a href="/portal/customers/new" class="portal-tab {{if eq .Active "new_customer"}}active{{end}}">{{t .Lang "p.nav.newc"}}</a>
   <a href="/portal/schedule" class="portal-tab {{if eq .Active "schedule"}}active{{end}}">{{t .Lang "p.nav.team"}}</a>
   <a href="/portal/services" class="portal-tab {{if eq .Active "services"}}active{{end}}">{{t .Lang "p.nav.svc"}}</a>
+  <a href="/portal/reports" class="portal-tab {{if eq .Active "reports"}}active{{end}}">{{t .Lang "r.nav"}}</a>
   {{if .User}}
     {{if eq (printf "%s" .User.Role) "admin"}}
       <a href="/admin/cs" class="portal-tab {{if eq .Active "admin_cs"}}active{{end}}">{{t .Lang "p.nav.cs"}}</a>

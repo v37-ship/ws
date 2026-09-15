@@ -532,3 +532,15 @@ html[data-theme="dark"] code { background: #3a2b41; }
   border-color: var(--accent);
   color: #fff;
 }
+
+/* Monthly report printing: keep tables + summary, drop navigation/chrome */
+@media print {
+  .site-header, .site-footer, .portal-tabs, .no-print, .toast-region, #toast-region {
+    display: none !important;
+  }
+  body { background: #fff; }
+  main { max-width: none; padding: 0; }
+  .panel, .stat-card { break-inside: avoid; box-shadow: none; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+}
