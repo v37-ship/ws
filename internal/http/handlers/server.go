@@ -534,6 +534,10 @@ func (s *Server) Routes(r chi.Router) {
 		// Customer password reset
 		ar.Get("/customers/{id}/reset-password", s.AdminCustomerResetForm)
 		ar.Post("/customers/{id}/reset-password", s.AdminResetCustomerPassword)
+
+		// Own password change (self-service; sessions are revoked on save)
+		ar.Get("/password", s.AdminPasswordForm)
+		ar.Post("/password", s.AdminChangePassword)
 	})
 }
 

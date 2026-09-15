@@ -19,6 +19,8 @@ type Config struct {
 	SMTPHost        string
 	SMTPPort        int
 	SMTPFrom        string
+	SMTPUser        string
+	SMTPPass        string
 	MidtransServer  string
 	MidtransClient  string
 	MidtransIsProd  bool
@@ -48,17 +50,19 @@ func Load() (Config, error) {
 		CSRFSecure:      getenv("APP_ENV", "development") == "production",
 		SMTPHost:        getenv("SMTP_HOST", "localhost"),
 		SMTPPort:        intEnv("SMTP_PORT", 1025),
-		SMTPFrom:        getenv("SMTP_FROM", "bookings@spa.local"),
+		SMTPFrom:        getenv("SMTP_FROM", "halo@wangga.biz.id"),
+		SMTPUser:        getenv("SMTP_USER", ""),
+		SMTPPass:        getenv("SMTP_PASS", ""),
 		MidtransServer:  getenv("MIDTRANS_SERVER_KEY", ""),
 		MidtransClient:  getenv("MIDTRANS_CLIENT_KEY", ""),
 		MidtransIsProd:  getenv("MIDTRANS_IS_PRODUCTION", "false") == "true",
-		AdminEmail:      getenv("ADMIN_EMAIL", "admin@spa.local"),
+		AdminEmail:      getenv("ADMIN_EMAIL", "admin@wangga.biz.id"),
 		AdminPassword:   getenv("ADMIN_PASSWORD", "admin12345"),
 		CSEmail:         getenv("CS_EMAIL", "cs@spa.local"),
 		CSPassword:      getenv("CS_PASSWORD", "cs12345678"),
 		UploadDir:       getenv("UPLOAD_DIR", "uploads"),
 		ContactWhatsApp: getenv("CONTACT_WHATSAPP", "628211347294"),
-		ContactEmail:    getenv("CONTACT_EMAIL", "hello@wangga-spa.id"),
+		ContactEmail:    getenv("CONTACT_EMAIL", "halo@wangga.biz.id"),
 		ContactAddress:  getenv("CONTACT_ADDRESS", "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"),
 		ContactHours:    getenv("CONTACT_HOURS", "Everyday 11:00–20:00 WIB"),
 		ContactMapsURL:  getenv("CONTACT_MAPS_URL", "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"),

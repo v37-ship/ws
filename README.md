@@ -12,7 +12,7 @@ docker compose up --build
 - Caddy proxy: http://localhost:8089
 - Mailpit UI: http://localhost:8025 (localhost-only, never expose publicly)
 - Umami analytics: http://localhost:8030 (localhost-only dashboard; public tracker via tunnel)
-- Admin: `admin@spa.local` / `admin12345`
+- Admin: `admin@wangga.biz.id` / `admin12345`
 
 ## Visitor analytics (Umami)
 
@@ -50,6 +50,28 @@ ingress:
 
 plus one DNS CNAME per hostname to `<tunnel-id>.cfargotunnel.com`. Protect `umami.*` with Cloudflare Access (Zero Trust, email OTP — **pending**) and keep Mailpit off the tunnel entirely.
 
+## Customer email (Gmail relay + Email Routing)
+
+Booking confirmations/cancellations/reschedules go out as `halo@wangga.biz.id` via Gmail SMTP. Empty `SMTP_USER` = Mailpit catcher (local dev, unchanged).
+
+**1. App Password** (Google Account → Security → enable **2-Step Verification** → search **App passwords** → create one for "Mail"):
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_FROM=halo@wangga.biz.id
+SMTP_USER=<your Gmail address>
+SMTP_PASS=<16-char app password, spaces optional>
+```
+then `docker compose up -d app`. Never use your real Google password here.
+
+**2. Send-as alias** (so customers see the domain, not your Gmail): Gmail → Settings → Accounts → *Send mail as* → add `halo@wangga.biz.id` → approve the verification mail (it arrives via step 3's forwarding).
+
+**3. Inbound via Cloudflare Email Routing** (free, zero containers): Email → Email Routing → verify your destination inbox → add route `halo@wangga.biz.id` → forward to it → let Cloudflare add the MX records. Replies from customers land in your Gmail/Yahoo.
+
+**4. Live test**: register a test customer with your real address → book → confirm the mail arrives *from* `halo@wangga.biz.id` → reply to confirm the forward works.
+
+Limits & caveats: ~500 mails/day (far above spa volume); Gmail signs as `gmail.com`, so do **not** publish a strict DMARC `p=reject` record for `wangga.biz.id` — it would conflict with this relay setup.
+
 (Host port 8080 is often busy; Compose maps the app to **8088**.)
 
 Without Midtrans keys in local dev, payment pages show a **Simulate successful payment** button.
@@ -81,7 +103,7 @@ cp .env.example .env
 | Variable | Action |
 |----------|--------|
 | `SESSION_SECRET` | **Always fresh per machine:** `openssl rand -hex 32` (Git Bash on Windows works too). Sharing one secret lets machines forge each other's sessions. |
-| `ADMIN_PASSWORD` | Set a new strong password (first boot creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD`). |
+| `ADMIN_PASSWORD` | Set a new strong password (first boot creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD`; changing it later does not rotate an existing account — reset via SQL with a bcrypt hash). |
 | `BASE_URL` | The machine's public URL (`http://localhost:8088` for local, `https://wangga.biz.id` for the live server). |
 | `APP_ENV` | `production` on a live server (enables Secure cookies); leave `development` locally. |
 | `CONTACT_*` | Copy as-is (same business info everywhere). |
