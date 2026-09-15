@@ -1,6 +1,6 @@
 {{define "portal_schedule.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Team — Staff Portal</title>
   {{template "head" .}}
@@ -11,34 +11,34 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Team — Therapists &amp; Schedules</h1>
-        <p class="muted">Central management for bidan &amp; therapists: profiles, weekly hours, availability, and leave.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.tm.title"}}</h1>
+        <p class="muted">{{t .Lang "p.tm.sub"}}</p>
       </div>
     </div>
 
-    {{template "portal_nav" dict "Active" "schedule" "User" .User}}
+    {{template "portal_nav" dict "Active" "schedule" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
     <details class="panel stack">
-      <summary style="cursor:pointer; font-weight:700;">+ Add therapist</summary>
+      <summary style="cursor:pointer; font-weight:700;">{{t .Lang "p.tm.add"}}</summary>
       <form class="stack" method="post" action="/portal/staff" enctype="multipart/form-data">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
-          <label>Branch
+          <label>{{t .Lang "p.tm.br"}}
             <select name="location_id" required>
               {{range .Locations}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
           </label>
-          <label>Name <input name="name" required autocomplete="off" placeholder="e.g. Bidan Sari"></label>
+          <label>{{t .Lang "p.tm.nm"}} <input name="name" required autocomplete="off" placeholder="{{t .Lang "p.tm.nph"}}"></label>
         </div>
-        <label>Bio <textarea name="bio" rows="2" placeholder="Certifications, specialties"></textarea></label>
+        <label>{{t .Lang "p.tm.bio"}} <textarea name="bio" rows="2" placeholder="{{t .Lang "p.tm.bph"}}"></textarea></label>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
-          <label>Photo upload (JPG/PNG/WebP, max 2 MB) <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
-          <label>…or picture link <input name="photo_url" placeholder="https://…" autocomplete="off"></label>
+          <label>{{t .Lang "p.tm.ph"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>{{t .Lang "p.tm.or"}} <input name="photo_url" placeholder="https://…" autocomplete="off"></label>
         </div>
         <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
-          <legend style="font-weight:700; padding:0 .5rem;">Can perform</legend>
+          <legend style="font-weight:700; padding:0 .5rem;">{{t .Lang "p.tm.can"}}</legend>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:.25rem;">
             {{range .Services}}
             <label style="display:flex; gap:.5rem; align-items:center; font-weight:500;">
@@ -47,20 +47,20 @@
             {{end}}
           </div>
         </fieldset>
-        <button class="btn" type="submit">Add therapist</button>
+        <button class="btn" type="submit">{{t .Lang "p.tm.go"}}</button>
       </form>
     </details>
 
     <div class="panel table-cards">
-      <h2>Therapists</h2>
+      <h2>{{t .Lang "p.tm.ht"}}</h2>
       <div style="overflow-x:auto;" aria-live="polite">
         <table class="table">
           <thead>
             <tr>
-              <th>Therapist</th>
-              <th>Services</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>{{t .Lang "p.tm.tt"}}</th>
+              <th>{{t .Lang "p.tm.ts"}}</th>
+              <th>{{t .Lang "p.tm.tu"}}</th>
+              <th>{{t .Lang "p.tm.ta"}}</th>
             </tr>
           </thead>
           <tbody>
@@ -80,30 +80,30 @@
               <td><small>{{range $i, $s := index $.StaffSvcs .ID.String}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="muted">—</span>{{end}}</small></td>
               <td>
                 {{if .Active}}
-                  <span class="badge confirmed">Available</span>
+                  <span class="badge confirmed">{{t $.Lang "p.tm.av"}}</span>
                 {{else}}
-                  <span class="badge cancelled">Inactive</span>
+                  <span class="badge cancelled">{{t $.Lang "p.tm.ia"}}</span>
                 {{end}}
               </td>
               <td>
                 <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
-                  <a href="/portal/staff/{{.ID}}/edit" class="btn secondary on-light btn-sm">Edit</a>
-                  <a href="/portal/staff/{{.ID}}/hours" class="btn secondary on-light btn-sm">Hours</a>
+                  <a href="/portal/staff/{{.ID}}/edit" class="btn secondary on-light btn-sm">{{t $.Lang "p.tm.ed"}}</a>
+                  <a href="/portal/staff/{{.ID}}/hours" class="btn secondary on-light btn-sm">{{t $.Lang "p.tm.hr"}}</a>
                   <form method="post" action="/portal/staff/{{.ID}}/toggle" hx-post="/portal/staff/{{.ID}}/toggle" hx-swap="none" style="display:inline;">
                     <input type="hidden" name="csrf" value="{{$.CSRF}}">
                     <button type="submit" class="btn secondary on-light btn-sm" hx-disabled-elt="this">
-                      {{if .Active}}Pause{{else}}Activate{{end}}
+                      {{if .Active}}{{t $.Lang "p.tm.pa"}}{{else}}{{t $.Lang "p.tm.ac"}}{{end}}
                     </button>
                   </form>
                   <form method="post" action="/portal/staff/{{.ID}}/delete" hx-post="/portal/staff/{{.ID}}/delete" hx-swap="none" style="display:inline;">
                     <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="Remove {{.Name}}? Only possible when they have no booking history." hx-disabled-elt="this">Remove</button>
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="{{printf (t $.Lang "p.tm.cf") .Name}}" hx-disabled-elt="this">{{t $.Lang "p.tm.rm"}}</button>
                   </form>
                 </div>
               </td>
             </tr>
           {{else}}
-            <tr><td colspan="4" class="muted" style="text-align:center; padding:2rem;">No therapists yet. Add the first one above.</td></tr>
+            <tr><td colspan="4" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.tm.mt"}}</td></tr>
           {{end}}
           </tbody>
         </table>
@@ -111,46 +111,46 @@
     </div>
 
     <div class="panel stack">
-      <h2>Block time-off / leave</h2>
-      <p class="muted">Prevent bookings during sick leave, doctor visits, or holidays.</p>
+      <h2>{{t .Lang "p.tm.oh"}}</h2>
+      <p class="muted">{{t .Lang "p.tm.os"}}</p>
       <form method="post" action="/portal/schedule/time-off" class="stack">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
-          <label>Therapist *
+          <label>{{t .Lang "p.tm.ot"}}
             <select name="staff_id" required>
-              <option value="">-- Choose therapist --</option>
+              <option value="">{{t .Lang "p.tm.oc"}}</option>
               {{range .Staff}}
                 <option value="{{.ID}}">{{.Name}}</option>
               {{end}}
             </select>
           </label>
-          <label>Reason / note
-            <input type="text" name="reason" placeholder="e.g. Annual leave, Doctor visit" required autocomplete="off">
+          <label>{{t .Lang "p.tm.or2"}}
+            <input type="text" name="reason" placeholder="{{t .Lang "p.tm.oph"}}" required autocomplete="off">
           </label>
         </div>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
-          <label>Start (WIB) *
+          <label>{{t .Lang "p.tm.ost"}}
             <input type="datetime-local" name="start_at" required>
           </label>
-          <label>End (WIB) *
+          <label>{{t .Lang "p.tm.oen"}}
             <input type="datetime-local" name="end_at" required>
           </label>
         </div>
-        <button type="submit" class="btn" style="align-self:flex-start;">Add time-off blockout</button>
+        <button type="submit" class="btn" style="align-self:flex-start;">{{t .Lang "p.tm.oa"}}</button>
       </form>
     </div>
 
     <div class="panel table-cards">
-      <h2>Upcoming time-off &amp; leave</h2>
+      <h2>{{t .Lang "p.tm.uh"}}</h2>
       <div style="overflow-x:auto;" aria-live="polite">
         <table class="table">
           <thead>
             <tr>
-              <th>Therapist</th>
-              <th>From</th>
-              <th>Until</th>
-              <th>Reason</th>
-              <th>Action</th>
+              <th>{{t .Lang "p.tm.tt"}}</th>
+              <th>{{t .Lang "p.tm.uf"}}</th>
+              <th>{{t .Lang "p.tm.ut"}}</th>
+              <th>{{t .Lang "p.tm.ur"}}</th>
+              <th>{{t .Lang "p.tm.ua"}}</th>
             </tr>
           </thead>
           <tbody>
@@ -164,12 +164,12 @@
                 <form method="post" action="/portal/schedule/time-off/{{.ID}}/delete"
                   hx-post="/portal/schedule/time-off/{{.ID}}/delete" hx-swap="none" style="display:inline;">
                   <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                  <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="Remove this time-off block?" hx-disabled-elt="this">Remove</button>
+                  <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="{{t $.Lang "p.tm.uc"}}" hx-disabled-elt="this">{{t $.Lang "p.tm.ur2"}}</button>
                 </form>
               </td>
             </tr>
           {{else}}
-            <tr><td colspan="5" class="muted">No scheduled time-offs. All therapists on normal schedule.</td></tr>
+            <tr><td colspan="5" class="muted">{{t .Lang "p.tm.ue"}}</td></tr>
           {{end}}
           </tbody>
         </table>

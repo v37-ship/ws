@@ -1,6 +1,6 @@
 {{define "portal_booking_detail.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Booking #{{.Booking.ID}} — Staff Portal</title>
   {{template "head" .}}
@@ -11,7 +11,7 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <a href="/portal/bookings" class="muted">&larr; Back to all bookings</a>
+        <a href="/portal/bookings" class="muted">&larr; {{t .Lang "p.det.back"}}</a>
         <h1 class="page-title" style="margin:0.25rem 0;">Booking #{{.Booking.ID}}</h1>
       </div>
       <div style="display:flex; gap:0.5rem; align-items:center;">
@@ -20,13 +20,13 @@
         </span>
         {{if .Booking.CustomerPhone}}
           <a href="{{waURL .Booking.CustomerPhone .Booking.CustomerName .Booking.ServiceName .Booking.StaffName (formatTime .Booking.StartAt "Mon, 02 Jan 15:04") .Booking.LocationName}}" target="_blank" class="btn-wa">
-            💬 Send WhatsApp Slip
+            {{t .Lang "p.det.wa"}}
           </a>
         {{end}}
       </div>
     </div>
 
-    {{template "portal_nav" dict "Active" "bookings" "User" .User}}
+    {{template "portal_nav" dict "Active" "bookings" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
     {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
@@ -34,23 +34,23 @@
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
       <!-- Column 1: Booking & Customer Info -->
       <div class="panel stack">
-        <h2>Customer &amp; Session Info</h2>
+        <h2>{{t .Lang "p.det.info"}}</h2>
         <div style="display:grid; gap:0.75rem;">
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Customer (Mom):</span>
+            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.cust"}}</span>
             <div style="font-size:1.1rem; font-weight:700;">{{.Booking.CustomerName}}</div>
             <div>📞 {{.Booking.CustomerPhone}}</div>
             <div>✉️ {{.Booking.CustomerEmail}}</div>
           </div>
           <hr style="border:none; border-top:1px solid var(--line);">
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Baby &amp; Mom Details:</span>
-            <div>👶 <strong>Baby:</strong> {{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em>Not specified</em>{{end}}</div>
-            <div>🤰 <strong>Mom Condition:</strong> {{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}<em>Standard care</em>{{end}}</div>
+            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.bm"}}</span>
+            <div>👶 <strong>{{t .Lang "p.det.baby"}}</strong> {{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em>{{t .Lang "p.det.none"}}</em>{{end}}</div>
+            <div>🤰 <strong>{{t .Lang "p.det.momc"}}</strong> {{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}<em>{{t .Lang "p.det.std"}}</em>{{end}}</div>
           </div>
           <hr style="border:none; border-top:1px solid var(--line);">
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Service &amp; Clinic:</span>
+            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.sc"}}</span>
             <div style="font-weight:700;">{{.Booking.ServiceName}}</div>
             <div>📍 {{.Booking.LocationName}}</div>
             <div>👩‍⚕️ Assigned Bidan: <strong>{{.Booking.StaffName}}</strong></div>
@@ -58,15 +58,15 @@
           </div>
           <hr style="border:none; border-top:1px solid var(--line);">
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Payment:</span>
-            <div>Amount: <strong>{{formatIDR .Booking.PriceIDR}}</strong></div>
-            <div>Method: <strong>{{.Booking.PaymentMethod}}</strong></div>
-            <div>Status: <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span></div>
-            <div>Source: <span class="muted">{{.Booking.Source}}</span></div>
+            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.pay"}}</span>
+            <div>{{t .Lang "p.det.amt"}} <strong>{{formatIDR .Booking.PriceIDR}}</strong></div>
+            <div>{{t .Lang "p.det.meth"}} <strong>{{.Booking.PaymentMethod}}</strong></div>
+            <div>{{t .Lang "p.det.st"}} <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span></div>
+            <div>{{t .Lang "p.det.src"}} <span class="muted">{{.Booking.Source}}</span></div>
           </div>
           {{if .Booking.Notes}}
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Notes:</span>
+            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.notes"}}</span>
             <p style="margin:0.2rem 0; background:var(--bg-2); padding:0.5rem 0.75rem; border-radius:8px;">{{.Booking.Notes}}</p>
           </div>
           {{end}}
@@ -76,41 +76,41 @@
       <!-- Column 2: Status Transitions & Actions -->
       <div class="stack">
         <div class="panel stack">
-          <h2>Frontdesk Status Actions</h2>
-          <p class="muted">Update the appointment state through the clinic workflow:</p>
+          <h2>{{t .Lang "p.det.act"}}</h2>
+          <p class="muted">{{t .Lang "p.det.asub"}}</p>
 
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
             hx-post="/portal/bookings/{{.Booking.ID}}/status" hx-swap="none">
             <input type="hidden" name="csrf" value="{{.CSRF}}">
-            <label>Staff Note for this Status Change (optional)
-              <input type="text" name="note" placeholder="e.g. Arrived on time with baby" autocomplete="off">
+            <label>{{t .Lang "p.det.note"}}
+              <input type="text" name="note" placeholder="{{t .Lang "p.det.nph"}}" autocomplete="off">
             </label>
 
             <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
               {{if eq (printf "%s" .Booking.Status) "confirmed"}}
                 <button type="submit" name="status" value="checked_in" class="btn" style="background:#0284c7;" hx-disabled-elt="this">
-                  📍 Mark Checked-In (In Lobby)
+                  {{t .Lang "p.det.ci"}}
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "checked_in")}}
                 <button type="submit" name="status" value="in_service" class="btn" style="background:#d97706;" hx-disabled-elt="this">
-                  💆‍♀️ Start In-Service (In Room)
+                  {{t .Lang "p.det.sta"}}
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "in_service") (eq (printf "%s" .Booking.Status) "checked_in")}}
                 <button type="submit" name="status" value="completed" class="btn" style="background:#16a34a;" hx-disabled-elt="this">
-                  ✅ Mark Completed
+                  {{t .Lang "p.det.fin"}}
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "pending_payment")}}
-                <button type="submit" name="status" value="no_show" class="btn secondary on-light" hx-confirm="Mark as No-Show?" hx-disabled-elt="this">
-                  ⚠️ Mark No-Show
+                <button type="submit" name="status" value="no_show" class="btn secondary on-light" hx-confirm="{{t .Lang "p.det.cfn"}}" hx-disabled-elt="this">
+                  {{t .Lang "p.det.nos"}}
                 </button>
-                <button type="submit" name="status" value="cancelled" class="btn secondary on-light" style="color:var(--danger);" hx-confirm="Cancel this booking?" hx-disabled-elt="this">
-                  ❌ Cancel Booking
+                <button type="submit" name="status" value="cancelled" class="btn secondary on-light" style="color:var(--danger);" hx-confirm="{{t .Lang "p.det.cfc"}}" hx-disabled-elt="this">
+                  {{t .Lang "p.det.cx"}}
                 </button>
               {{end}}
             </div>
@@ -119,10 +119,10 @@
 
         <!-- Reschedule Section -->
         <div class="panel stack">
-          <h2>Reschedule Appointment</h2>
+          <h2>{{t .Lang "p.det.rs"}}</h2>
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/reschedule" class="stack">
             <input type="hidden" name="csrf" value="{{.CSRF}}">
-            <label>Reassign Bidan / Staff
+            <label>{{t .Lang "p.det.rea"}}
               <select name="staff_id" required>
                 {{range .StaffList}}
                   <option value="{{.ID}}" {{if eq $.Booking.StaffID .ID}}selected{{end}}>{{.Name}}</option>
@@ -130,16 +130,16 @@
               </select>
             </label>
 
-            <label>New Date &amp; Time (WIB)
+            <label>{{t .Lang "p.det.when"}}
               <input type="datetime-local" name="start_at" required value="{{formatTime .Booking.StartAt "2006-01-02T15:04"}}">
             </label>
 
-            <label>Reason for Reschedule
-              <input type="text" name="note" placeholder="Customer requested change via WhatsApp" required>
+            <label>{{t .Lang "p.det.why"}}
+              <input type="text" name="note" placeholder="{{t .Lang "p.det.wph"}}" required>
             </label>
 
-            <button type="submit" class="btn secondary on-light" onclick="return confirm('Reschedule this booking?')">
-              Reschedule Booking
+            <button type="submit" class="btn secondary on-light" onclick="return confirm('{{t .Lang "p.det.cf"}}')">
+              {{t .Lang "p.det.go"}}
             </button>
           </form>
         </div>
@@ -148,14 +148,14 @@
 
     <!-- Audit Log -->
     <div class="panel stack">
-      <h2>Activity &amp; Audit Log</h2>
+      <h2>{{t .Lang "p.det.au"}}</h2>
       <table class="table">
         <thead>
           <tr>
-            <th>Time</th>
-            <th>Staff / Actor</th>
-            <th>Action</th>
-            <th>Notes</th>
+            <th>{{t .Lang "p.det.at"}}</th>
+            <th>{{t .Lang "p.det.aa"}}</th>
+            <th>{{t .Lang "p.det.an"}}</th>
+            <th>{{t .Lang "p.det.ao"}}</th>
           </tr>
         </thead>
         <tbody>
@@ -167,7 +167,7 @@
             <td>{{if .Notes}}{{.Notes}}{{else}}<span class="muted">-</span>{{end}}</td>
           </tr>
         {{else}}
-          <tr><td colspan="4" class="muted">No activity logs recorded.</td></tr>
+          <tr><td colspan="4" class="muted">{{t .Lang "p.det.ae"}}</td></tr>
         {{end}}
         </tbody>
       </table>

@@ -321,6 +321,10 @@ html[data-theme="dark"] .hero-bleed::before {
 }
 html[data-theme="dark"] .site-footer { background: rgba(29, 20, 32, 0.88); }
 html[data-theme="dark"] .sticky-bar { background: rgba(29, 20, 32, 0.94); }
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .location-tile,
+html[data-theme="dark"] .service-card,
+html[data-theme="dark"] .stat-card,
 html[data-theme="dark"] .feature,
 html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea,
 html[data-theme="dark"] .how-step,
@@ -329,13 +333,50 @@ html[data-theme="dark"] .day-cell,
 html[data-theme="dark"] .pick-card,
 html[data-theme="dark"] .day,
 html[data-theme="dark"] .slot,
+html[data-theme="dark"] .btn.secondary,
 html[data-theme="dark"] .btn.secondary.on-light,
 html[data-theme="dark"] .pill-pick span,
 html[data-theme="dark"] .auth-shell .panel {
   background: var(--card);
   background-image: none;
   color: var(--ink);
+  border-color: var(--line);
 }
+/* Primary buttons: keep white text on a saturated gradient in dark mode.
+   (Default --accent/--accent-deep are pastel in dark, white-on-pastel is unreadable.) */
+html[data-theme="dark"] .btn {
+  background: linear-gradient(120deg, #e91e63, #ad1457);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="dark"] .btn.mint {
+  background: linear-gradient(120deg, #0ea5a0, #0b6e6a);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="dark"] .btn.secondary {
+  background: var(--card);
+  background-image: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+html[data-theme="dark"] .cta-band {
+  background: linear-gradient(120deg, #ad1457, #0b6e6a);
+  color: #fff;
+}
+html[data-theme="dark"] .cta-band .btn {
+  background: #fff;
+  background-image: none;
+  color: #ad1457;
+}
+html[data-theme="dark"] .pill { background: rgba(255, 111, 165, 0.18); color: #ffb3cd; }
+html[data-theme="dark"] .pill.mint { background: rgba(43, 217, 198, 0.15); color: #7df0e0; }
+html[data-theme="dark"] .pill.sun { background: rgba(255, 196, 77, 0.16); color: #ffd88a; }
+html[data-theme="dark"] .feature-icon { background: #3a2a41; }
+html[data-theme="dark"] .badge.no_show { background: #334155; color: #e2e8f0; }
 html[data-theme="dark"] .pill-pick:has(input:checked) span,
 html[data-theme="dark"] .day[aria-pressed="true"] {
   background: rgba(233, 30, 99, 0.28);
@@ -392,6 +433,10 @@ html[data-theme="dark"] code { background: #3a2b41; }
   }
   html:not([data-theme]) .site-footer { background: rgba(29, 20, 32, 0.88); }
   html:not([data-theme]) .sticky-bar { background: rgba(29, 20, 32, 0.94); }
+  html:not([data-theme]) .panel,
+  html:not([data-theme]) .location-tile,
+  html:not([data-theme]) .service-card,
+  html:not([data-theme]) .stat-card,
   html:not([data-theme]) .feature,
   html:not([data-theme]) input, html:not([data-theme]) select, html:not([data-theme]) textarea,
   html:not([data-theme]) .how-step,
@@ -400,13 +445,48 @@ html[data-theme="dark"] code { background: #3a2b41; }
   html:not([data-theme]) .pick-card,
   html:not([data-theme]) .day,
   html:not([data-theme]) .slot,
+  html:not([data-theme]) .btn.secondary,
   html:not([data-theme]) .btn.secondary.on-light,
   html:not([data-theme]) .pill-pick span,
   html:not([data-theme]) .auth-shell .panel {
     background: #2a1f30;
     background-image: none;
     color: #f8eff5;
+    border-color: #4a3653;
   }
+  html:not([data-theme]) .btn {
+    background: linear-gradient(120deg, #e91e63, #ad1457);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  }
+  html:not([data-theme]) .btn.mint {
+    background: linear-gradient(120deg, #0ea5a0, #0b6e6a);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  }
+  html:not([data-theme]) .btn.secondary {
+    background: #2a1f30;
+    background-image: none;
+    color: #f8eff5;
+    border: 1px solid #4a3653;
+    box-shadow: none;
+  }
+  html:not([data-theme]) .cta-band {
+    background: linear-gradient(120deg, #ad1457, #0b6e6a);
+    color: #fff;
+  }
+  html:not([data-theme]) .cta-band .btn {
+    background: #fff;
+    background-image: none;
+    color: #ad1457;
+  }
+  html:not([data-theme]) .pill { background: rgba(255, 111, 165, 0.18); color: #ffb3cd; }
+  html:not([data-theme]) .pill.mint { background: rgba(43, 217, 198, 0.15); color: #7df0e0; }
+  html:not([data-theme]) .pill.sun { background: rgba(255, 196, 77, 0.16); color: #ffd88a; }
+  html:not([data-theme]) .feature-icon { background: #3a2a41; }
+  html:not([data-theme]) .badge.no_show { background: #334155; color: #e2e8f0; }
   html:not([data-theme]) .pill-pick:has(input:checked) span,
   html:not([data-theme]) .day[aria-pressed="true"] {
     background: rgba(233, 30, 99, 0.28);

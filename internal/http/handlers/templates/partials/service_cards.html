@@ -12,11 +12,11 @@
     <img src="{{servicePhoto .}}" alt="" loading="lazy">
     <span class="pick-name">{{.Name}}</span>
     {{if .Description}}<span class="pick-desc">{{.Description}}</span>{{end}}
-    <span class="pill-row"><span class="pill">{{.DurationMin}} min</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></span>
+    <span class="pill-row"><span class="pill">{{.DurationMin}} {{t $.Lang "unit.min"}}</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></span>
     <span class="pick-check" aria-hidden="true">✓</span>
   </label>
   {{else}}
-  <p class="muted">No bookable services at this location right now.</p>
+  <p class="muted">{{t .Lang "book.no_svc"}}</p>
   {{end}}
 </div>
 {{end}}

@@ -1,6 +1,6 @@
 {{define "admin_job_applications.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Applications — {{.Job.Title}}</title>
   {{template "head" .}}
@@ -9,14 +9,14 @@
   {{template "header" .}}
   {{template "toast-region" .}}
   <main class="stack">
-    <nav class="admin-nav"><a href="/admin">Admin</a> / <a href="/admin/jobs">Jobs</a></nav>
-    <h1>Applications: {{.Job.Title}}</h1>
+    <nav class="admin-nav"><a href="/admin">{{t .Lang "a.ja.crumb"}}</a> / <a href="/admin/jobs">{{t .Lang "a.ja.jobs"}}</a></nav>
+    <h1>{{t .Lang "a.ja.pre"}} {{.Job.Title}}</h1>
     <p class="muted">{{.Job.EmploymentType.Display}}{{if .Job.LocationName}} · {{.Job.LocationName}}{{end}}</p>
 
     <div class="panel table-cards">
       <div style="overflow-x:auto;">
         <table class="table">
-          <thead><tr><th>Applied</th><th>Name</th><th>Contact</th><th>Message</th><th>CV</th></tr></thead>
+          <thead><tr><th>{{t .Lang "a.ja.ta"}}</th><th>{{t .Lang "a.ja.tn"}}</th><th>{{t .Lang "a.ja.tc"}}</th><th>{{t .Lang "a.ja.tm"}}</th><th>{{t .Lang "a.ja.tv"}}</th></tr></thead>
           <tbody>
           {{range .Applications}}
             <tr>
@@ -33,7 +33,7 @@
               </td>
             </tr>
           {{else}}
-            <tr><td colspan="5" class="muted" style="text-align:center; padding:2rem;">No applications yet.</td></tr>
+            <tr><td colspan="5" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "a.ja.mt"}}</td></tr>
           {{end}}
           </tbody>
         </table>

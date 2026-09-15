@@ -15,7 +15,7 @@
       </button>
       {{else}}
       <button type="button" class="slot taken" disabled
-        title="{{if eq .Reason "off"}}Therapist unavailable{{else}}Already booked{{end}}">
+        title="{{if eq .Reason "off"}}{{t $.Lang "book.taken_o"}}{{else}}{{t $.Lang "book.taken_b"}}{{end}}">
         {{formatTime .Slot.StartAt "15:04"}}
       </button>
       {{end}}
@@ -23,8 +23,8 @@
     </div>
   </div>
   {{else}}
-  {{if not .SlotsError}}<p class="muted">No open slots for this day. Try another date or therapist.</p>{{end}}
+  {{if not .SlotsError}}<p class="muted">{{t .Lang "book.no_slots"}}</p>{{end}}
   {{end}}
-  <p class="muted legend"><span class="slot taken demo" aria-hidden="true">--:--</span> Dimmed times are already taken — pick another time.</p>
+  <p class="muted legend"><span class="slot taken demo" aria-hidden="true">--:--</span> {{t .Lang "book.legend"}}</p>
 </div>
 {{end}}

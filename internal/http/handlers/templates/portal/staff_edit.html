@@ -1,6 +1,6 @@
 {{define "portal_staff_edit.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Edit {{.Staff.Name}} — Staff Portal</title>
   {{template "head" .}}
@@ -10,20 +10,20 @@
   {{template "toast-region" .}}
   <main class="stack" style="max-width:720px; margin:0 auto;">
     <div>
-      <a href="/portal/schedule" class="muted">&larr; Back to team</a>
-      <h1 class="page-title" style="margin:0.25rem 0;">Edit therapist</h1>
+      <a href="/portal/schedule" class="muted">&larr; {{t .Lang "p.sf.back"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{t .Lang "p.sf.title"}}</h1>
     </div>
 
-    {{template "portal_nav" dict "Active" "schedule" "User" .User}}
+    {{template "portal_nav" dict "Active" "schedule" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
     <form class="panel stack" method="post" action="/portal/staff/{{.Staff.ID}}/edit" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Name <input name="name" required value="{{.Staff.Name}}" autocomplete="off"></label>
-      <label>Bio <textarea name="bio" rows="2">{{.Staff.Bio}}</textarea></label>
+      <label>{{t .Lang "p.sf.nm"}} <input name="name" required value="{{.Staff.Name}}" autocomplete="off"></label>
+      <label>{{t .Lang "p.sf.bio"}} <textarea name="bio" rows="2">{{.Staff.Bio}}</textarea></label>
       <div class="stack" style="background:var(--bg-2); border-radius:.9rem; padding:.9rem 1rem;">
-        <strong>Profile picture</strong>
+        <strong>{{t .Lang "p.sf.pic"}}</strong>
         <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
           {{if staffPhoto .Staff}}
           <img src="{{staffPhoto .Staff}}" alt="Current picture" style="width:5rem; height:5rem; border-radius:9999px; object-fit:cover; background:#fff;">
@@ -31,15 +31,15 @@
           <span class="avatar" aria-hidden="true" style="width:5rem; height:5rem; font-size:2.2rem;">👩‍⚕️</span>
           {{end}}
           <div style="flex:1; min-width:220px;" class="stack">
-            <label>Replace upload (JPG/PNG/WebP, max 2 MB) <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
-            <label>…or picture link <input name="photo_url" value="{{.Staff.PhotoURL}}" placeholder="https://…" autocomplete="off"></label>
+            <label>{{t .Lang "p.sf.rep"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+            <label>{{t .Lang "p.sf.or"}} <input name="photo_url" value="{{.Staff.PhotoURL}}" placeholder="https://…" autocomplete="off"></label>
           </div>
         </div>
-        {{if .Staff.PhotoPath}}<label style="font-weight:400;"><input type="checkbox" name="remove_photo" value="1" style="width:auto; display:inline;"> Remove uploaded photo</label>{{end}}
-        <p class="muted" style="margin:0; font-size:.85rem;">A new upload replaces the current picture; otherwise it stays as shown.</p>
+        {{if .Staff.PhotoPath}}<label style="font-weight:400;"><input type="checkbox" name="remove_photo" value="1" style="width:auto; display:inline;"> {{t .Lang "p.sf.rm"}}</label>{{end}}
+        <p class="muted" style="margin:0; font-size:.85rem;">{{t .Lang "p.sf.hint"}}</p>
       </div>
       <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
-        <legend style="font-weight:700; padding:0 .5rem;">Can perform</legend>
+        <legend style="font-weight:700; padding:0 .5rem;">{{t .Lang "p.sf.can"}}</legend>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:.25rem;">
           {{range .Services}}
           <label style="display:flex; gap:.5rem; align-items:center; font-weight:500;">
@@ -49,8 +49,8 @@
         </div>
       </fieldset>
       <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
-        <button class="btn" type="submit">Save changes</button>
-        <a class="btn secondary on-light" href="/portal/staff/{{.Staff.ID}}/hours">Edit weekly hours</a>
+        <button class="btn" type="submit">{{t .Lang "p.sf.go"}}</button>
+        <a class="btn secondary on-light" href="/portal/staff/{{.Staff.ID}}/hours">{{t .Lang "p.sf.hr"}}</a>
       </div>
     </form>
   </main>

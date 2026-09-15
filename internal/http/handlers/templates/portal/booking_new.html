@@ -1,6 +1,6 @@
 {{define "portal_booking_new.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>New Customer Booking — Staff Portal</title>
   {{template "head" .}}
@@ -11,13 +11,13 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Register Booking for Customer</h1>
-        <p class="muted">Frontdesk phone reservation, WhatsApp booking, or counter walk-in.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.nb.title"}}</h1>
+        <p class="muted">{{t .Lang "p.nb.sub"}}</p>
       </div>
-      <a href="/portal/customers/new" class="btn secondary on-light">+ Register New Mom First</a>
+      <a href="/portal/customers/new" class="btn secondary on-light">{{t .Lang "p.nb.reg"}}</a>
     </div>
 
-    {{template "portal_nav" dict "Active" "new_booking" "User" .User}}
+    {{template "portal_nav" dict "Active" "new_booking" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
@@ -26,9 +26,9 @@
       <input type="hidden" name="csrf" value="{{.CSRF}}">
 
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
-        <label>Customer (Mom)
+        <label>{{t .Lang "p.nb.cust"}}
           <select name="customer_id" required autocomplete="off">
-            <option value="">-- Select Registered Customer --</option>
+            <option value="">{{t .Lang "p.nb.selc"}}</option>
             {{range .Customers}}
               <option value="{{.ID}}" {{if eq $.CustomerID .ID.String}}selected{{end}}>
                 {{.FullName}} ({{.Phone}}) {{if .BabyName}}— 👶 {{.BabyName}}{{end}}
@@ -37,28 +37,28 @@
           </select>
         </label>
 
-        <label>Booking Source
+        <label>{{t .Lang "p.nb.src"}}
           <select name="source">
-            <option value="walkin" selected>Walk-in (Counter)</option>
-            <option value="whatsapp">WhatsApp Inbound</option>
-            <option value="phone">Phone Reservation</option>
+            <option value="walkin" selected>{{t .Lang "p.nb.walk"}}</option>
+            <option value="whatsapp">{{t .Lang "p.nb.wa"}}</option>
+            <option value="phone">{{t .Lang "p.nb.ph"}}</option>
           </select>
         </label>
       </div>
 
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
-        <label>Location / Branch
+        <label>{{t .Lang "p.nb.loc"}}
           <select name="location_id" id="location_id" required
             hx-get="/book/services" hx-target="#service-wrap" hx-swap="innerHTML" hx-include="this" hx-indicator="#staff-svc-ind"
             hx-on::after-request="document.getElementById('staff-wrap').innerHTML=''; document.getElementById('slots-wrap').innerHTML=''">
-            <option value="">Select location</option>
+            <option value="">{{t .Lang "p.nb.sell"}}</option>
             {{range .Locations}}
               <option value="{{.ID}}" {{if eq $.LocationID .ID.String}}selected{{end}}>{{.Name}}</option>
             {{end}}
           </select>
         </label>
       </div>
-      <span id="staff-svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading services…</span></span>
+      <span id="staff-svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "p.nb.load"}}</span></span>
 
       <div id="service-wrap" aria-live="polite">
         {{template "services_partial.html" .}}
@@ -68,12 +68,12 @@
         {{template "staff_partial.html" .}}
       </div>
 
-      <label>Date
+      <label>{{t .Lang "p.nb.date"}}
         <input type="date" name="date" id="date" required value="{{.Date}}" autocomplete="off"
           hx-get="/book/slots" hx-target="#slots-wrap" hx-swap="innerHTML" hx-trigger="change" hx-indicator="#staff-slot-ind"
           hx-include="#location_id,#service_id,#staff_id,#date">
       </label>
-      <span id="staff-slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Finding open slots…</span></span>
+      <span id="staff-slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "p.nb.find"}}</span></span>
 
       <div id="slots-wrap" aria-live="polite">
         {{template "slots_partial.html" .}}
@@ -83,35 +83,35 @@
       <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
 
       <fieldset class="panel stack" style="background:var(--bg-2); border-color:var(--line);">
-        <legend style="font-weight:700; color:var(--accent-deep); padding:0 0.5rem;">Payment Information</legend>
+        <legend style="font-weight:700; color:var(--accent-deep); padding:0 0.5rem;">{{t .Lang "p.nb.payi"}}</legend>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
-          <label>Payment Method
+          <label>{{t .Lang "p.nb.meth"}}
             <select name="payment_method" id="payment_method" x-model="method">
-              <option value="cash">💵 Cash (Pay at Clinic for Services)</option>
-              <option value="qris">📱 QRIS (Instant QR code)</option>
+              <option value="cash">{{t .Lang "p.nb.cash"}}</option>
+              <option value="qris">{{t .Lang "p.nb.qris"}}</option>
             </select>
           </label>
 
-          <label>Payment Purpose
+          <label>{{t .Lang "p.nb.purp"}}
             <select name="payment_purpose" id="payment_purpose">
-              <option value="service" selected>Full Service Payment</option>
-              <option value="booking_fee" :disabled="method==='cash'">Booking Fee / Down Payment (QRIS only)</option>
+              <option value="service" selected>{{t .Lang "p.nb.full"}}</option>
+              <option value="booking_fee" :disabled="method==='cash'">{{t .Lang "p.nb.fee"}}</option>
             </select>
           </label>
         </div>
 
         <p class="muted" style="font-size:0.85rem; margin:0;">
-          <span x-show="method==='cash'">💡 <em>Cash is accepted for services at the clinic counter. Confirms booking immediately upon creation.</em></span>
-          <span x-show="method!=='cash'">💡 <em>QRIS can be used to pay either the booking fee or the full service cost.</em></span>
+          <span x-show="method==='cash'">💡 <em>{{t .Lang "p.nb.hcash"}}</em></span>
+          <span x-show="method!=='cash'">💡 <em>{{t .Lang "p.nb.hqris"}}</em></span>
         </p>
       </fieldset>
 
-      <label>Internal Notes / Requests
-        <textarea name="notes" rows="2" placeholder="e.g. Baby skin sensitivity, requested calm music, walk-in mom">{{.Notes}}</textarea>
+      <label>{{t .Lang "p.nb.notes"}}
+        <textarea name="notes" rows="2" placeholder="{{t .Lang "p.nb.nph"}}">{{.Notes}}</textarea>
       </label>
 
-      <button class="btn" type="submit" style="align-self:flex-start;" :disabled="!start">Confirm &amp; Create Booking</button>
+      <button class="btn" type="submit" style="align-self:flex-start;" :disabled="!start">{{t .Lang "p.nb.go"}}</button>
     </form>
   </main>
   {{template "footer" .}}

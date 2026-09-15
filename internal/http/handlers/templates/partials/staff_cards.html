@@ -1,14 +1,14 @@
 {{define "staff_cards.html"}}
 <div class="pick-grid people" role="radiogroup" aria-label="Choose a therapist">
   <label class="pick-card person">
-    <input type="radio" name="staff_id" value="" data-label="First available"
+    <input type="radio" name="staff_id" value="" data-label="{{t .Lang "book.first"}}"
       hx-get="/book/slots?view=cards" hx-target="#slots-wrap" hx-swap="innerHTML"
       hx-include="input[name='location_id']:checked, input[name='service_id']:checked, #date" hx-indicator="#slot-ind"
       @click="onReclick($el,'staff')"
       @change="onPick($el,'staff')">
     <span class="avatar" aria-hidden="true">✨</span>
-    <span class="pick-name">First available</span>
-    <span class="pick-desc">Fastest open slot</span>
+    <span class="pick-name">{{t .Lang "book.first"}}</span>
+    <span class="pick-desc">{{t .Lang "book.fastest"}}</span>
     <span class="pick-check" aria-hidden="true">✓</span>
   </label>
   {{range .Staff}}

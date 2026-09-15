@@ -5,30 +5,39 @@
     <span class="brand-sub">Baby &amp; Mom Spa</span>
   </a>
   <nav class="nav">
+    <form method="post" action="/lang" style="display:inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      {{if eq (printf "%v" .Lang) "en"}}
+      <input type="hidden" name="lang" value="id">
+      {{else}}
+      <input type="hidden" name="lang" value="en">
+      {{end}}
+      <button id="lang-btn" class="theme-btn" type="submit" aria-label="{{t .Lang "lang.label"}}">{{t .Lang "lang.button"}}</button>
+    </form>
     <button id="theme-btn" class="theme-btn" type="button" aria-label="Theme: system" onclick="return __wanggaThemeCycle()">
       <span id="theme-icon" aria-hidden="true">◐</span><span id="theme-label">Auto</span>
     </button>
-    <a href="/services">Services</a>
+    <a href="/services">{{t .Lang "nav.services"}}</a>
     {{if .User}}
       {{if .User.Role.IsStaff}}
-        <a href="/portal/bookings/new" style="font-weight:800;">➕ New Booking</a>
-        <a href="/portal" style="color:var(--accent-deep); font-weight:800;">🏥 Staff Portal</a>
+        <a href="/portal/bookings/new" style="font-weight:800;">{{t .Lang "nav.newbooking"}}</a>
+        <a href="/portal" style="color:var(--accent-deep); font-weight:800;">{{t .Lang "nav.portal"}}</a>
       {{else}}
-        <a href="/book">Book</a>
-        <a href="/bookings">My bookings</a>
+        <a href="/book">{{t .Lang "nav.book"}}</a>
+        <a href="/bookings">{{t .Lang "nav.mybookings"}}</a>
       {{end}}
       {{if eq (printf "%s" .User.Role) "admin"}}
-        <a href="/admin">Admin</a>
+        <a href="/admin">{{t .Lang "nav.admin"}}</a>
       {{end}}
       <span class="muted" style="font-size:0.85rem;">{{.User.FullName}} ({{.User.Role}})</span>
       <form method="post" action="/logout" style="display:inline">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <button class="linkish" type="submit">Log out</button>
+        <button class="linkish" type="submit">{{t .Lang "nav.logout"}}</button>
       </form>
     {{else}}
-      <a href="/book">Book</a>
-      <a href="/login">Log in</a>
-      <a href="/register">Register</a>
+      <a href="/book">{{t .Lang "nav.book"}}</a>
+      <a href="/login">{{t .Lang "nav.login"}}</a>
+      <a href="/register">{{t .Lang "nav.register"}}</a>
     {{end}}
   </nav>
 </header>

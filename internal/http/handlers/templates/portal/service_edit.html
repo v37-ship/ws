@@ -1,6 +1,6 @@
 {{define "portal_service_edit.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Edit {{.Service.Name}} — Staff Portal</title>
   {{template "head" .}}
@@ -10,32 +10,32 @@
   {{template "toast-region" .}}
   <main class="stack" style="max-width:720px; margin:0 auto;">
     <div>
-      <a href="/portal/services" class="muted">&larr; Back to services</a>
-      <h1 class="page-title" style="margin:0.25rem 0;">Edit service</h1>
+      <a href="/portal/services" class="muted">&larr; {{t .Lang "p.se.back"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{t .Lang "p.se.title"}}</h1>
     </div>
 
-    {{template "portal_nav" dict "Active" "services" "User" .User}}
+    {{template "portal_nav" dict "Active" "services" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
     <form class="panel stack" method="post" action="/portal/services/{{.Service.ID}}/edit" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Name <input name="name" required value="{{.Service.Name}}" autocomplete="off"></label>
-      <label>Description <textarea name="description" rows="2">{{.Service.Description}}</textarea></label>
+      <label>{{t .Lang "p.se.nm"}} <input name="name" required value="{{.Service.Name}}" autocomplete="off"></label>
+      <label>{{t .Lang "p.se.ds"}} <textarea name="description" rows="2">{{.Service.Description}}</textarea></label>
       <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
-        <label style="flex:1; min-width:140px;">Duration (min)
+        <label style="flex:1; min-width:140px;">{{t .Lang "p.se.du"}}
           <input type="number" name="duration_min" value="{{.Service.DurationMin}}" min="15" required>
         </label>
-        <label style="flex:1; min-width:140px;">Price (IDR)
+        <label style="flex:1; min-width:140px;">{{t .Lang "p.se.pr"}}
           <input type="number" name="price_idr" value="{{.Service.PriceIDR}}" min="0" required>
         </label>
       </div>
 
       <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
-        <legend style="font-weight:700; padding:0 .5rem;">Daily hours (blank day = closed)</legend>
+        <legend style="font-weight:700; padding:0 .5rem;">{{t .Lang "p.se.hl"}}</legend>
         <div class="hours-grid">
           {{range .Hours}}
-          <label class="day-cell">{{.Name}}
+          <label class="day-cell">{{t $.Lang (printf "p.day.%d" .Num)}}
             <input type="time" name="hours_{{.Num}}_from" value="{{.From}}" aria-label="{{.Name}} open from">
             <input type="time" name="hours_{{.Num}}_to" value="{{.To}}" aria-label="{{.Name}} open until">
           </label>
@@ -44,19 +44,19 @@
       </fieldset>
 
       <div class="stack" style="background:var(--bg-2); border-radius:.9rem; padding:.9rem 1rem;">
-        <strong>Picture</strong>
+        <strong>{{t .Lang "p.se.pic"}}</strong>
         <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
           <img src="{{servicePhoto .Service}}" alt="Current picture" style="width:5rem; height:5rem; border-radius:.75rem; object-fit:cover; background:#fff;">
           <div style="flex:1; min-width:220px;" class="stack">
-            <label>Replace upload (JPG/PNG/WebP, max 2 MB) <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
-            <label>…or picture link <input name="image_url" value="{{.Service.ImageURL}}" placeholder="https://…" autocomplete="off"></label>
-            {{if .Service.ImagePath}}<label style="font-weight:400;"><input type="checkbox" name="remove_photo" value="1" style="width:auto; display:inline;"> Remove uploaded photo (fall back to link or illustration)</label>{{end}}
+            <label>{{t .Lang "p.se.rep"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+            <label>{{t .Lang "p.se.or"}} <input name="image_url" value="{{.Service.ImageURL}}" placeholder="https://…" autocomplete="off"></label>
+            {{if .Service.ImagePath}}<label style="font-weight:400;"><input type="checkbox" name="remove_photo" value="1" style="width:auto; display:inline;"> {{t .Lang "p.se.rm"}}</label>{{end}}
           </div>
         </div>
-        <p class="muted" style="margin:0; font-size:.85rem;">A new upload replaces the current picture; otherwise the picture stays as shown. With no upload and no link, the gallery uses a built-in illustration.</p>
+        <p class="muted" style="margin:0; font-size:.85rem;">{{t .Lang "p.se.hint"}}</p>
       </div>
 
-      <button class="btn" type="submit">Save changes</button>
+      <button class="btn" type="submit">{{t .Lang "p.se.go"}}</button>
     </form>
   </main>
   {{template "footer" .}}

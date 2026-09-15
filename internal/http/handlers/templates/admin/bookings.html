@@ -1,6 +1,6 @@
 {{define "admin_bookings.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Bookings — Admin</title>
   {{template "head" .}}
@@ -9,11 +9,11 @@
   {{template "header" .}}
   {{template "toast-region" .}}
   <main class="stack">
-    <nav class="admin-nav"><a href="/admin">Admin</a></nav>
-    <h1>Upcoming bookings</h1>
+    <nav class="admin-nav"><a href="/admin">{{t .Lang "a.bk.crumb"}}</a></nav>
+    <h1>{{t .Lang "a.bk.title"}}</h1>
     <div class="panel">
       <table class="table">
-        <thead><tr><th>When</th><th>Customer</th><th>Service</th><th>Staff</th><th>Status</th></tr></thead>
+        <thead><tr><th>{{t .Lang "a.bk.tw"}}</th><th>{{t .Lang "a.bk.tc"}}</th><th>{{t .Lang "a.bk.ts"}}</th><th>{{t .Lang "a.bk.tt"}}</th><th>{{t .Lang "a.bk.tu"}}</th></tr></thead>
         <tbody>
         {{range .Bookings}}
           <tr>
@@ -24,7 +24,7 @@
             <td><span class="badge {{.Status}}">{{.Status}}</span></td>
           </tr>
         {{else}}
-          <tr><td colspan="5" class="muted">No bookings</td></tr>
+          <tr><td colspan="5" class="muted">{{t .Lang "a.bk.mt"}}</td></tr>
         {{end}}
         </tbody>
       </table>

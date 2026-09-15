@@ -1,6 +1,6 @@
 {{define "admin_home.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Admin — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
@@ -9,17 +9,17 @@
   {{template "header" .}}
   {{template "toast-region" .}}
   <main>
-    <h1 class="page-title">Admin</h1>
+    <h1 class="page-title">{{t .Lang "a.home.title"}}</h1>
     <nav class="admin-nav" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-      <a class="btn" href="/portal">🏥 Open Staff Portal</a>
-      <a class="btn secondary on-light" href="/admin/cs">👥 Manage CS Accounts</a>
-      <a class="btn secondary on-light" href="/admin/locations">Locations</a>
-      <a class="btn secondary on-light" href="/portal/services">Services</a>
-      <a class="btn secondary on-light" href="/portal/schedule">Team &amp; Schedules</a>
-      <a class="btn secondary on-light" href="/admin/jobs">Jobs &amp; Applications</a>
-      <a class="btn secondary on-light" href="/admin/bookings">Legacy Bookings</a>
+      <a class="btn" href="/portal">{{t .Lang "a.home.portal"}}</a>
+      <a class="btn secondary on-light" href="/admin/cs">{{t .Lang "a.home.cs"}}</a>
+      <a class="btn secondary on-light" href="/admin/locations">{{t .Lang "a.home.loc"}}</a>
+      <a class="btn secondary on-light" href="/portal/services">{{t .Lang "a.home.svc"}}</a>
+      <a class="btn secondary on-light" href="/portal/schedule">{{t .Lang "a.home.team"}}</a>
+      <a class="btn secondary on-light" href="/admin/jobs">{{t .Lang "a.home.jobs"}}</a>
+      <a class="btn secondary on-light" href="/admin/bookings">{{t .Lang "a.home.leg"}}</a>
     </nav>
-    <p class="muted">Manage Wangga catalog, staff accounts, and daily spa operations.</p>
+    <p class="muted">{{t .Lang "a.home.sub"}}</p>
   </main>
   {{template "footer" .}}
 </body>

@@ -1,11 +1,11 @@
 {{define "services_partial.html"}}
-<label>Service
+<label>{{t .Lang "svc2.service"}}
   <select name="service_id" id="service_id" required
     hx-get="/book/staff" hx-target="#staff-wrap"
     hx-include="#location_id,#service_id">
-    <option value="">Select service</option>
+    <option value="">{{t .Lang "svc2.select"}}</option>
     {{range .Services}}
-    <option value="{{.ID}}" {{if eq $.ServiceID .ID.String}}selected{{end}}>{{.Name}} — {{formatIDR .PriceIDR}} ({{.DurationMin}} min)</option>
+    <option value="{{.ID}}" {{if eq $.ServiceID .ID.String}}selected{{end}}>{{.Name}} — {{formatIDR .PriceIDR}} ({{.DurationMin}} {{t $.Lang "unit.min"}})</option>
     {{end}}
   </select>
 </label>

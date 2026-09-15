@@ -1,6 +1,6 @@
 {{define "slots_partial.html"}}
 <div class="stack">
-  <strong>Available slots</strong>
+  <strong>{{t .Lang "slots.title"}}</strong>
   {{if .SlotsError}}<p class="error" role="alert">{{.SlotsError}}</p>{{end}}
   {{if .Slots}}
   <div class="slot-grid" role="group" aria-label="Available time slots">
@@ -12,9 +12,9 @@
     </button>
     {{end}}
   </div>
-  <p class="muted">Select a time, then continue to payment.</p>
+  <p class="muted">{{t .Lang "slots.hint"}}</p>
   {{else}}
-  <p class="muted">No open slots for this day. Try another date.</p>
+  <p class="muted">{{t .Lang "slots.empty"}}</p>
   {{end}}
 </div>
 {{end}}

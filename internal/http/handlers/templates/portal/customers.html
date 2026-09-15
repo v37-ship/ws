@@ -1,6 +1,6 @@
 {{define "portal_customers.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Customer Directory — Staff Portal</title>
   {{template "head" .}}
@@ -11,22 +11,22 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Customer Directory</h1>
-        <p class="muted">Search moms, babies, and contact details.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.cu.title"}}</h1>
+        <p class="muted">{{t .Lang "p.cu.sub"}}</p>
       </div>
-      <a href="/portal/customers/new" class="btn">+ Register New Mom &amp; Baby</a>
+      <a href="/portal/customers/new" class="btn">{{t .Lang "p.cu.reg"}}</a>
     </div>
 
-    {{template "portal_nav" dict "Active" "customers" "User" .User}}
+    {{template "portal_nav" dict "Active" "customers" "User" .User "Lang" $.Lang}}
 
     <div class="panel">
       <form method="get" action="/portal/customers" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
-        <label style="flex:1; min-width:240px;">Search Customer
-          <input type="text" name="q" value="{{.Query}}" placeholder="Search by name, phone number, email, or baby name...">
+        <label style="flex:1; min-width:240px;">{{t .Lang "p.cu.s"}}
+          <input type="text" name="q" value="{{.Query}}" placeholder="{{t .Lang "p.cu.ph"}}">
         </label>
-        <button type="submit" class="btn" style="height:44px;">Search</button>
+        <button type="submit" class="btn" style="height:44px;">{{t .Lang "p.cu.go"}}</button>
         {{if .Query}}
-          <a href="/portal/customers" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">Clear</a>
+          <a href="/portal/customers" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">{{t .Lang "p.cu.clear"}}</a>
         {{end}}
       </form>
     </div>
@@ -36,12 +36,12 @@
         <table class="table">
           <thead>
             <tr>
-              <th>Customer Name</th>
-              <th>WhatsApp / Phone</th>
-              <th>Baby Info</th>
-              <th>Mom Care Condition</th>
-              <th>Registered</th>
-              <th>Actions</th>
+              <th>{{t .Lang "p.cu.tn"}}</th>
+              <th>{{t .Lang "p.cu.tw"}}</th>
+              <th>{{t .Lang "p.cu.tb"}}</th>
+              <th>{{t .Lang "p.cu.tm"}}</th>
+              <th>{{t .Lang "p.cu.tr"}}</th>
+              <th>{{t .Lang "p.cu.ta"}}</th>
             </tr>
           </thead>
           <tbody>
@@ -61,18 +61,18 @@
                 {{if .BabyName}}👶 <strong>{{.BabyName}}</strong>{{else}}<span class="muted">-</span>{{end}}
               </td>
               <td>
-                {{if .MomCondition}}{{.MomCondition}}{{else}}<span class="muted">Standard</span>{{end}}
+                {{if .MomCondition}}{{.MomCondition}}{{else}}<span class="muted">{{t $.Lang "p.cu.std"}}</span>{{end}}
               </td>
               <td><small>{{formatTime .CreatedAt "02 Jan 2006"}}</small></td>
               <td>
                 <div style="display:flex; gap:0.4rem;">
-                  <a href="/portal/bookings/new?customer_id={{.ID}}" class="btn secondary on-light btn-sm">+ Book</a>
-                  <a href="/portal/customers/{{.ID}}" class="btn secondary on-light btn-sm">History</a>
+                  <a href="/portal/bookings/new?customer_id={{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.cu.book"}}</a>
+                  <a href="/portal/customers/{{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.cu.hist"}}</a>
                 </div>
               </td>
             </tr>
           {{else}}
-            <tr><td colspan="6" class="muted" style="text-align:center; padding:2rem;">No customers found.</td></tr>
+            <tr><td colspan="6" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.cu.empty"}}</td></tr>
           {{end}}
           </tbody>
         </table>

@@ -1,6 +1,6 @@
 {{define "admin_customer_reset.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Reset Customer Password — Admin</title>
   {{template "head" .}}
@@ -11,8 +11,8 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <a href="/portal/customers/{{.Customer.ID}}" class="muted">&larr; Back to customer profile</a>
-        <h1 class="page-title" style="margin:0.25rem 0;">Reset Password: {{.Customer.FullName}}</h1>
+        <a href="/portal/customers/{{.Customer.ID}}" class="muted">&larr; {{t .Lang "a.cr.back"}}</a>
+        <h1 class="page-title" style="margin:0.25rem 0;">{{t .Lang "a.cr.title"}} {{.Customer.FullName}}</h1>
       </div>
     </div>
 
@@ -20,20 +20,20 @@
     {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
 
     <div class="panel stack" style="max-width:500px;">
-      <p class="muted">Enter a new temporary or permanent password for this customer. Any existing active sessions will be invalidated immediately.</p>
+      <p class="muted">{{t .Lang "a.cr.expl"}}</p>
       
       <form method="post" action="/admin/customers/{{.Customer.ID}}/reset-password" class="stack">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 
-        <label>Customer Email
+        <label>{{t .Lang "a.cr.em"}}
           <input type="text" value="{{.Customer.Email}}" disabled>
         </label>
 
-        <label>New Password (min 8 chars) *
-          <input type="password" name="password" required minlength="8" placeholder="Enter new password">
+        <label>{{t .Lang "a.cr.np"}}
+          <input type="password" name="password" required minlength="8" placeholder="{{t .Lang "a.cr.ph"}}">
         </label>
 
-        <button type="submit" class="btn" onclick="return confirm('Reset password for this customer?')">Save New Password</button>
+        <button type="submit" class="btn" onclick="return confirm('{{t .Lang "a.cr.cf"}}')">{{t .Lang "a.cr.go"}}</button>
       </form>
     </div>
   </main>

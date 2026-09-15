@@ -1,9 +1,9 @@
 {{define "staff_partial.html"}}
-<label>Therapist
+<label>{{t .Lang "svc2.ther"}}
   <select name="staff_id" id="staff_id"
     hx-get="/book/slots" hx-target="#slots-wrap"
     hx-include="#location_id,#service_id,#staff_id,#date">
-    <option value="">Any available</option>
+    <option value="">{{t .Lang "svc2.any"}}</option>
     {{range .Staff}}
     <option value="{{.ID}}" {{if eq $.StaffID .ID.String}}selected{{end}}>{{.Name}}</option>
     {{end}}

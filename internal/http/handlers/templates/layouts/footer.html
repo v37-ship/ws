@@ -4,10 +4,10 @@
     <div>
       <div class="brand-mark">Wangga</div>
       <div class="brand-sub">Baby &amp; Mom Spa</div>
-      <p class="muted">Gentle care for little ones and restful treatments for moms.</p>
+      <p class="muted">{{t .Lang "footer.tag"}}</p>
     </div>
     <div>
-      <h3>Contact us</h3>
+      <h3>{{t .Lang "footer.contact"}}</h3>
       <p><a href="{{.Contact.Maps}}" target="_blank" rel="noopener">📍 {{.Contact.Address}}</a></p>
       <p>🕒 {{.Contact.Hours}}</p>
       <p>
@@ -16,13 +16,13 @@
       </p>
     </div>
     <div>
-      <h3>Explore</h3>
-      <p><a href="/services">Services</a><br>
-      <a href="/book">Book a session</a><br>
-      <a href="/careers">Careers</a><br>
-      <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin menyampaikan laporan/masukan."}}" target="_blank" rel="noopener">Report &amp; feedback</a></p>
+      <h3>{{t .Lang "footer.explore"}}</h3>
+      <p><a href="/services">{{t .Lang "footer.services"}}</a><br>
+      <a href="/book">{{t .Lang "footer.book"}}</a><br>
+      <a href="/careers">{{t .Lang "footer.careers"}}</a><br>
+      <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin menyampaikan laporan/masukan."}}" target="_blank" rel="noopener">{{t .Lang "footer.feedback"}}</a></p>
     </div>
   </div>
-  <div class="footer-bottom muted">© 2026 Wangga: Baby &amp; Mom Spa · All rights reserved</div>
+  <div class="footer-bottom muted">{{t .Lang "footer.rights"}}</div>
 </footer>
 {{end}}

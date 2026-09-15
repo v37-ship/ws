@@ -1,8 +1,8 @@
 {{define "login.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Log in — Wangga: Baby &amp; Mom Spa</title>
+  <title>{{t .Lang "auth.login_title"}} — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
 </head>
 <body>
@@ -10,17 +10,17 @@
   {{template "toast-region" .}}
   <main>
     <section class="auth-shell stack">
-      <h1 class="page-title">Welcome back</h1>
-      <p class="muted">Log in to book at Wangga: Baby &amp; Mom Spa.</p>
+      <h1 class="page-title">{{t .Lang "auth.welcome"}}</h1>
+      <p class="muted">{{t .Lang "auth.login_sub"}}</p>
       {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
       <form class="panel stack" method="post" action="/login">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="next" value="{{.Next}}">
-        <label>Email <input type="email" name="email" required value="{{.Email}}"></label>
-        <label>Password <input type="password" name="password" required minlength="8"></label>
-        <button class="btn" type="submit">Log in</button>
+        <label>{{t .Lang "auth.email"}} <input type="email" name="email" required value="{{.Email}}"></label>
+        <label>{{t .Lang "auth.pass"}} <input type="password" name="password" required minlength="8"></label>
+        <button class="btn" type="submit">{{t .Lang "auth.login_btn"}}</button>
       </form>
-      <p class="muted">No account? <a href="/register">Register</a></p>
+      <p class="muted">{{t .Lang "auth.noacct"}} <a href="/register">{{t .Lang "nav.register"}}</a></p>
     </section>
   </main>
   {{template "footer" .}}

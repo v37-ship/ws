@@ -17,7 +17,7 @@
   </td>
   <td>
     {{if .BabyName}}👶 {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
-    {{if .MomCondition}}<br><small class="muted">Mom: {{.MomCondition}}</small>{{end}}
+    {{if .MomCondition}}<br><small class="muted">{{t $.Lang "p.q.mom"}} {{.MomCondition}}</small>{{end}}
   </td>
   <td>{{.ServiceName}}</td>
   <td>👩‍⚕️ {{.StaffName}}</td>
@@ -27,10 +27,10 @@
     <small>{{formatIDR .PriceIDR}}</small>
   </td>
   <td>
-    <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Edit / Status</a>
+    <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.br.ed"}}</a>
   </td>
 </tr>
 {{else}}
-<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">No bookings found matching filters.</td></tr>
+<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.br.mt"}}</td></tr>
 {{end}}
 {{end}}

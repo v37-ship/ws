@@ -1,6 +1,6 @@
 {{define "services.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Services — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
@@ -10,8 +10,8 @@
   {{template "toast-region" .}}
   <main class="stack">
     <section class="section-head">
-      <h1 class="page-title">Our Services</h1>
-      <p>Gentle baby spa, restorative mom treatments, and more — pick a location and book in minutes.</p>
+      <h1 class="page-title">{{t .Lang "svc.title"}}</h1>
+      <p>{{t .Lang "svc.sub"}}</p>
     </section>
 
     {{range .LocationGroups}}
@@ -31,28 +31,28 @@
             {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
           </div>
           <div class="pill-row">
-            <span class="pill">{{.DurationMin}} min</span>
+            <span class="pill">{{.DurationMin}} {{t $.Lang "unit.min"}}</span>
             <span class="pill mint">{{formatIDR .PriceIDR}}</span>
             {{if .Active}}
-              <span class="pill sun">Available</span>
+              <span class="pill sun">{{t $.Lang "svc.available"}}</span>
             {{else}}
-              <span class="pill">Paused</span>
+              <span class="pill">{{t $.Lang "svc.paused"}}</span>
             {{end}}
           </div>
           <p class="muted" style="margin:0; font-size:.8rem;">🕒 {{index $.Hours .ID.String}}</p>
           {{if .Active}}
-          <a class="btn mint" href="/book?location_id={{.LocationID}}">Book here</a>
+          <a class="btn mint" href="/book?location_id={{.LocationID}}">{{t $.Lang "svc.book"}}</a>
           {{else}}
-          <a class="btn secondary" href="{{waInquire .Name $loc.Location.Name}}" target="_blank" rel="noopener">💬 Contact us</a>
+          <a class="btn secondary" href="{{waInquire .Name $loc.Location.Name}}" target="_blank" rel="noopener">{{t $.Lang "svc.contact"}}</a>
           {{end}}
         </article>
         {{else}}
-        <p class="muted">No services at this location yet.</p>
+        <p class="muted">{{t $.Lang "svc.empty_loc"}}</p>
         {{end}}
       </div>
     </section>
     {{else}}
-    <p class="muted">No locations yet — check back soon.</p>
+    <p class="muted">{{t .Lang "svc.empty_all"}}</p>
     {{end}}
   </main>
   {{template "footer" .}}

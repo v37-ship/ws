@@ -1,8 +1,8 @@
 {{define "register.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Register — Wangga: Baby &amp; Mom Spa</title>
+  <title>{{t .Lang "auth.reg_btn"}} — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
 </head>
 <body>
@@ -10,16 +10,16 @@
   {{template "toast-region" .}}
   <main>
     <section class="auth-shell stack">
-      <h1 class="page-title">Join Wangga</h1>
-      <p class="muted">Create an account to book baby &amp; mom treatments.</p>
+      <h1 class="page-title">{{t .Lang "auth.reg_title"}}</h1>
+      <p class="muted">{{t .Lang "auth.reg_sub"}}</p>
       {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
       <form class="panel stack" method="post" action="/register">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <label>Full name <input name="full_name" required value="{{.FullName}}"></label>
-        <label>Email <input type="email" name="email" required value="{{.Email}}"></label>
-        <label>Phone <input name="phone" value="{{.Phone}}"></label>
-        <label>Password <input type="password" name="password" required minlength="8"></label>
-        <button class="btn" type="submit">Register</button>
+        <label>{{t .Lang "auth.name"}} <input name="full_name" required value="{{.FullName}}"></label>
+        <label>{{t .Lang "auth.email"}} <input type="email" name="email" required value="{{.Email}}"></label>
+        <label>{{t .Lang "auth.phone"}} <input name="phone" value="{{.Phone}}"></label>
+        <label>{{t .Lang "auth.pass"}} <input type="password" name="password" required minlength="8"></label>
+        <button class="btn" type="submit">{{t .Lang "auth.reg_btn"}}</button>
       </form>
     </section>
   </main>

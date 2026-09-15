@@ -1,6 +1,6 @@
 {{define "portal_dashboard.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Staff Portal — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
@@ -11,44 +11,44 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Frontdesk &amp; Clinic Portal</h1>
-        <p class="muted">Daily operations, booking management, and clinic status.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.dash.title"}}</h1>
+        <p class="muted">{{t .Lang "p.dash.sub"}}</p>
       </div>
       <div style="display:flex; gap:0.5rem;">
-        <a href="/portal/bookings/new" class="btn">+ New Walk-in / Booking</a>
-        <a href="/portal/customers/new" class="btn secondary on-light">+ Register Mom &amp; Baby</a>
+        <a href="/portal/bookings/new" class="btn">{{t .Lang "p.dash.walk"}}</a>
+        <a href="/portal/customers/new" class="btn secondary on-light">{{t .Lang "p.dash.reg"}}</a>
       </div>
     </div>
 
-    {{template "portal_nav" dict "Active" "dashboard" "User" .User}}
+    {{template "portal_nav" dict "Active" "dashboard" "User" .User "Lang" $.Lang}}
 
     <div class="stats-grid">
       <div class="stat-card">
         <div class="num">{{.Stats.TodayTotal}}</div>
-        <div class="label">Today's Bookings</div>
+        <div class="label">{{t .Lang "p.dash.today"}}</div>
       </div>
       <div class="stat-card">
         <div class="num" style="color:var(--mint-deep);">{{.Stats.Confirmed}}</div>
-        <div class="label">Confirmed / Waiting</div>
+        <div class="label">{{t .Lang "p.dash.conf"}}</div>
       </div>
       <div class="stat-card">
         <div class="num" style="color:#0284c7;">{{.Stats.CheckedIn}}</div>
-        <div class="label">Checked In (Lobby)</div>
+        <div class="label">{{t .Lang "p.dash.in"}}</div>
       </div>
       <div class="stat-card">
         <div class="num" style="color:#d97706;">{{.Stats.InService}}</div>
-        <div class="label">In Service (Rooms)</div>
+        <div class="label">{{t .Lang "p.dash.svc"}}</div>
       </div>
       <div class="stat-card">
         <div class="num" style="color:#16a34a;">{{.Stats.Completed}}</div>
-        <div class="label">Completed Today</div>
+        <div class="label">{{t .Lang "p.dash.done"}}</div>
       </div>
     </div>
 
     <div class="panel stack">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-        <h2>Today's Live Queue ({{.TodayStr}})</h2>
-        <span class="muted"><span class="htmx-indicator spinner" aria-hidden="true"></span> Auto-refreshes every 30s · <a href="/portal" hx-get="/portal/queue" hx-target="#live-queue" hx-swap="innerHTML">Refresh now</a></span>
+        <h2>{{t .Lang "p.dash.q"}} ({{.TodayStr}})</h2>
+        <span class="muted"><span class="htmx-indicator spinner" aria-hidden="true"></span> {{t .Lang "p.dash.auto"}} <a href="/portal" hx-get="/portal/queue" hx-target="#live-queue" hx-swap="innerHTML">{{t .Lang "p.dash.ref"}}</a></span>
       </div>
 
       <div style="overflow-x:auto;" class="table-cards" id="live-queue-wrap"
@@ -56,14 +56,14 @@
         <table class="table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Customer / Mom</th>
-              <th>Baby Info</th>
-              <th>Service</th>
-              <th>Bidan / Staff</th>
-              <th>Status</th>
-              <th>Payment</th>
-              <th>Actions</th>
+              <th>{{t .Lang "p.th.time"}}</th>
+              <th>{{t .Lang "p.th.cust"}}</th>
+              <th>{{t .Lang "p.th.baby"}}</th>
+              <th>{{t .Lang "p.th.svc"}}</th>
+              <th>{{t .Lang "p.th.staff"}}</th>
+              <th>{{t .Lang "p.th.status"}}</th>
+              <th>{{t .Lang "p.th.pay"}}</th>
+              <th>{{t .Lang "p.th.act"}}</th>
             </tr>
           </thead>
           <tbody id="live-queue">

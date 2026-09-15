@@ -1,6 +1,6 @@
 {{define "portal_customer_detail.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>{{.Customer.FullName}} — Customer Profile</title>
   {{template "head" .}}
@@ -11,56 +11,56 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <a href="/portal/customers" class="muted">&larr; Back to customers</a>
+        <a href="/portal/customers" class="muted">&larr; {{t .Lang "p.cd.back"}}</a>
         <h1 class="page-title" style="margin:0.25rem 0;">{{.Customer.FullName}}</h1>
       </div>
       <div style="display:flex; gap:0.5rem;">
-        <a href="/portal/bookings/new?customer_id={{.Customer.ID}}" class="btn">+ Book Appointment</a>
+        <a href="/portal/bookings/new?customer_id={{.Customer.ID}}" class="btn">{{t .Lang "p.cd.book"}}</a>
         {{if .Customer.Phone}}
-          <a href="https://wa.me/{{.Customer.Phone}}" target="_blank" class="btn-wa">💬 WhatsApp Mom</a>
+          <a href="https://wa.me/{{.Customer.Phone}}" target="_blank" class="btn-wa">{{t .Lang "p.cd.wa"}}</a>
         {{end}}
       </div>
     </div>
 
-    {{template "portal_nav" dict "Active" "customers" "User" .User}}
+    {{template "portal_nav" dict "Active" "customers" "User" .User "Lang" $.Lang}}
 
     <div class="panel stack">
-      <h2>Mom &amp; Baby Profile</h2>
+      <h2>{{t .Lang "p.cd.prof"}}</h2>
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
         <div>
-          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Contact</span>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.ct"}}</span>
           <div>📞 {{.Customer.Phone}}</div>
           <div>✉️ {{.Customer.Email}}</div>
         </div>
         <div>
-          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Baby Info</span>
-          <div>👶 <strong>{{if .Customer.BabyName}}{{.Customer.BabyName}}{{else}}<em>Not specified</em>{{end}}</strong></div>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.bi"}}</span>
+          <div>👶 <strong>{{if .Customer.BabyName}}{{.Customer.BabyName}}{{else}}<em>{{t .Lang "p.cd.none"}}</em>{{end}}</strong></div>
           {{if .Customer.BabyDOB}}<div>DOB: {{formatTime .Customer.BabyDOB "02 Jan 2006"}}</div>{{end}}
         </div>
         <div>
-          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Maternal Care</span>
-          <div>🤰 {{if .Customer.MomCondition}}{{.Customer.MomCondition}}{{else}}Standard{{end}}</div>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.mc"}}</span>
+          <div>🤰 {{if .Customer.MomCondition}}{{.Customer.MomCondition}}{{else}}{{t .Lang "p.cd.std"}}{{end}}</div>
         </div>
       </div>
       {{if .Customer.MedicalNotes}}
         <div>
-          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">Special / Medical Notes</span>
+          <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.med"}}</span>
           <p style="background:var(--bg-2); padding:0.6rem 0.8rem; border-radius:8px; margin:0.25rem 0;">{{.Customer.MedicalNotes}}</p>
         </div>
       {{end}}
     </div>
 
     <div class="panel stack">
-      <h2>Booking History ({{len .Bookings}})</h2>
+      <h2>{{t .Lang "p.cd.hist"}} ({{len .Bookings}})</h2>
       <table class="table">
         <thead>
           <tr>
-            <th>Schedule</th>
-            <th>Service</th>
-            <th>Bidan</th>
-            <th>Status</th>
-            <th>Amount</th>
-            <th>Action</th>
+            <th>{{t .Lang "p.cd.ts"}}</th>
+            <th>{{t .Lang "p.cd.tv"}}</th>
+            <th>{{t .Lang "p.cd.tt"}}</th>
+            <th>{{t .Lang "p.cd.tu"}}</th>
+            <th>{{t .Lang "p.cd.ta"}}</th>
+            <th>{{t .Lang "p.cd.to"}}</th>
           </tr>
         </thead>
         <tbody>
@@ -72,11 +72,11 @@
             <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
             <td>{{formatIDR .PriceIDR}}</td>
             <td>
-              <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">Manage</a>
+              <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.cd.mg"}}</a>
             </td>
           </tr>
         {{else}}
-          <tr><td colspan="6" class="muted">No booking history for this customer.</td></tr>
+          <tr><td colspan="6" class="muted">{{t .Lang "p.cd.mt"}}</td></tr>
         {{end}}
         </tbody>
       </table>

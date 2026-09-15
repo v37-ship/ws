@@ -1,6 +1,6 @@
 {{define "admin_cs.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Manage CS Accounts — Admin</title>
   {{template "head" .}}
@@ -11,13 +11,13 @@
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
-        <h1 class="page-title" style="margin-bottom:0.2rem;">Customer Service (CS) Management</h1>
-        <p class="muted">Admin controls for staff accounts, deactivations, and credential resets.</p>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "a.cs.title"}}</h1>
+        <p class="muted">{{t .Lang "a.cs.sub"}}</p>
       </div>
-      <a href="/portal" class="btn secondary on-light">&larr; Back to Staff Portal</a>
+      <a href="/portal" class="btn secondary on-light">&larr; {{t .Lang "a.cs.back"}}</a>
     </div>
 
-    {{template "portal_nav" dict "Active" "admin_cs" "User" .User}}
+    {{template "portal_nav" dict "Active" "admin_cs" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
     {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
@@ -25,13 +25,13 @@
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
       <!-- Active CS List -->
       <div class="panel stack">
-        <h2>CS Staff Accounts ({{len .CSUsers}})</h2>
+        <h2>{{t .Lang "a.cs.list"}} ({{len .CSUsers}})</h2>
         <table class="table">
           <thead>
             <tr>
-              <th>Staff Name / Email</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>{{t .Lang "a.cs.tn"}}</th>
+              <th>{{t .Lang "a.cs.ts"}}</th>
+              <th>{{t .Lang "a.cs.ta"}}</th>
             </tr>
           </thead>
           <tbody>
@@ -44,33 +44,33 @@
               </td>
               <td>
                 {{if .IsActive}}
-                  <span class="badge confirmed">Active</span>
+                  <span class="badge confirmed">{{t $.Lang "a.cs.act"}}</span>
                 {{else}}
-                  <span class="badge cancelled">Deactivated</span>
+                  <span class="badge cancelled">{{t $.Lang "a.cs.de"}}</span>
                 {{end}}
               </td>
               <td>
                 <div style="display:flex; flex-direction:column; gap:0.4rem;">
-                  <form method="post" action="/admin/cs/{{.ID}}/toggle-active" onsubmit="return confirm('Change active status for this staff member?')">
+                  <form method="post" action="/admin/cs/{{.ID}}/toggle-active" onsubmit="return confirm('{{t $.Lang "a.cs.cf"}}')">
                     <input type="hidden" name="csrf" value="{{$.CSRF}}">
                     <button type="submit" class="btn secondary on-light btn-sm" style="width:100%;">
-                      {{if .IsActive}}Deactivate &amp; Kick{{else}}Reactivate{{end}}
+                      {{if .IsActive}}{{t $.Lang "a.cs.off"}}{{else}}{{t $.Lang "a.cs.on"}}{{end}}
                     </button>
                   </form>
 
                   <details>
-                    <summary style="font-size:0.8rem; cursor:pointer; color:var(--accent-deep); font-weight:700;">Reset Password</summary>
+                    <summary style="font-size:0.8rem; cursor:pointer; color:var(--accent-deep); font-weight:700;">{{t $.Lang "a.cs.rp"}}</summary>
                     <form method="post" action="/admin/cs/{{.ID}}/reset-password" style="margin-top:0.5rem;" class="stack">
                       <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                      <input type="password" name="password" placeholder="New pass (min 8)" required minlength="8" style="padding:0.3rem;">
-                      <button type="submit" class="btn btn-sm">Save</button>
+                      <input type="password" name="password" placeholder="{{t $.Lang "a.cs.np"}}" required minlength="8" style="padding:0.3rem;">
+                      <button type="submit" class="btn btn-sm">{{t $.Lang "a.cs.save"}}</button>
                     </form>
                   </details>
                 </div>
               </td>
             </tr>
           {{else}}
-            <tr><td colspan="3" class="muted">No CS accounts created yet.</td></tr>
+            <tr><td colspan="3" class="muted">{{t .Lang "a.cs.mt"}}</td></tr>
           {{end}}
           </tbody>
         </table>
@@ -78,29 +78,29 @@
 
       <!-- Create New CS Staff -->
       <div class="panel stack">
-        <h2>Create New CS Staff Member</h2>
-        <p class="muted">Creates an account with CS portal access.</p>
+        <h2>{{t .Lang "a.cs.new"}}</h2>
+        <p class="muted">{{t .Lang "a.cs.ns"}}</p>
 
         <form method="post" action="/admin/cs" class="stack">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
 
-          <label>Full Name *
-            <input type="text" name="full_name" required placeholder="e.g. Siti Rahayu">
+          <label>{{t .Lang "a.cs.nm"}}
+            <input type="text" name="full_name" required placeholder="{{t .Lang "a.cs.nph"}}">
           </label>
 
-          <label>Email Address *
-            <input type="email" name="email" required placeholder="e.g. siti@wangga.com">
+          <label>{{t .Lang "a.cs.em"}}
+            <input type="email" name="email" required placeholder="{{t .Lang "a.cs.eph"}}">
           </label>
 
-          <label>WhatsApp / Phone Number
-            <input type="tel" name="phone" placeholder="e.g. 08123456789">
+          <label>{{t .Lang "a.cs.ph"}}
+            <input type="tel" name="phone" placeholder="{{t .Lang "a.cs.pph"}}">
           </label>
 
-          <label>Initial Password (min 8 chars) *
-            <input type="password" name="password" required minlength="8" placeholder="Strong password">
+          <label>{{t .Lang "a.cs.pw"}}
+            <input type="password" name="password" required minlength="8" placeholder="{{t .Lang "a.cs.wph"}}">
           </label>
 
-          <button type="submit" class="btn">Create CS Staff Account</button>
+          <button type="submit" class="btn">{{t .Lang "a.cs.go"}}</button>
         </form>
       </div>
     </div>

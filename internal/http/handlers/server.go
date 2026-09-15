@@ -20,6 +20,7 @@ import (
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/i18n"
 	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
@@ -114,6 +115,9 @@ func New(
 		"static": func(path string) string {
 			return "/static/" + strings.TrimPrefix(path, "/") + "?v=" + staticVersion
 		},
+		"t": func(lang any, key string) string {
+			return i18n.T(fmt.Sprintf("%v", lang), key)
+		},
 		"staffPhoto": func(st domain.Staff) string {
 			return service.ResolveStaffPhoto(st)
 		},
@@ -154,6 +158,13 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	if data == nil {
 		data = pageData{}
 	}
+	// ?lang= override wins and persists; otherwise resolve cookie/Accept-Language.
+	if lang, ok := i18n.QueryOverride(r); ok {
+		i18n.SetCookie(w, lang, s.csrfSecure)
+		data["Lang"] = lang
+	} else {
+		data["Lang"] = i18n.Resolve(r)
+	}
 	data["User"] = middleware.UserFrom(r.Context())
 	token := s.ensureCSRF(w, r)
 	data["CSRF"] = token
@@ -176,9 +187,52 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	_, _ = w.Write(buf.Bytes())
 }
 
+// SetLanguage persists the EN/ID choice and redirects back.
+func (s *Server) SetLanguage(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	lang := r.FormValue("lang")
+	if lang == "" {
+		lang = r.URL.Query().Get("lang")
+	}
+	if lang != i18n.EN && lang != i18n.ID {
+		// Toggle when no explicit valid value.
+		if i18n.Resolve(r) == i18n.EN {
+			lang = i18n.ID
+		} else {
+			lang = i18n.EN
+		}
+	}
+	i18n.SetCookie(w, lang, s.csrfSecure)
+	back := r.FormValue("next")
+	if back == "" {
+		back = r.Referer()
+	}
+	if back == "" || (!strings.HasPrefix(back, "/") && !strings.HasPrefix(back, "http")) {
+		back = "/"
+	}
+	// Same-origin relative redirect for form posts; absolute Referer allowed.
+	if strings.HasPrefix(back, "http") {
+		back = "/"
+	}
+	if isHTMX(r) {
+		htmx.Redirect(w, back)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
+}
+
 func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name string, data pageData) {
 	if data == nil {
 		data = pageData{}
+	}
+	if _, ok := data["Lang"]; !ok {
+		if lang, ok := i18n.QueryOverride(r); ok {
+			i18n.SetCookie(w, lang, s.csrfSecure)
+			data["Lang"] = lang
+		} else {
+			data["Lang"] = i18n.Resolve(r)
+		}
 	}
 	data["User"] = middleware.UserFrom(r.Context())
 	data["CSRF"] = s.ensureCSRF(w, r)
@@ -326,6 +380,7 @@ func (s *Server) Routes(r chi.Router) {
 
 	r.Get("/", s.Home)
 	r.Get("/services", s.ServicesPage)
+	r.Post("/lang", s.SetLanguage)
 	r.Get("/careers", s.CareersPage)
 	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
 		return "apply:" + req.RemoteAddr

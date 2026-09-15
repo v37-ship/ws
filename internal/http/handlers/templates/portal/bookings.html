@@ -1,6 +1,6 @@
 {{define "portal_bookings.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Manage Bookings — Staff Portal</title>
   {{template "head" .}}
@@ -10,38 +10,38 @@
   {{template "toast-region" .}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-      <h1 class="page-title" style="margin-bottom:0.2rem;">Bookings Management</h1>
-      <a href="/portal/bookings/new" class="btn">+ New Booking / Walk-in</a>
+      <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.bk.title"}}</h1>
+      <a href="/portal/bookings/new" class="btn">{{t .Lang "p.bk.new"}}</a>
     </div>
 
-    {{template "portal_nav" dict "Active" "bookings" "User" .User}}
+    {{template "portal_nav" dict "Active" "bookings" "User" .User "Lang" $.Lang}}
 
     <div class="panel">
       <form method="get" action="/portal/bookings"
         hx-get="/portal/bookings" hx-target="#booking-rows" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#booking-ind"
         style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
-        <label style="flex:1; min-width:180px;">Search Mom / Phone / Baby
-          <input type="search" name="q" value="{{.Search}}" placeholder="Name, WhatsApp, Baby name..."
+        <label style="flex:1; min-width:180px;">{{t .Lang "p.bk.search"}}
+          <input type="search" name="q" value="{{.Search}}" placeholder="{{t .Lang "p.bk.ph"}}"
             autocomplete="off" hx-trigger="keyup changed delay:300ms, search">
         </label>
-        <label>Date
+        <label>{{t .Lang "p.bk.date"}}
           <input type="date" name="date" value="{{.Date}}">
         </label>
-        <label>Status
+        <label>{{t .Lang "p.bk.status"}}
           <select name="status">
-            <option value="">All Statuses</option>
-            <option value="confirmed" {{if eq .Status "confirmed"}}selected{{end}}>Confirmed</option>
-            <option value="checked_in" {{if eq .Status "checked_in"}}selected{{end}}>Checked In</option>
-            <option value="in_service" {{if eq .Status "in_service"}}selected{{end}}>In Service</option>
-            <option value="completed" {{if eq .Status "completed"}}selected{{end}}>Completed</option>
-            <option value="pending_payment" {{if eq .Status "pending_payment"}}selected{{end}}>Pending Payment</option>
-            <option value="cancelled" {{if eq .Status "cancelled"}}selected{{end}}>Cancelled</option>
-            <option value="no_show" {{if eq .Status "no_show"}}selected{{end}}>No Show</option>
+            <option value="">{{t .Lang "p.bk.all"}}</option>
+            <option value="confirmed" {{if eq .Status "confirmed"}}selected{{end}}>{{t .Lang "p.st.conf"}}</option>
+            <option value="checked_in" {{if eq .Status "checked_in"}}selected{{end}}>{{t .Lang "p.st.in"}}</option>
+            <option value="in_service" {{if eq .Status "in_service"}}selected{{end}}>{{t .Lang "p.st.svc"}}</option>
+            <option value="completed" {{if eq .Status "completed"}}selected{{end}}>{{t .Lang "p.st.done"}}</option>
+            <option value="pending_payment" {{if eq .Status "pending_payment"}}selected{{end}}>{{t .Lang "p.st.pend"}}</option>
+            <option value="cancelled" {{if eq .Status "cancelled"}}selected{{end}}>{{t .Lang "p.st.canc"}}</option>
+            <option value="no_show" {{if eq .Status "no_show"}}selected{{end}}>{{t .Lang "p.st.nosh"}}</option>
           </select>
         </label>
-        <button type="submit" class="btn" style="height:44px;" hx-disabled-elt="this">Filter <span id="booking-ind" class="htmx-indicator spinner" aria-hidden="true"></span></button>
+        <button type="submit" class="btn" style="height:44px;" hx-disabled-elt="this">{{t .Lang "p.bk.filter"}} <span id="booking-ind" class="htmx-indicator spinner" aria-hidden="true"></span></button>
         {{if or .Search .Date .Status}}
-          <a href="/portal/bookings" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">Reset</a>
+          <a href="/portal/bookings" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">{{t .Lang "p.bk.reset"}}</a>
         {{end}}
       </form>
     </div>
@@ -51,14 +51,14 @@
         <table class="table">
           <thead>
             <tr>
-              <th>Date &amp; Time</th>
-              <th>Customer / Phone</th>
-              <th>Baby Info</th>
-              <th>Service</th>
-              <th>Bidan</th>
-              <th>Status</th>
-              <th>Payment</th>
-              <th>Action</th>
+              <th>{{t .Lang "p.bk.th.dt"}}</th>
+              <th>{{t .Lang "p.bk.th.cp"}}</th>
+              <th>{{t .Lang "p.th.baby"}}</th>
+              <th>{{t .Lang "p.th.svc"}}</th>
+              <th>{{t .Lang "p.th.staff"}}</th>
+              <th>{{t .Lang "p.th.status"}}</th>
+              <th>{{t .Lang "p.th.pay"}}</th>
+              <th>{{t .Lang "p.bk.th.ac"}}</th>
             </tr>
           </thead>
           <tbody id="booking-rows">

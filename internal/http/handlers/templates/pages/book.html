@@ -1,6 +1,6 @@
 {{define "book.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
   <title>Book — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
@@ -10,7 +10,7 @@
   {{template "toast-region" .}}
   <main>
     <section class="stack book-flow">
-      <h1 class="page-title">Book a Wangga session</h1>
+      <h1 class="page-title">{{t .Lang "book.title"}}</h1>
       {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
       <form method="post" action="/book" id="book-form"
@@ -88,15 +88,15 @@
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 
         <ol class="steps" aria-label="Booking progress">
-          <li :class="{'done': svcLabel, 'active': !svcLabel}"><span>1</span> Treatment</li>
-          <li :class="{'done': dayLabel && staffLabel, 'active': svcLabel && !(dayLabel && staffLabel)}"><span>2</span> Schedule</li>
-          <li :class="{'done': time, 'active': (dayLabel && staffLabel) && !time}"><span>3</span> Time</li>
-          <li :class="{'active': time}"><span>4</span> Review</li>
+          <li :class="{'done': svcLabel, 'active': !svcLabel}"><span>1</span> {{t .Lang "book.step1"}}</li>
+          <li :class="{'done': dayLabel && staffLabel, 'active': svcLabel && !(dayLabel && staffLabel)}"><span>2</span> {{t .Lang "book.step2"}}</li>
+          <li :class="{'done': time, 'active': (dayLabel && staffLabel) && !time}"><span>3</span> {{t .Lang "book.step3"}}</li>
+          <li :class="{'active': time}"><span>4</span> {{t .Lang "book.step4"}}</li>
         </ol>
 
         <div class="panel stack wiz-step">
-          <h2><span class="step-n">1</span> Choose location &amp; treatment</h2>
-          <p class="muted" style="margin:0; font-size:.85rem;">Tap again to unpick.</p>
+          <h2><span class="step-n">1</span> {{t .Lang "book.s1"}}</h2>
+          <p class="muted" style="margin:0; font-size:.85rem;">{{t .Lang "book.s1hint"}}</p>
           <div class="pick-row" role="radiogroup" aria-label="Choose a location">
             {{range .Locations}}
             <label class="pill-pick">
@@ -111,16 +111,16 @@
             </label>
             {{end}}
           </div>
-          <span id="svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading treatments…</span></span>
+          <span id="svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "book.loading_t"}}</span></span>
           <div id="service-wrap" aria-live="polite">
             {{if .Services}}{{template "service_cards.html" .}}{{end}}
           </div>
-          <span id="stf-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Loading therapists…</span></span>
+          <span id="stf-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "book.loading_th"}}</span></span>
           <div id="staff-wrap" aria-live="polite"></div>
         </div>
 
         <div class="panel stack wiz-step" x-show="svcLabel" x-transition>
-          <h2><span class="step-n">2</span> Pick therapist &amp; day</h2>
+          <h2><span class="step-n">2</span> {{t .Lang "book.s2"}}</h2>
           <div class="day-strip" role="group" aria-label="Choose a day">
             {{range $i, $d := .Days}}
             <button type="button" class="day" data-day="{{$d.Value}}" data-label="{{$d.Weekday}} {{$d.DayNum}} {{$d.Month}}"
@@ -135,31 +135,31 @@
           <input type="hidden" name="date" id="date" x-ref="date" value="{{.Date}}"
             hx-get="/book/slots?view=cards" hx-target="#slots-wrap" hx-swap="innerHTML" hx-trigger="change"
             hx-include="input[name='location_id']:checked, input[name='service_id']:checked, input[name='staff_id']:checked" hx-indicator="#slot-ind">
-          <span id="slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">Finding open slots…</span></span>
+          <span id="slot-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "book.loading_sl"}}</span></span>
           <div id="slots-wrap" aria-live="polite"></div>
         </div>
 
         <div class="panel stack wiz-step" x-show="time" x-transition id="review">
-          <h2><span class="step-n">3</span> Review &amp; confirm</h2>
+          <h2><span class="step-n">3</span> {{t .Lang "book.s3"}}</h2>
           <dl class="review">
-            <div><dt>Treatment</dt><dd x-text="svcLabel || '—'"></dd></div>
-            <div><dt>Therapist</dt><dd x-text="staffLabel || 'First available'"></dd></div>
-            <div><dt>When</dt><dd><span x-text="dayLabel"></span> · <span x-text="time"></span></dd></div>
-            <div><dt>Price</dt><dd x-text="svcSub || '—'"></dd></div>
+            <div><dt>{{t .Lang "book.treatment"}}</dt><dd x-text="svcLabel || '—'"></dd></div>
+            <div><dt>{{t .Lang "book.therapist"}}</dt><dd x-text="staffLabel || '{{t .Lang "book.first"}}'"></dd></div>
+            <div><dt>{{t .Lang "book.when"}}</dt><dd><span x-text="dayLabel"></span> · <span x-text="time"></span></dd></div>
+            <div><dt>{{t .Lang "book.price"}}</dt><dd x-text="svcSub || '—'"></dd></div>
           </dl>
           <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
           <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
-          <label>Notes for your therapist <textarea name="notes" rows="2" autocomplete="off" placeholder="Allergies, baby preferences, anything we should know">{{.Notes}}</textarea></label>
+          <label>{{t .Lang "book.notes"}} <textarea name="notes" rows="2" autocomplete="off" placeholder="{{t .Lang "book.notes_ph"}}">{{.Notes}}</textarea></label>
           {{if .User}}
-            <button class="btn big" type="submit" :disabled="!time">Continue to QRIS payment →</button>
+            <button class="btn big" type="submit" :disabled="!time">{{t .Lang "book.continue"}}</button>
           {{else}}
-            <p class="muted">Please <a href="/login?next=/book">log in</a> to complete booking.</p>
+            <p class="muted">{{t .Lang "book.login_pre"}} <a href="/login?next=/book">{{t .Lang "book.login_link"}}</a> {{t .Lang "book.login_post"}}</p>
           {{end}}
         </div>
       </form>
 
       <div class="sticky-bar">
-        <span id="sticky-summary" class="muted">Choose your treatment to begin</span>
+        <span id="sticky-summary" class="muted" data-default="{{t .Lang "book.sticky"}}">{{t .Lang "book.sticky"}}</span>
       </div>
     </section>
   </main>
@@ -168,6 +168,7 @@
       var form = document.getElementById('book-form');
       var bar = document.getElementById('sticky-summary');
       if (!form || !bar) return;
+      var def = bar.getAttribute('data-default') || bar.textContent;
       function update() {
         var svc = form.querySelector("input[name='service_id']:checked");
         var slot = form.querySelector("#slots-wrap .slot[aria-pressed='true']");
@@ -178,7 +179,7 @@
           if (name) parts.push(name.trim());
         }
         if (slot) parts.push(slot.dataset.label || slot.textContent.trim());
-        bar.textContent = parts.length ? parts.join(' · ') : 'Choose your treatment to begin';
+        bar.textContent = parts.length ? parts.join(' · ') : def;
       }
       document.body.addEventListener('change', update);
       document.body.addEventListener('click', function () { setTimeout(update, 50); });
