@@ -56,7 +56,7 @@ func Load() (Config, error) {
 		MidtransServer:  getenv("MIDTRANS_SERVER_KEY", ""),
 		MidtransClient:  getenv("MIDTRANS_CLIENT_KEY", ""),
 		MidtransIsProd:  getenv("MIDTRANS_IS_PRODUCTION", "false") == "true",
-		AdminEmail:      getenv("ADMIN_EMAIL", "admin@spa.local"),
+		AdminEmail:      getenv("ADMIN_EMAIL", "admin@wangga.biz.id"),
 		AdminPassword:   getenv("ADMIN_PASSWORD", "admin12345"),
 		CSEmail:         getenv("CS_EMAIL", "cs@spa.local"),
 		CSPassword:      getenv("CS_PASSWORD", "cs12345678"),

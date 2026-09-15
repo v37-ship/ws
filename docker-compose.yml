@@ -58,7 +58,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-halo@wangga.biz.id}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
-      ADMIN_EMAIL: admin@spa.local
+      ADMIN_EMAIL: admin@wangga.biz.id
       ADMIN_PASSWORD: admin12345
       MIDTRANS_SERVER_KEY: ""
       MIDTRANS_CLIENT_KEY: ""

@@ -12,7 +12,7 @@ docker compose up --build
 - Caddy proxy: http://localhost:8089
 - Mailpit UI: http://localhost:8025 (localhost-only, never expose publicly)
 - Umami analytics: http://localhost:8030 (localhost-only dashboard; public tracker via tunnel)
-- Admin: `admin@spa.local` / `admin12345`
+- Admin: `admin@wangga.biz.id` / `admin12345`
 
 ## Visitor analytics (Umami)
 
@@ -103,7 +103,7 @@ cp .env.example .env
 | Variable | Action |
 |----------|--------|
 | `SESSION_SECRET` | **Always fresh per machine:** `openssl rand -hex 32` (Git Bash on Windows works too). Sharing one secret lets machines forge each other's sessions. |
-| `ADMIN_PASSWORD` | Set a new strong password (first boot creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD`). |
+| `ADMIN_PASSWORD` | Set a new strong password (first boot creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD`; changing it later does not rotate an existing account — reset via SQL with a bcrypt hash). |
 | `BASE_URL` | The machine's public URL (`http://localhost:8088` for local, `https://wangga.biz.id` for the live server). |
 | `APP_ENV` | `production` on a live server (enables Secure cookies); leave `development` locally. |
 | `CONTACT_*` | Copy as-is (same business info everywhere). |
