@@ -522,3 +522,13 @@ html[data-theme="dark"] code { background: #3a2b41; }
   white-space: nowrap;
 }
 .theme-btn:hover { border-color: var(--accent); }
+
+/* EN/ID segmented language switch: active side reads as current language */
+.lang-switch { gap: .25rem; }
+.lang-switch .lang-opt { opacity: .65; }
+.lang-switch .lang-opt.active {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

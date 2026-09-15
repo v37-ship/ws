@@ -205,13 +205,10 @@ func (s *Server) SetLanguage(w http.ResponseWriter, r *http.Request) {
 	i18n.SetCookie(w, lang, s.csrfSecure)
 	back := r.FormValue("next")
 	if back == "" {
-		back = r.Referer()
+		back = sameOriginPath(r, r.Referer())
 	}
-	if back == "" || (!strings.HasPrefix(back, "/") && !strings.HasPrefix(back, "http")) {
-		back = "/"
-	}
-	// Same-origin relative redirect for form posts; absolute Referer allowed.
-	if strings.HasPrefix(back, "http") {
+	back = stripLangParam(back)
+	if back == "" || !strings.HasPrefix(back, "/") {
 		back = "/"
 	}
 	if isHTMX(r) {
@@ -220,6 +217,54 @@ func (s *Server) SetLanguage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, back, http.StatusSeeOther)
+}
+
+// sameOriginPath returns path[?query] for a same-origin Referer, else "".
+// Browsers send absolute Referers; accept them only when the host matches.
+func sameOriginPath(r *http.Request, ref string) string {
+	if ref == "" {
+		return ""
+	}
+	if strings.HasPrefix(ref, "/") && !strings.HasPrefix(ref, "//") {
+		return ref
+	}
+	u, err := url.Parse(ref)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	host := r.Host
+	if host == "" {
+		host = r.URL.Host
+	}
+	if u.Host != host {
+		return ""
+	}
+	out := u.Path
+	if out == "" {
+		out = "/"
+	}
+	if u.RawQuery != "" {
+		out += "?" + u.RawQuery
+	}
+	return out
+}
+
+// stripLangParam drops a stale ?lang= so it can't override the fresh cookie.
+func stripLangParam(target string) string {
+	i := strings.Index(target, "?")
+	if i < 0 {
+		return target
+	}
+	q, err := url.ParseQuery(target[i+1:])
+	if err != nil {
+		return target[:i]
+	}
+	q.Del("lang")
+	enc := q.Encode()
+	if enc == "" {
+		return target[:i]
+	}
+	return target[:i] + "?" + enc
 }
 
 func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name string, data pageData) {

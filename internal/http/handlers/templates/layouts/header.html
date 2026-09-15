@@ -5,14 +5,10 @@
     <span class="brand-sub">Baby &amp; Mom Spa</span>
   </a>
   <nav class="nav">
-    <form method="post" action="/lang" style="display:inline">
+    <form method="post" action="/lang" class="lang-switch" style="display:inline-flex" role="group" aria-label="{{t .Lang "lang.label"}}">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      {{if eq (printf "%v" .Lang) "en"}}
-      <input type="hidden" name="lang" value="id">
-      {{else}}
-      <input type="hidden" name="lang" value="en">
-      {{end}}
-      <button id="lang-btn" class="theme-btn" type="submit" aria-label="{{t .Lang "lang.label"}}">{{t .Lang "lang.button"}}</button>
+      <button name="lang" value="en" type="submit" class="theme-btn lang-opt {{if eq (printf "%v" .Lang) "en"}}active{{end}}" aria-pressed="{{eq (printf "%v" .Lang) "en"}}">EN</button>
+      <button name="lang" value="id" type="submit" class="theme-btn lang-opt {{if eq (printf "%v" .Lang) "id"}}active{{end}}" aria-pressed="{{eq (printf "%v" .Lang) "id"}}">ID</button>
     </form>
     <button id="theme-btn" class="theme-btn" type="button" aria-label="Theme: system" onclick="return __wanggaThemeCycle()">
       <span id="theme-icon" aria-hidden="true">◐</span><span id="theme-label">Auto</span>
