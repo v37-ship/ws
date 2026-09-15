@@ -1,5 +1,6 @@
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: spa
@@ -19,6 +20,7 @@ services:
   # Visitor analytics (Umami, MIT). Reuses the postgres server above with its
   # own `umami` database. Dashboard on :8030 (localhost-only like Mailpit).
   umami:
+    restart: unless-stopped
     image: ghcr.io/umami-software/umami:postgresql-latest
     depends_on:
       postgres:
@@ -31,12 +33,14 @@ services:
       - "8030:3000"
 
   mailpit:
+    restart: unless-stopped
     image: axllent/mailpit:latest
     ports:
       - "8025:8025"
       - "1025:1025"
 
   app:
+    restart: unless-stopped
     build: .
     depends_on:
       postgres:
@@ -76,6 +80,7 @@ services:
       retries: 10
 
   caddy:
+    restart: unless-stopped
     image: caddy:2-alpine
     depends_on:
       app:
