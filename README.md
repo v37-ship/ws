@@ -48,7 +48,7 @@ ingress:
   - service: http_status:404
 ```
 
-plus one DNS CNAME per hostname to `<tunnel-id>.cfargotunnel.com`. Protect `umami.*` with Cloudflare Access (Zero Trust, email OTP) and keep Mailpit off the tunnel entirely.
+plus one DNS CNAME per hostname to `<tunnel-id>.cfargotunnel.com`. Protect `umami.*` with Cloudflare Access (Zero Trust, email OTP — **pending**) and keep Mailpit off the tunnel entirely.
 
 (Host port 8080 is often busy; Compose maps the app to **8088**.)
 
@@ -84,6 +84,7 @@ make run
 - **Service Availability**: Instantly toggle services active/inactive.
 - **Service Catalog**: Add/edit services with price, duration, per-day opening hours, and photo (upload or internet link — gallery, wizard, and homepage follow automatically). Booking slots respect the intersection of service hours and therapist hours.
 - **Team**: Add/edit therapists (profile, bio, service capabilities, profile photo upload or link, weekly hours), pause/activate, guarded removal (blocked with guidance when booking history exists), and time-off blockouts — all from the portal Team page.
+- **Reports** (`/portal/reports`): Monthly revenue (gross / refunds / net, QRIS-vs-cash, by service/staff) with month + location filters, print stylesheet, and CSV export. Record refunds from booking detail (validated: never more than paid-minus-refunded); refunds deduct in the month recorded (cash basis).
 
 ### 3. Admin — `/admin`
 - Everything CS can do.
@@ -97,6 +98,10 @@ make run
 - Public page `/careers` lists open positions with an apply form (name, phone, email, message, CV upload up to 5 MB: PDF/DOC/JPG/PNG).
 - CVs are stored in `UPLOAD_DIR` (`./uploads` locally, persisted via compose volume) and downloadable by admins only.
 - Configure site contact info shown in the footer via `CONTACT_PHONE/WHATSAPP/EMAIL/ADDRESS/HOURS`.
+
+## Language (EN/ID)
+
+- Server-side toggle in the header (EN | ID), default Indonesian; choice persists in the `wangga-lang` cookie (1 year), `?lang=` overrides per request. Browser `Accept-Language` is honored only when no cookie/override exists.
 
 ## Stack
 
@@ -124,3 +129,4 @@ make run
 - Keep a single app replica unless shared session storage is added
 - `GET /healthz` (compose/docker healthcheck) + `GET /readyz`
 - Docker: multi-stage build with Go module cache, image `HEALTHCHECK`, non-root `nobody`; Caddy listens on `:80` (mapped to host `8089`)
+- All compose services use `restart: unless-stopped` — the stack survives host reboots as long as Docker Desktop starts on login and the `cloudflared` service stays Automatic.
