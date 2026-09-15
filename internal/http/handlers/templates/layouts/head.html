@@ -62,6 +62,7 @@ function __wanggaThemeCycle() { try { return window.__wanggaTheme.cycle(); } cat
 <script src="{{static "js/htmx.min.js"}}" defer></script>
 <script src="{{static "js/alpine.min.js"}}" defer></script>
 <script src="{{static "js/app.js"}}" defer></script>
+{{with .Analytics}}{{if and .URL .SiteID}}<script defer src="{{.URL}}/script.js" data-website-id="{{.SiteID}}"></script>{{end}}{{end}}
 {{end}}
 
 {{define "toast-region"}}

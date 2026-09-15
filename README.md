@@ -10,8 +10,45 @@ docker compose up --build
 
 - App: http://localhost:8088
 - Caddy proxy: http://localhost:8089
-- Mailpit UI: http://localhost:8025
+- Mailpit UI: http://localhost:8025 (localhost-only, never expose publicly)
+- Umami analytics: http://localhost:8030 (localhost-only dashboard; public tracker via tunnel)
 - Admin: `admin@spa.local` / `admin12345`
+
+## Visitor analytics (Umami)
+
+Open-source, cookie-less analytics. One `umami` container reuses the existing Postgres server (own `umami` database).
+
+First run (existing `pgdata` volume needs the DB created once):
+
+```bash
+docker compose up -d postgres umami
+docker exec ws-postgres-1 psql -U spa -d spa -c "CREATE DATABASE umami;"
+docker compose up -d umami  # Umami creates its own tables on boot
+```
+
+Then: open http://localhost:8030, log in `admin` / `umami`, **change the password**, Add Website → copy the Website ID, and set:
+
+```bash
+ANALYTICS_URL=http://localhost:8030          # or https://umami.wangga.biz.id via tunnel
+ANALYTICS_SITE_ID=<website-id>
+```
+
+(Fresh clones get the DB automatically via `docker/postgres-init/`.) The tracker snippet renders only when both are set.
+
+Note: Umami only records visits whose hostname matches the Website domain — set the domain to `wangga.biz.id` and localhost visits are silently skipped. Add a second Website with domain `localhost` if you want local-visit stats too.
+
+Public access via Cloudflare Tunnel (named tunnel on your server):
+
+```yaml
+ingress:
+  - hostname: wangga.biz.id
+    service: http://localhost:8088
+  - hostname: umami.wangga.biz.id
+    service: http://localhost:8030
+  - service: http_status:404
+```
+
+plus one DNS CNAME per hostname to `<tunnel-id>.cfargotunnel.com`. Protect `umami.*` with Cloudflare Access (Zero Trust, email OTP) and keep Mailpit off the tunnel entirely.
 
 (Host port 8080 is often busy; Compose maps the app to **8088**.)
 

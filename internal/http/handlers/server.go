@@ -178,6 +178,11 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 		"Hours":    s.cfg.ContactHours,
 		"Maps":     s.cfg.ContactMapsURL,
 	}
+	// Umami tracker config; head.html renders the snippet only when both set.
+	data["Analytics"] = pageData{
+		"URL":    s.cfg.AnalyticsURL,
+		"SiteID": s.cfg.AnalyticsSiteID,
+	}
 	var buf bytes.Buffer
 	if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 		s.log.Error("template", "name", name, "err", err)

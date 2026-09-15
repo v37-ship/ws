@@ -9,11 +9,26 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U spa -d spa"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Visitor analytics (Umami, MIT). Reuses the postgres server above with its
+  # own `umami` database. Dashboard on :8030 (localhost-only like Mailpit).
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://spa:spa@postgres:5432/umami
+      DATABASE_TYPE: postgresql
+      HASH_SALT: dev-umami-salt-change-me
+    ports:
+      - "8030:3000"
 
   mailpit:
     image: axllent/mailpit:latest
@@ -48,6 +63,8 @@ services:
       CONTACT_ADDRESS: "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"
       CONTACT_HOURS: "Everyday 11:00-20:00 WIB"
       CONTACT_MAPS_URL: "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"
+      ANALYTICS_URL: "${ANALYTICS_URL:-}"
+      ANALYTICS_SITE_ID: "${ANALYTICS_SITE_ID:-}"
     ports:
       - "8088:8080"
     volumes:

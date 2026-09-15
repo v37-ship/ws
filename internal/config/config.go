@@ -32,6 +32,8 @@ type Config struct {
 	ContactAddress  string
 	ContactHours    string
 	ContactMapsURL  string
+	AnalyticsURL    string // Umami base URL, e.g. http://localhost:8030 (empty = tracker off)
+	AnalyticsSiteID string // Umami website ID (empty = tracker off)
 }
 
 func Load() (Config, error) {
@@ -60,6 +62,8 @@ func Load() (Config, error) {
 		ContactAddress:  getenv("CONTACT_ADDRESS", "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"),
 		ContactHours:    getenv("CONTACT_HOURS", "Everyday 11:00–20:00 WIB"),
 		ContactMapsURL:  getenv("CONTACT_MAPS_URL", "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"),
+		AnalyticsURL:    getenv("ANALYTICS_URL", ""),
+		AnalyticsSiteID: getenv("ANALYTICS_SITE_ID", ""),
 	}
 	if cfg.DatabaseURL == "" {
 		return cfg, fmt.Errorf("DATABASE_URL is required")
