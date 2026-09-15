@@ -53,9 +53,11 @@ services:
       BASE_URL: http://localhost:8088
       DATABASE_URL: postgres://spa:spa@postgres:5432/spa?sslmode=disable
       SESSION_SECRET: dev-session-secret-change-me
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_FROM: bookings@spa.local
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-halo@wangga.biz.id}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       ADMIN_EMAIL: admin@spa.local
       ADMIN_PASSWORD: admin12345
       MIDTRANS_SERVER_KEY: ""
@@ -63,7 +65,7 @@ services:
       MIDTRANS_IS_PRODUCTION: "false"
       UPLOAD_DIR: /app/uploads
       CONTACT_WHATSAPP: "628211347294"
-      CONTACT_EMAIL: hello@wangga-spa.id
+      CONTACT_EMAIL: halo@wangga.biz.id
       CONTACT_ADDRESS: "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"
       CONTACT_HOURS: "Everyday 11:00-20:00 WIB"
       CONTACT_MAPS_URL: "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"

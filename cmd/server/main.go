@@ -52,7 +52,7 @@ func main() {
 	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
 	catalogSvc := service.NewCatalogService(catalogRepo)
 	availSvc := service.NewAvailabilityService(catalogRepo)
-	mailer := email.NewSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
+	mailer := email.NewAuthenticatedSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom, cfg.SMTPUser, cfg.SMTPPass)
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
 	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
 	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
