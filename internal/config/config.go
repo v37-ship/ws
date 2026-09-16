@@ -64,7 +64,7 @@ func Load() (Config, error) {
 		ContactWhatsApp: getenv("CONTACT_WHATSAPP", "628211347294"),
 		ContactEmail:    getenv("CONTACT_EMAIL", "halo@wangga.biz.id"),
 		ContactAddress:  getenv("CONTACT_ADDRESS", "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"),
-		ContactHours:    getenv("CONTACT_HOURS", "Setiap Hari 11:00–20:00 WIB"),
+		ContactHours:    getenv("CONTACT_HOURS", "Setiap Hari 11:00–21:00 WIB"),
 		ContactMapsURL:  getenv("CONTACT_MAPS_URL", "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"),
 		AnalyticsURL:    getenv("ANALYTICS_URL", ""),
 		AnalyticsSiteID: getenv("ANALYTICS_SITE_ID", ""),
