@@ -32,7 +32,7 @@
     {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
     {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem; align-items:start;">
       <!-- Column 1: Booking & Customer Info -->
       <div class="panel">
         <h2>{{t .Lang "p.det.info"}}</h2>
@@ -166,7 +166,7 @@
     </div>
 
     {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem; align-items:start;">
         <div class="panel stack">
           <h2>{{t .Lang "p.det.fix"}}</h2>
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
