@@ -70,6 +70,10 @@ func TestTemplatesExecute(t *testing.T) {
 						PaymentMethod: domain.PaymentMethodCash, AmountIDR: 100000,
 						PaidAt: time.Now(), Status: domain.BookingConfirmed,
 					}},
+					Refunds: []domain.ReportRefund{{
+						Refund:       domain.Refund{AmountIDR: 50000, Reason: "cancel", CreatedBy: "CS", CreatedAt: time.Now()},
+						CustomerName: "Mom", ServiceName: "Baby Massage",
+					}},
 				}},
 			}
 			data["Month"] = "2026-09"

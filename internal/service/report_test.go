@@ -142,3 +142,20 @@ func TestAttachStaffLines(t *testing.T) {
 		t.Errorf("staff B lines wrong: %+v", rows[1].Lines)
 	}
 }
+
+func TestAttachStaffRefunds(t *testing.T) {
+	staffA := uuid.New()
+	staffB := uuid.New()
+	rows := []domain.StaffRow{{StaffID: staffA, Name: "A"}, {StaffID: staffB, Name: "B"}}
+	refunds := []domain.ReportRefund{
+		{Refund: domain.Refund{AmountIDR: 50000, Reason: "cancel"}, StaffID: staffB, CustomerName: "Mom 2"},
+		{Refund: domain.Refund{AmountIDR: 25000, Reason: "partial"}, StaffID: staffA, CustomerName: "Mom 1"},
+	}
+	attachStaffRefunds(rows, refunds)
+	if len(rows[0].Refunds) != 1 || rows[0].Refunds[0].AmountIDR != 25000 {
+		t.Errorf("staff A refunds wrong: %+v", rows[0].Refunds)
+	}
+	if len(rows[1].Refunds) != 1 || rows[1].Refunds[0].Reason != "cancel" {
+		t.Errorf("staff B refunds wrong: %+v", rows[1].Refunds)
+	}
+}

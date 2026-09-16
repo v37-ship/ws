@@ -112,6 +112,25 @@
               </tbody>
             </table>
           </div>
+          {{if .Refunds}}
+          <h3 style="margin:1rem 0 0.5rem;">{{t $.Lang "r.reflines"}}</h3>
+          <div style="overflow-x:auto;">
+            <table class="table">
+              <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.reason"}}</th><th>{{t $.Lang "r.th.by"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
+              <tbody>
+              {{range .Refunds}}
+                <tr>
+                  <td><small>{{formatTime .CreatedAt "02 Jan 15:04"}}</small></td>
+                  <td>{{.CustomerName}}</td>
+                  <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
+                  <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
+                  <td style="text-align:right; font-weight:700; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
+                </tr>
+              {{end}}
+              </tbody>
+            </table>
+          </div>
+          {{end}}
         </div>
       </div>
       {{end}}

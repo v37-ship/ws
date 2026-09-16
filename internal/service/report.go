@@ -82,6 +82,7 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 	sum.ServiceRows = sortedTotals(byService)
 	sum.StaffRows = buildStaffRows(staffAgg, staffOrder)
 	attachStaffLines(sum.StaffRows, lines)
+	attachStaffRefunds(sum.StaffRows, refunds)
 	return sum, lines, refunds, nil
 }
 
@@ -94,6 +95,17 @@ func attachStaffLines(rows []domain.StaffRow, lines []domain.ReportLine) {
 	}
 	for i := range rows {
 		rows[i].Lines = byStaff[rows[i].StaffID]
+	}
+}
+
+// attachStaffRefunds files each recorded refund under its staff row.
+func attachStaffRefunds(rows []domain.StaffRow, refunds []domain.ReportRefund) {
+	byStaff := map[uuid.UUID][]domain.ReportRefund{}
+	for _, rf := range refunds {
+		byStaff[rf.StaffID] = append(byStaff[rf.StaffID], rf)
+	}
+	for i := range rows {
+		rows[i].Refunds = byStaff[rows[i].StaffID]
 	}
 }
 

@@ -370,6 +370,7 @@ type StaffRow struct {
 	TopServices     []StaffServiceRow // first 3 of Services, for compact display
 	MoreCount       int               // len(Services) - len(TopServices)
 	Lines           []ReportLine      // paid transactions, sorted by paid date
+	Refunds         []ReportRefund    // refunds recorded in the month, by record date
 }
 
 type Slot struct {
