@@ -36,29 +36,27 @@
       <!-- Column 1: Booking & Customer Info -->
       <div class="panel stack">
         <h2>{{t .Lang "p.det.info"}}</h2>
-        <div style="display:grid; gap:0.75rem;">
+        <div style="display:grid; gap:0.5rem;">
           <div>
             <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.cust"}}</span>
             <div style="font-size:1.1rem; font-weight:700;">{{.Booking.CustomerName}}</div>
             <div>📞 {{.Booking.CustomerPhone}}</div>
             <div>✉️ {{.Booking.CustomerEmail}}</div>
           </div>
-          <hr style="border:none; border-top:1px solid var(--line);">
+          <hr style="border:none; border-top:1px solid var(--line); margin:0.15rem 0;">
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.bm"}}</span>
             <div>👶 <strong>{{t .Lang "p.det.baby"}}</strong> {{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em>{{t .Lang "p.det.none"}}</em>{{end}}</div>
             <div>🤰 <strong>{{t .Lang "p.det.momc"}}</strong> {{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}<em>{{t .Lang "p.det.std"}}</em>{{end}}</div>
           </div>
-          <hr style="border:none; border-top:1px solid var(--line);">
+          <hr style="border:none; border-top:1px solid var(--line); margin:0.15rem 0;">
           <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.sc"}}</span>
             <div style="font-weight:700;">{{.Booking.ServiceName}}</div>
             <div>📍 {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}</div>
             {{if .Booking.VisitAddress}}<div>🏠 {{.Booking.VisitAddress}}</div>{{end}}
             <div>👩‍⚕️ Assigned Bidan: <strong>{{.Booking.StaffName}}</strong></div>
             <div>📅 Schedule: <strong>{{formatTime .Booking.StartAt "Mon, 02 Jan 2006 15:04"}} - {{formatTime .Booking.EndAt "15:04"}} WIB</strong></div>
           </div>
-          <hr style="border:none; border-top:1px solid var(--line);">
+          <hr style="border:none; border-top:1px solid var(--line); margin:0.15rem 0;">
           <div>
             <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.pay"}}</span>
             <div>{{t .Lang "p.det.amt"}} <strong>{{formatIDR .Booking.PriceIDR}}</strong></div>
@@ -69,7 +67,7 @@
           {{if .Booking.Notes}}
           <div>
             <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.notes"}}</span>
-            <p style="margin:0.2rem 0; background:var(--bg-2); padding:0.5rem 0.75rem; border-radius:8px;">{{.Booking.Notes}}</p>
+            <p style="margin:0.2rem 0; background:var(--bg-2); padding:0.4rem 0.6rem; border-radius:8px;">{{.Booking.Notes}}</p>
           </div>
           {{end}}
         </div>
