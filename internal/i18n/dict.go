@@ -186,9 +186,9 @@ var dict = map[string]map[string]string{
 		// ---- Phase 2: portal ----
 		"p.nav.dash":   "📊 Dashboard",
 		"p.nav.bk":     "📅 All Bookings",
-		"p.nav.new":    "➕ New Booking (CS)",
+		"p.nav.new":    "📅 New Booking (CS)",
 		"p.nav.cu":     "👶 Customers",
-		"p.nav.newc":   "➕ Register Customer",
+		"p.nav.newc":   "📝 Register Customer",
 		"p.nav.team":   "👩‍⚕️ Team",
 		"p.nav.svc":    "💆‍♀️ Services",
 		"p.nav.cs":     "👑 Manage CS Accounts",
@@ -844,9 +844,9 @@ var dict = map[string]map[string]string{
 		// ---- Phase 2: portal ----
 		"p.nav.dash":   "📊 Dasbor",
 		"p.nav.bk":     "📅 Semua Booking",
-		"p.nav.new":    "➕ Booking Baru (CS)",
+		"p.nav.new":    "📅 Booking Baru (CS)",
 		"p.nav.cu":     "👶 Customer",
-		"p.nav.newc":   "➕ Daftarkan Customer",
+		"p.nav.newc":   "📝 Daftarkan Customer",
 		"p.nav.team":   "👩‍⚕️ Tim",
 		"p.nav.svc":    "💆‍♀️ Layanan",
 		"p.nav.cs":     "👑 Kelola Akun CS",
