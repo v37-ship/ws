@@ -357,6 +357,8 @@ type StaffRow struct {
 	AvgIDR          int64
 	TopService      string
 	Services        []StaffServiceRow // sorted desc by count, then total
+	TopServices     []StaffServiceRow // first 3 of Services, for compact display
+	MoreCount       int               // len(Services) - len(TopServices)
 }
 
 type Slot struct {

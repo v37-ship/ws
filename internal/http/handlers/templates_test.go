@@ -59,6 +59,9 @@ func TestTemplatesExecute(t *testing.T) {
 		case "portal_reports.html":
 			data["Summary"] = domain.ReportSummary{}
 			data["Month"] = "2026-09"
+			data["Year"] = "2026"
+			data["Mon"] = "09"
+			data["Years"] = []string{"2026", "2025"}
 			data["Lines"] = []domain.ReportLine{}
 			data["Refunds"] = []domain.ReportRefund{}
 		}
@@ -123,6 +126,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			case "portal_reports.html":
 				data["Summary"] = domain.ReportSummary{}
 				data["Month"] = "2026-09"
+				data["Year"] = "2026"
+				data["Mon"] = "09"
+				data["Years"] = []string{"2026", "2025"}
 				data["Lines"] = []domain.ReportLine{}
 				data["Refunds"] = []domain.ReportRefund{}
 			}

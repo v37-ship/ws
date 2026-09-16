@@ -127,6 +127,12 @@ func buildStaffRows(staffAgg map[uuid.UUID]*staffAccum, staffOrder map[uuid.UUID
 		if len(svcs) > 0 {
 			row.TopService = svcs[0].Name
 		}
+		if len(svcs) > 3 {
+			row.TopServices = svcs[:3]
+			row.MoreCount = len(svcs) - 3
+		} else {
+			row.TopServices = svcs
+		}
 		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(i, j int) bool {

@@ -97,4 +97,30 @@ func TestBuildStaffRowsSessionsUniqueServices(t *testing.T) {
 	if len(a.Services) != 2 || a.Services[0].Count != 2 {
 		t.Errorf("unexpected service breakdown: %+v", a.Services)
 	}
+	if len(a.TopServices) != 2 || a.MoreCount != 0 {
+		t.Errorf("unexpected top truncation: top=%+v more=%d", a.TopServices, a.MoreCount)
+	}
+}
+
+func TestBuildStaffRowsTopThree(t *testing.T) {
+	staff := uuid.New()
+	cust := uuid.New()
+	agg := map[uuid.UUID]*staffAccum{
+		staff: {customers: map[uuid.UUID]struct{}{cust: {}}, services: map[string]*domain.StaffServiceRow{}},
+	}
+	for i, name := range []string{"S1", "S2", "S3", "S4", "S5"} {
+		agg[staff].services[name] = &domain.StaffServiceRow{Name: name, Count: 5 - i, Total: int64(1000 * (5 - i))}
+		agg[staff].sessions += 5 - i
+	}
+	rows := buildStaffRows(agg, map[uuid.UUID]string{staff: "Bidan X"})
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
+	}
+	r := rows[0]
+	if len(r.TopServices) != 3 || r.MoreCount != 2 {
+		t.Errorf("expected top 3 + 2 more, got top=%d more=%d", len(r.TopServices), r.MoreCount)
+	}
+	if r.TopServices[0].Name != "S1" {
+		t.Errorf("expected S1 first, got %q", r.TopServices[0].Name)
+	}
 }

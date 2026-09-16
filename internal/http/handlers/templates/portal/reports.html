@@ -27,16 +27,27 @@
         <a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Prev}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.prev"}}</a>
         {{if .IsCurrent}}{{else}}<a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Today}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.today"}}</a>
         <a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Next}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.next"}}</a>{{end}}
-        {{if .Months}}
-        <label>{{t .Lang "r.jump"}}
-          <select name="jump" onchange="location.href='/portal/reports?month='+this.value+'{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}'">
-            {{range .Months}}<option value="{{.Value}}" {{if eq .Value $.Month}}selected{{end}}>{{.Label}}</option>{{end}}
-          </select>
-        </label>
-        {{end}}
       </div>
+      <label>{{t .Lang "r.year"}}
+        <select name="year">
+          {{range .Years}}<option value="{{.}}" {{if eq . $.Year}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </label>
       <label>{{t .Lang "r.month"}}
-        <input type="month" name="month" value="{{.Month}}" required>
+        <select name="mon">
+          <option value="01" {{if eq $.Mon "01"}}selected{{end}}>{{t $.Lang "r.m.01"}}</option>
+          <option value="02" {{if eq $.Mon "02"}}selected{{end}}>{{t $.Lang "r.m.02"}}</option>
+          <option value="03" {{if eq $.Mon "03"}}selected{{end}}>{{t $.Lang "r.m.03"}}</option>
+          <option value="04" {{if eq $.Mon "04"}}selected{{end}}>{{t $.Lang "r.m.04"}}</option>
+          <option value="05" {{if eq $.Mon "05"}}selected{{end}}>{{t $.Lang "r.m.05"}}</option>
+          <option value="06" {{if eq $.Mon "06"}}selected{{end}}>{{t $.Lang "r.m.06"}}</option>
+          <option value="07" {{if eq $.Mon "07"}}selected{{end}}>{{t $.Lang "r.m.07"}}</option>
+          <option value="08" {{if eq $.Mon "08"}}selected{{end}}>{{t $.Lang "r.m.08"}}</option>
+          <option value="09" {{if eq $.Mon "09"}}selected{{end}}>{{t $.Lang "r.m.09"}}</option>
+          <option value="10" {{if eq $.Mon "10"}}selected{{end}}>{{t $.Lang "r.m.10"}}</option>
+          <option value="11" {{if eq $.Mon "11"}}selected{{end}}>{{t $.Lang "r.m.11"}}</option>
+          <option value="12" {{if eq $.Mon "12"}}selected{{end}}>{{t $.Lang "r.m.12"}}</option>
+        </select>
       </label>
       <label>{{t .Lang "r.loc"}}
         <select name="location_id">
@@ -54,41 +65,40 @@
       <div class="panel stat-card"><div class="muted">QRIS / {{t .Lang "r.cash"}}</div><div style="font-weight:700;">{{formatIDR .Summary.QRISIDR}} / {{formatIDR .Summary.CashIDR}}</div></div>
     </div>
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.5rem;">
-      <div class="panel">
-        <h2>{{t .Lang "r.bysvc"}}</h2>
+    <div class="panel">
+      <h2>{{t .Lang "r.bystaff"}}</h2>
+      <div style="overflow-x:auto;">
         <table class="table">
+          <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th></tr></thead>
           <tbody>
-          {{range .Summary.ServiceRows}}
-            <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
+          {{range .Summary.StaffRows}}
+            <tr>
+              <td><strong>{{if .Name}}{{.Name}}{{else}}-{{end}}</strong>{{if .TopServices}}<br><small class="muted">{{range $i, $s := .TopServices}}{{if $i}} · {{end}}{{$s.Name}} {{$s.Count}}×{{end}}{{if .MoreCount}} · +{{.MoreCount}} {{t $.Lang "r.more"}}{{end}}</small>{{end}}</td>
+              <td style="text-align:center;">{{.Sessions}}</td>
+              <td style="text-align:center;">{{.UniqueCustomers}}</td>
+              <td style="text-align:right; white-space:nowrap;">{{formatIDR .AvgIDR}}</td>
+              <td style="text-align:right; white-space:nowrap;">{{formatIDR .GrossIDR}}</td>
+              <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}} <small class="muted">(−{{formatIDR .RefundIDR}})</small>{{end}}</td>
+            </tr>
           {{else}}
-            <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
+            <tr><td colspan="6" class="muted">{{t $.Lang "r.empty"}}</td></tr>
           {{end}}
           </tbody>
         </table>
       </div>
-      <div class="panel">
-        <h2>{{t .Lang "r.bystaff"}}</h2>
-        <div style="overflow-x:auto;">
-          <table class="table">
-            <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right;">{{t .Lang "r.gross"}}</th><th style="text-align:right;">{{t .Lang "r.net"}}</th></tr></thead>
-            <tbody>
-            {{range .Summary.StaffRows}}
-              <tr>
-                <td><strong>{{if .Name}}{{.Name}}{{else}}-{{end}}</strong>{{if .Services}}<br><small class="muted">{{range $i, $s := .Services}}{{if $i}} · {{end}}{{$s.Name}} {{$s.Count}}×{{end}}</small>{{end}}</td>
-                <td style="text-align:center;">{{.Sessions}}</td>
-                <td style="text-align:center;">{{.UniqueCustomers}}</td>
-                <td style="text-align:right;">{{formatIDR .AvgIDR}}</td>
-                <td style="text-align:right;">{{formatIDR .GrossIDR}}</td>
-                <td style="text-align:right; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}}<br><small class="muted">−{{formatIDR .RefundIDR}}</small>{{end}}</td>
-              </tr>
-            {{else}}
-              <tr><td colspan="6" class="muted">{{t $.Lang "r.empty"}}</td></tr>
-            {{end}}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    </div>
+
+    <div class="panel">
+      <h2>{{t .Lang "r.bysvc"}}</h2>
+      <table class="table">
+        <tbody>
+        {{range .Summary.ServiceRows}}
+          <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
+        {{else}}
+          <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
+        {{end}}
+        </tbody>
+      </table>
     </div>
 
     <div class="panel">

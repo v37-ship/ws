@@ -21,6 +21,10 @@ import (
 
 var monthRe = regexp.MustCompile(`^\d{4}-(0[1-9]|1[0-2])$`)
 
+var yearRe = regexp.MustCompile(`^\d{4}$`)
+
+var monRe = regexp.MustCompile(`^(0[1-9]|1[0-2])$`)
+
 // currentMonth returns the current YYYY-MM in Asia/Jakarta.
 func currentMonth() string {
 	loc, _ := time.LoadLocation("Asia/Jakarta")
@@ -30,62 +34,61 @@ func currentMonth() string {
 	return time.Now().In(loc).Format("2006-01")
 }
 
-// reportParams parses ?month=YYYY-MM&location_id= with safe defaults.
+// reportParams parses ?year=YYYY&mon=MM (preferred), ?month=YYYY-MM
+// (legacy links/CSV), and ?location_id= with safe defaults.
 func (s *Server) reportParams(r *http.Request) (string, uuid.UUID) {
-	month := r.URL.Query().Get("month")
+	q := r.URL.Query()
+	year, mon := q.Get("year"), q.Get("mon")
+	month := ""
+	if yearRe.MatchString(year) && monRe.MatchString(mon) {
+		month = year + "-" + mon
+	} else {
+		month = q.Get("month")
+	}
 	if !monthRe.MatchString(month) {
 		month = currentMonth()
 	}
-	locID, _ := uuid.Parse(r.URL.Query().Get("location_id"))
+	locID, _ := uuid.Parse(q.Get("location_id"))
 	return month, locID
-}
-
-// MonthOption is one entry in the jump-to-month dropdown.
-type MonthOption struct {
-	Value string // YYYY-MM
-	Label string // localized, e.g. "September 2026"
-}
-
-// monthLabel renders "MonthName YYYY" using the r.m.01..r.m.12 keys.
-func monthLabel(lang, month string) string {
-	if len(month) != 7 {
-		return month
-	}
-	name := i18n.T(lang, "r.m."+month[5:7])
-	return name + " " + month[:4]
 }
 
 // PortalReports renders the monthly revenue report (all portal staff).
 func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	month, locID := s.reportParams(r)
-	lang := i18n.Resolve(r)
 	sum, lines, refunds, err := s.reports.MonthlyReport(r.Context(), month, locID)
 	if err != nil {
 		http.Error(w, "failed to load report", http.StatusInternalServerError)
 		return
 	}
 	today := currentMonth()
-	var months []MonthOption
+	// Year dropdown: distinct data years + current year, desc.
+	years := []string{today[:4]}
 	if avail, err := s.reports.AvailableMonths(r.Context(), locID); err == nil {
-		ordered := []string{month}
 		for _, m := range avail {
-			if m != month {
-				ordered = append(ordered, m)
+			y := m[:4]
+			dup := false
+			for _, e := range years {
+				if e == y {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				years = append(years, y)
 			}
 		}
-		sort.Slice(ordered, func(i, j int) bool { return ordered[i] > ordered[j] })
-		for _, m := range ordered {
-			months = append(months, MonthOption{Value: m, Label: monthLabel(lang, m)})
-		}
 	}
+	sort.Slice(years, func(i, j int) bool { return years[i] > years[j] })
 	locs, _ := s.catalog.ListLocations(r.Context(), true)
 	s.render(w, r, "portal_reports.html", pageData{
 		"Month":     month,
+		"Year":      month[:4],
+		"Mon":       month[5:7],
+		"Years":     years,
 		"Prev":      service.PrevMonth(month),
 		"Next":      service.NextMonth(month),
 		"Today":     today,
 		"IsCurrent": month == today,
-		"Months":    months,
 		"LocID":     locID.String(),
 		"Locations": locs,
 		"Summary":   sum,
