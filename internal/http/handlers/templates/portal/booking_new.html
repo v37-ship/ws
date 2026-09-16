@@ -8,6 +8,8 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "new_booking" "User" .User "Lang" $.Lang}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
@@ -16,8 +18,6 @@
       </div>
       <a href="/portal/customers/new" class="btn secondary on-light">{{t .Lang "p.nb.reg"}}</a>
     </div>
-
-    {{template "portal_nav" dict "Active" "new_booking" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
@@ -132,6 +132,7 @@
       <button class="btn" type="submit" style="align-self:flex-start;" :disabled="!start">{{t .Lang "p.nb.go"}}</button>
     </form>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>

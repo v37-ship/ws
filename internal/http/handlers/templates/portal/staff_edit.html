@@ -8,13 +8,13 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "schedule" "User" .User "Lang" $.Lang}}
   <main class="stack" style="max-width:720px; margin:0 auto;">
     <div>
       <a href="/portal/schedule" class="muted">&larr; {{t .Lang "p.sf.back"}}</a>
       <h1 class="page-title" style="margin:0.25rem 0;">{{t .Lang "p.sf.title"}}</h1>
     </div>
-
-    {{template "portal_nav" dict "Active" "schedule" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
@@ -54,6 +54,7 @@
       </div>
     </form>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>

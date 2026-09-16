@@ -8,11 +8,11 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "new_customer" "User" .User "Lang" $.Lang}}
   <main class="stack">
     <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.cn.title"}}</h1>
     <p class="muted">{{t .Lang "p.cn.sub"}}</p>
-
-    {{template "portal_nav" dict "Active" "new_customer" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 
@@ -69,6 +69,7 @@
       </div>
     </form>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>

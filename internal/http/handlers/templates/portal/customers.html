@@ -8,6 +8,8 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "customers" "User" .User "Lang" $.Lang}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
@@ -16,8 +18,6 @@
       </div>
       <a href="/portal/customers/new" class="btn">{{t .Lang "p.cu.reg"}}</a>
     </div>
-
-    {{template "portal_nav" dict "Active" "customers" "User" .User "Lang" $.Lang}}
 
     <div class="panel">
       <form method="get" action="/portal/customers" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
@@ -79,6 +79,7 @@
       </div>
     </div>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>

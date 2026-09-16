@@ -8,6 +8,8 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "dashboard" "User" .User "Lang" $.Lang}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
@@ -19,8 +21,6 @@
         <a href="/portal/customers/new" class="btn secondary on-light">{{t .Lang "p.dash.reg"}}</a>
       </div>
     </div>
-
-    {{template "portal_nav" dict "Active" "dashboard" "User" .User "Lang" $.Lang}}
 
     <div class="stats-grid">
       <div class="stat-card">
@@ -73,6 +73,7 @@
       </div>
     </div>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>

@@ -8,6 +8,8 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "services" "User" .User "Lang" $.Lang}}
   <main class="stack">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
@@ -15,8 +17,6 @@
         <p class="muted">{{t .Lang "p.sv.sub"}}</p>
       </div>
     </div>
-
-    {{template "portal_nav" dict "Active" "services" "User" .User "Lang" $.Lang}}
 
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
@@ -115,6 +115,7 @@
       </div>
     </div>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>
