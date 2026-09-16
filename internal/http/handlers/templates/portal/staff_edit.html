@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Edit {{.Staff.Name}} — Staff Portal</title>
+  <title>{{t .Lang "p.sf.title"}}: {{.Staff.Name}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>

@@ -17,12 +17,12 @@
       {{$c := .CancelledBooking}}
       <div class="panel stack" role="status" style="border-color:var(--mint-deep);">
         <h2 style="margin:0;">{{t .Lang "myb.cancelled"}}</h2>
-        <p class="muted" style="margin:0;">{{$c.ServiceName}} · {{formatTime $c.StartAt "Mon 02 Jan 2006 · 15:04"}} · {{$c.LocationName}}</p>
+        <p class="muted" style="margin:0;">{{$c.ServiceName}} · {{slotLabel $.Lang $c.StartAt}} · {{$c.LocationName}}</p>
         {{if eq (printf "%s" $c.PaymentStatus) "paid"}}
         <p style="margin:0;">{{t $.Lang "myb.paid_pre"}} <strong>{{formatIDR $c.PriceIDR}}</strong>. {{t $.Lang "myb.paid_post"}}</p>
         <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
           <a class="btn" target="_blank" rel="noopener"
-            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (formatTime $c.StartAt "02 Jan 2006 15:04") (formatIDR $c.PriceIDR))}}">{{t $.Lang "myb.refund"}}</a>
+            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (slotLabel $.Lang $c.StartAt) (formatIDR $c.PriceIDR))}}">{{t $.Lang "myb.refund"}}</a>
           <a class="btn secondary on-light" href="/book">{{t $.Lang "myb.again"}}</a>
         </div>
         {{else}}
@@ -37,7 +37,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap;">
           <div>
             <strong>{{.ServiceName}}</strong>
-            <div class="muted" style="font-size:.85rem;">{{formatTime .StartAt "Mon 02 Jan 2006 · 15:04"}} — {{formatTime .EndAt "15:04"}}</div>
+            <div class="muted" style="font-size:.85rem;">{{slotLabel $.Lang .StartAt}} — {{formatTime .EndAt "15:04"}}</div>
             <div class="muted" style="font-size:.85rem;">{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}} · 👩‍⚕️ {{.StaffName}}</div>
             {{if .VisitAddress}}<div class="muted" style="font-size:.85rem;">🏠 {{.VisitAddress}}</div>{{end}}
           </div>
@@ -53,11 +53,11 @@
         </div>
 
         <div class="modal-backdrop" x-show="open" x-transition style="display:none;">
-          <div class="modal" role="dialog" aria-modal="true" aria-label="Confirm cancellation" @click.outside="open=false">
+          <div class="modal" role="dialog" aria-modal="true" aria-label="{{t $.Lang "myb.modal"}}" @click.outside="open=false">
             <h2 style="margin-top:0;">{{t $.Lang "myb.modal"}}</h2>
             <dl class="review">
               <div><dt>{{t $.Lang "myb.treatment"}}</dt><dd>{{.ServiceName}}</dd></div>
-              <div><dt>{{t $.Lang "myb.when"}}</dt><dd>{{formatTime .StartAt "Mon 02 Jan 2006 · 15:04"}}</dd></div>
+              <div><dt>{{t $.Lang "myb.when"}}</dt><dd>{{slotLabel $.Lang .StartAt}}</dd></div>
               <div><dt>{{t $.Lang "myb.loc"}}</dt><dd>{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}}{{if .VisitAddress}} — 🏠 {{.VisitAddress}}{{end}}</dd></div>
               <div><dt>{{t $.Lang "myb.price"}}</dt><dd>{{formatIDR .PriceIDR}}</dd></div>
             </dl>

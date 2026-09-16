@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Services — Staff Portal</title>
+  <title>{{t .Lang "p.sv.title"}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -30,7 +30,9 @@
           </select>
         </label>
         <label>{{t .Lang "p.sv.nm"}} <input name="name" required autocomplete="off" placeholder="{{t .Lang "p.sv.nph"}}"></label>
+        <label>{{t .Lang "p.sv.nid"}} <input name="name_id" autocomplete="off" placeholder="{{t .Lang "p.sv.nph"}}"></label>
         <label>{{t .Lang "p.sv.ds"}} <textarea name="description" rows="2" placeholder="{{t .Lang "p.sv.dph"}}"></textarea></label>
+        <label>{{t .Lang "p.sv.did"}} <textarea name="description_id" rows="2" placeholder="{{t .Lang "p.sv.dph"}}"></textarea></label>
         <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
           <label style="flex:1; min-width:140px;">{{t .Lang "p.sv.du"}}
             <input type="number" name="duration_min" value="60" min="15" required>
@@ -77,7 +79,7 @@
               <td>
                 <div style="display:flex; gap:.6rem; align-items:center;">
                   <img src="{{servicePhoto .}}" alt="" loading="lazy" style="width:3.2rem; height:3.2rem; border-radius:.6rem; object-fit:cover; background:var(--bg-2); flex:none;">
-                  <div><strong>{{.Name}}</strong><br><small class="muted">{{.Description}}</small></div>
+                  <div><strong>{{.Name}}</strong>{{if .NameID}}<br><small>{{.NameID}}</small>{{end}}<br><small class="muted">{{.Description}}</small>{{if .DescriptionID}}<br><small class="muted">{{.DescriptionID}}</small>{{end}}</div>
                 </div>
               </td>
               <td>{{formatIDR .PriceIDR}}<br><small class="muted">{{.DurationMin}} {{t $.Lang "unit.min"}}</small></td>

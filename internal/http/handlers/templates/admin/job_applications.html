@@ -20,7 +20,7 @@
           <tbody>
           {{range .Applications}}
             <tr>
-              <td><small>{{formatTime .CreatedAt "02 Jan 2006 15:04"}}</small></td>
+              <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
               <td><strong>{{.FullName}}</strong></td>
               <td><small>{{.Phone}}<br>{{.Email}}</small></td>
               <td><small>{{if .Message}}{{.Message}}{{else}}<span class="muted">-</span>{{end}}</small></td>

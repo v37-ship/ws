@@ -46,17 +46,37 @@ type Location struct {
 }
 
 type Service struct {
-	ID          uuid.UUID
-	LocationID  uuid.UUID
-	Name        string
-	Description string
-	DurationMin int
-	PriceIDR    int64
-	Active      bool
-	ImagePath   string // local upload under uploads/services/
-	ImageURL    string // internet picture link
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID            uuid.UUID
+	LocationID    uuid.UUID
+	Name          string
+	NameID        string // Indonesian name; empty falls back to Name
+	Description   string
+	DescriptionID string // Indonesian description; empty falls back to Description
+	DurationMin   int
+	PriceIDR      int64
+	Active        bool
+	ImagePath     string // local upload under uploads/services/
+	ImageURL      string // internet picture link
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// DisplayName returns the Indonesian name for lang "id" when set,
+// otherwise the canonical name.
+func (s Service) DisplayName(lang string) string {
+	if lang == "id" && s.NameID != "" {
+		return s.NameID
+	}
+	return s.Name
+}
+
+// DisplayDescription returns the Indonesian description for lang "id"
+// when set, otherwise the canonical description.
+func (s Service) DisplayDescription(lang string) string {
+	if lang == "id" && s.DescriptionID != "" {
+		return s.DescriptionID
+	}
+	return s.Description
 }
 
 type ServiceHours struct {

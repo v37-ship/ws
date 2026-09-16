@@ -90,7 +90,7 @@
         <div class="modal wide" role="dialog" aria-modal="true" aria-label="{{if .Name}}{{.Name}}{{else}}-{{end}}" @click.outside="openId=null">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.5rem;">
             <h2 style="margin:0;">{{if .Name}}{{.Name}}{{else}}-{{end}} · {{$.Month}}</h2>
-            <button type="button" class="btn secondary on-light btn-sm" @click="openId=null" aria-label="Close">✕</button>
+            <button type="button" class="btn secondary on-light btn-sm" @click="openId=null" aria-label="{{t $.Lang "p.nav.close"}}">✕</button>
           </div>
           <p class="muted" style="margin-top:0;">{{.Sessions}}× · {{formatIDR .GrossIDR}}{{if .RefundIDR}} − {{formatIDR .RefundIDR}}{{end}} = <strong>{{formatIDR .NetIDR}}</strong> · {{.UniqueCustomers}} {{t $.Lang "r.th.uniq"}}</p>
           <div style="overflow-x:auto;">
@@ -99,7 +99,7 @@
               <tbody>
               {{range .Lines}}
                 <tr>
-                  <td><small>{{formatTime .PaidAt "02 Jan 15:04"}}</small></td>
+                  <td><small>{{slotLabel $.Lang .PaidAt}}</small></td>
                   <td>{{.CustomerName}}</td>
                   <td>{{.ServiceName}}{{if eq (printf "%s" .Status) "cancelled"}} <span class="badge cancelled">{{.Status.Display}}</span>{{end}}</td>
                   {{if $.ShowLoc}}<td><small>{{.LocationName}}</small></td>{{end}}
@@ -120,7 +120,7 @@
               <tbody>
               {{range .Refunds}}
                 <tr>
-                  <td><small>{{formatTime .CreatedAt "02 Jan 15:04"}}</small></td>
+                  <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
                   <td>{{.CustomerName}}</td>
                   <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
                   <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
@@ -157,7 +157,7 @@
           <tbody>
           {{range .Lines}}
             <tr>
-              <td><small>{{formatTime .PaidAt "02 Jan 15:04"}}</small></td>
+              <td><small>{{slotLabel $.Lang .PaidAt}}</small></td>
               <td>{{.CustomerName}}</td>
               <td>{{.ServiceName}}</td>
               <td>{{.StaffName}}</td>
@@ -181,7 +181,7 @@
           <tbody>
           {{range .Refunds}}
             <tr>
-              <td><small>{{formatTime .CreatedAt "02 Jan 15:04"}}</small></td>
+              <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
               <td>{{.CustomerName}}</td>
               <td>{{.ServiceName}}</td>
               <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>

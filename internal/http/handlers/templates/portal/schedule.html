@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Team — Staff Portal</title>
+  <title>{{index (navParts (t .Lang "p.nav.team")) 1}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -157,8 +157,8 @@
           {{range .TimeOffs}}
             <tr>
               <td>👩‍⚕️ <strong>{{.StaffName}}</strong></td>
-              <td>{{formatTime .StartAt "Mon, 02 Jan 15:04"}} WIB</td>
-              <td>{{formatTime .EndAt "Mon, 02 Jan 15:04"}} WIB</td>
+              <td>{{slotLabel $.Lang .StartAt}} WIB</td>
+              <td>{{slotLabel $.Lang .EndAt}} WIB</td>
               <td>{{.Reason}}</td>
               <td>
                 <form method="post" action="/portal/schedule/time-off/{{.ID}}/delete"

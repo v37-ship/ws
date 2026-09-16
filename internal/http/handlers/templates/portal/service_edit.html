@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Edit {{.Service.Name}} — Staff Portal</title>
+  <title>{{t .Lang "p.se.title"}}: {{.Service.Name}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -21,7 +21,9 @@
     <form class="panel stack" method="post" action="/portal/services/{{.Service.ID}}/edit" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <label>{{t .Lang "p.se.nm"}} <input name="name" required value="{{.Service.Name}}" autocomplete="off"></label>
+      <label>{{t .Lang "p.se.nid"}} <input name="name_id" value="{{.Service.NameID}}" autocomplete="off"></label>
       <label>{{t .Lang "p.se.ds"}} <textarea name="description" rows="2">{{.Service.Description}}</textarea></label>
+      <label>{{t .Lang "p.se.did"}} <textarea name="description_id" rows="2">{{.Service.DescriptionID}}</textarea></label>
       <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
         <label style="flex:1; min-width:140px;">{{t .Lang "p.se.du"}}
           <input type="number" name="duration_min" value="{{.Service.DurationMin}}" min="15" required>
@@ -36,8 +38,8 @@
         <div class="hours-grid">
           {{range .Hours}}
           <label class="day-cell">{{t $.Lang (printf "p.day.%d" .Num)}}
-            <input type="time" name="hours_{{.Num}}_from" value="{{.From}}" aria-label="{{.Name}} open from">
-            <input type="time" name="hours_{{.Num}}_to" value="{{.To}}" aria-label="{{.Name}} open until">
+            <input type="time" name="hours_{{.Num}}_from" value="{{.From}}" aria-label="{{printf (t $.Lang "a11y.open") .Name}}">
+            <input type="time" name="hours_{{.Num}}_to" value="{{.To}}" aria-label="{{printf (t $.Lang "a11y.shut") .Name}}">
           </label>
           {{end}}
         </div>

@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Booking #{{.Booking.ID}} — Staff Portal</title>
+  <title>Booking #{{.Booking.ID}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -22,7 +22,7 @@
         </span>
         {{if .Booking.CustomerPhone}}
           {{$loc := .Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}}{{$loc = printf "%s · 🏠 %s" .Booking.LocationName .Booking.VisitAddress}}{{end}}
-          <a href="{{waURL .Booking.CustomerPhone .Booking.CustomerName .Booking.ServiceName .Booking.StaffName (formatTime .Booking.StartAt "Mon, 02 Jan 15:04") $loc}}" target="_blank" class="btn-wa">
+          <a href="{{waURL .Booking.CustomerPhone .Booking.CustomerName .Booking.ServiceName .Booking.StaffName (slotLabel .Lang .Booking.StartAt) $loc}}" target="_blank" class="btn-wa">
             {{t .Lang "p.det.wa"}}
           </a>
         {{end}}
@@ -42,7 +42,7 @@
           <div><dt>🤰 {{t .Lang "p.det.momc"}}</dt><dd><small>{{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}{{t .Lang "p.det.std"}}{{end}}</small></dd></div>
           <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">📍 {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · 🏠 {{.Booking.VisitAddress}}{{end}}</small></dd></div>
           <div><dt>{{t .Lang "p.det.staff"}}</dt><dd>{{.Booking.StaffName}}</dd></div>
-          <div><dt>{{t .Lang "book.when"}}</dt><dd><small>{{formatTime .Booking.StartAt "Mon, 02 Jan 2006 15:04"}} - {{formatTime .Booking.EndAt "15:04"}} WIB</small></dd></div>
+          <div><dt>{{t .Lang "book.when"}}</dt><dd><small>{{slotLabel .Lang .Booking.StartAt}} - {{formatTime .Booking.EndAt "15:04"}} WIB</small></dd></div>
           <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}<br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
           {{if .Booking.Notes}}
           <div><dt>{{t .Lang "p.det.notes"}}</dt><dd><small>{{.Booking.Notes}}</small></dd></div>
@@ -104,7 +104,7 @@
           <h3 style="margin:0;">{{t .Lang "r.rf.hist"}}</h3>
           <ul class="muted" style="margin:0; padding-left:1.2rem; font-size:0.85rem;">
             {{range .Refunds}}
-            <li>{{formatTime .CreatedAt "02 Jan 15:04"}} — {{if .IsVoid}}<s>{{formatIDR .AmountIDR}}</s> <span>{{t $.Lang "r.rf.vby"}} {{if .VoidedBy}}{{.VoidedBy}}{{else}}-{{end}}{{if .VoidReason}}: {{.VoidReason}}{{end}}</span>{{else}}{{formatIDR .AmountIDR}}{{if .Reason}} ({{.Reason}}){{end}}
+            <li>{{slotLabel $.Lang .CreatedAt}} — {{if .IsVoid}}<s>{{formatIDR .AmountIDR}}</s> <span>{{t $.Lang "r.rf.vby"}} {{if .VoidedBy}}{{.VoidedBy}}{{else}}-{{end}}{{if .VoidReason}}: {{.VoidReason}}{{end}}</span>{{else}}{{formatIDR .AmountIDR}}{{if .Reason}} ({{.Reason}}){{end}}
               {{if $.User}}{{if and (not .IsVoid) (eq (printf "%s" $.User.Role) "admin")}}
               <form method="post" action="/portal/bookings/{{$.Booking.ID}}/refunds/{{.ID}}/void" hx-post="/portal/bookings/{{$.Booking.ID}}/refunds/{{.ID}}/void" hx-swap="none" style="display:inline;">
                 <input type="hidden" name="csrf" value="{{$.CSRF}}">
@@ -195,7 +195,7 @@
             <label>{{t .Lang "p.det.svc"}}
               <select name="service_id" required>
                 {{range .Services}}
-                  <option value="{{.ID}}" {{if eq $.Booking.ServiceID .ID}}selected{{end}}>{{.Name}} — {{formatIDR .PriceIDR}}</option>
+                  <option value="{{.ID}}" {{if eq $.Booking.ServiceID .ID}}selected{{end}}>{{.Name}}{{if .NameID}} / {{.NameID}}{{end}} — {{formatIDR .PriceIDR}}</option>
                 {{end}}
               </select>
             </label>
@@ -244,7 +244,7 @@
         <tbody>
         {{range .Logs}}
           <tr>
-            <td><small>{{formatTime .CreatedAt "02 Jan 15:04:05"}}</small></td>
+            <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
             <td><strong>{{.UserName}}</strong></td>
             <td>{{.Action}}</td>
             <td>{{if .Notes}}{{.Notes}}{{else}}<span class="muted">-</span>{{end}}</td>

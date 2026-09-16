@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>{{.Customer.FullName}} — Customer Profile</title>
+  <title>{{.Customer.FullName}} — {{index (navParts (t .Lang "p.nav.cu")) 1}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -49,7 +49,7 @@
         <div>
           <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.bi"}}</span>
           <div>👶 <strong>{{if .Customer.BabyName}}{{.Customer.BabyName}}{{else}}<em>{{t .Lang "p.cd.none"}}</em>{{end}}</strong></div>
-          {{if .Customer.BabyDOB}}<div>DOB: {{formatTime .Customer.BabyDOB "02 Jan 2006"}}</div>{{end}}
+          {{if .Customer.BabyDOB}}<div>DOB: {{dateLong .Lang .Customer.BabyDOB}}</div>{{end}}
         </div>
         <div>
           <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.mc"}}</span>
@@ -80,7 +80,7 @@
         <tbody>
         {{range .Bookings}}
           <tr>
-            <td><strong>{{formatTime .StartAt "Mon, 02 Jan 15:04"}}</strong></td>
+            <td><strong>{{slotLabel $.Lang .StartAt}}</strong></td>
             <td>{{.ServiceName}}</td>
             <td>👩‍⚕️ {{.StaffName}}</td>
             <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>

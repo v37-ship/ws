@@ -5,7 +5,7 @@
     hx-include="#location_id,#service_id">
     <option value="">{{t .Lang "svc2.select"}}</option>
     {{range .Services}}
-    <option value="{{.ID}}" {{if eq $.ServiceID .ID.String}}selected{{end}}>{{.Name}} — {{formatIDR .PriceIDR}} ({{.DurationMin}} {{t $.Lang "unit.min"}})</option>
+    <option value="{{.ID}}" {{if eq $.ServiceID .ID.String}}selected{{end}}>{{.DisplayName $.Lang}} — {{formatIDR .PriceIDR}} ({{.DurationMin}} {{t $.Lang "unit.min"}})</option>
     {{end}}
   </select>
 </label>

@@ -17,6 +17,7 @@ import (
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/i18n"
 	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
 
@@ -132,7 +133,7 @@ func (s *Server) BookPage(w http.ResponseWriter, r *http.Request) {
 		"Locations":  locs,
 		"LocationID": r.URL.Query().Get("location_id"),
 		"Date":       time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
-		"Days":       nextDays(14),
+		"Days":       nextDays(14, i18n.Resolve(r)),
 	}
 	if lid, err := uuid.Parse(r.URL.Query().Get("location_id")); err == nil {
 		svcs, _ := s.catalog.ListServices(r.Context(), lid, true)
@@ -201,7 +202,7 @@ func (s *Server) BookSlots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Query().Get("view") == "cards" {
-		s.renderPartial(w, r, "slot_groups.html", pageData{"SlotGroups": groupSlots(slots)})
+		s.renderPartial(w, r, "slot_groups.html", pageData{"SlotGroups": groupSlots(slots, i18n.Resolve(r))})
 		return
 	}
 	free := make([]domain.Slot, 0, len(slots))
@@ -220,23 +221,23 @@ type bookingDay struct {
 	Month   string
 }
 
-func nextDays(n int) []bookingDay {
+func nextDays(n int, lang string) []bookingDay {
 	wib := time.FixedZone("WIB", 7*3600)
 	now := time.Now().In(wib)
 	days := make([]bookingDay, 0, n)
 	for i := 0; i < n; i++ {
 		d := now.AddDate(0, 0, i)
-		label := "Today"
+		label := i18n.T(lang, "book.today")
 		if i == 1 {
-			label = "Tomorrow"
+			label = i18n.T(lang, "book.tmrow")
 		} else if i > 1 {
-			label = d.Format("Mon")
+			label = i18n.WeekdayShort(lang, d.Weekday())
 		}
 		days = append(days, bookingDay{
 			Value:   d.Format("2006-01-02"),
 			Weekday: label,
 			DayNum:  d.Format("2"),
-			Month:   d.Format("Jan"),
+			Month:   i18n.MonthShort(lang, d.Month()),
 		})
 	}
 	return days
@@ -247,9 +248,13 @@ type slotGroup struct {
 	Slots []service.SlotInfo
 }
 
-func groupSlots(slots []service.SlotInfo) []slotGroup {
+func groupSlots(slots []service.SlotInfo, lang string) []slotGroup {
 	wib := time.FixedZone("WIB", 7*3600)
-	groups := []slotGroup{{Title: "Morning"}, {Title: "Afternoon"}, {Title: "Evening"}}
+	groups := []slotGroup{
+		{Title: i18n.T(lang, "slots.morn")},
+		{Title: i18n.T(lang, "slots.aft")},
+		{Title: i18n.T(lang, "slots.eve")},
+	}
 	for _, s := range slots {
 		h := s.Slot.StartAt.In(wib).Hour()
 		switch {
@@ -517,7 +522,7 @@ func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, r, "portal_dashboard.html", pageData{
-		"TodayStr":      nowWIB.Format("Monday, 02 January 2006"),
+		"TodayStr":      i18n.DateLong(i18n.Resolve(r), nowWIB),
 		"TodayBookings": bookings,
 		"Stats":         stats,
 	})
@@ -553,7 +558,7 @@ func (s *Server) PortalQueuePartial(w http.ResponseWriter, r *http.Request) {
 	}
 	s.renderPartial(w, r, "portal_queue_rows.html", pageData{
 		"TodayBookings": bookings,
-		"TodayStr":      nowWIB.Format("Monday, 02 January 2006"),
+		"TodayStr":      i18n.DateLong(i18n.Resolve(r), nowWIB),
 	})
 }
 
@@ -1224,7 +1229,9 @@ func (s *Server) parseServiceForm(r *http.Request, svc *domain.Service, withLoca
 	dur, _ := strconv.Atoi(r.FormValue("duration_min"))
 	price, _ := strconv.ParseInt(r.FormValue("price_idr"), 10, 64)
 	svc.Name = r.FormValue("name")
+	svc.NameID = strings.TrimSpace(r.FormValue("name_id"))
 	svc.Description = r.FormValue("description")
+	svc.DescriptionID = strings.TrimSpace(r.FormValue("description_id"))
 	svc.DurationMin = dur
 	svc.PriceIDR = price
 	svc.ImageURL = strings.TrimSpace(r.FormValue("image_url"))
@@ -1258,8 +1265,17 @@ type weekdayRow struct {
 	To   string
 }
 
-func weekdayRows(hours []domain.ServiceHours) []weekdayRow {
-	names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+// weekdayNames returns full weekday names (Sunday-first) in the request language.
+func weekdayNames(lang string) []string {
+	names := make([]string, 7)
+	for d := 0; d < 7; d++ {
+		names[d] = i18n.T(lang, fmt.Sprintf("p.day.%d", d))
+	}
+	return names
+}
+
+func weekdayRows(hours []domain.ServiceHours, lang string) []weekdayRow {
+	names := weekdayNames(lang)
 	byDay := map[int]domain.ServiceHours{}
 	for _, h := range hours {
 		byDay[h.Weekday] = h
@@ -1287,7 +1303,7 @@ func (s *Server) PortalEditServiceForm(w http.ResponseWriter, r *http.Request) {
 	hours, _ := s.catalog.ListServiceHours(r.Context(), id)
 	s.render(w, r, "portal_service_edit.html", pageData{
 		"Service": svc,
-		"Hours":   weekdayRows(hours),
+		"Hours":   weekdayRows(hours, i18n.Resolve(r)),
 		"Error":   r.URL.Query().Get("error"),
 	})
 }
@@ -1518,7 +1534,7 @@ func (s *Server) PortalStaffHoursForm(w http.ResponseWriter, r *http.Request) {
 	}
 	hours, _ := s.catalog.StaffHours(r.Context(), id)
 	rows := make([]weekdayRow, 0, 7)
-	names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+	names := weekdayNames(i18n.Resolve(r))
 	byDay := map[int]domain.StaffHours{}
 	for _, h := range hours {
 		byDay[h.Weekday] = h
@@ -1555,7 +1571,7 @@ func (s *Server) PortalSaveStaffHours(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.catalog.SaveStaffHours(r.Context(), id, hours); err != nil {
 		st, _ := s.catalog.GetStaff(r.Context(), id)
-		names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+		names := weekdayNames(i18n.Resolve(r))
 		byDay := map[int]domain.StaffHours{}
 		for _, h := range hours {
 			byDay[h.Weekday] = h

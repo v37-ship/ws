@@ -72,6 +72,18 @@ func New(
 			}
 			return t.In(time.FixedZone("WIB", 7*3600)).Format(layout)
 		},
+		"slotLabel": func(lang any, t time.Time) string {
+			if t.IsZero() {
+				return "-"
+			}
+			return i18n.SlotLabel(fmt.Sprintf("%v", lang), t.In(time.FixedZone("WIB", 7*3600)))
+		},
+		"dateLong": func(lang any, t time.Time) string {
+			if t.IsZero() {
+				return "-"
+			}
+			return i18n.DateLong(fmt.Sprintf("%v", lang), t.In(time.FixedZone("WIB", 7*3600)))
+		},
 		"csrf": func() string { return "" }, // overridden per render
 		"eq":   func(a, b any) bool { return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b) },
 		"hasUUID": func(list []string, id string) bool {

@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Services — Wangga: Baby &amp; Mom Spa</title>
+  <title>{{t .Lang "svc.title"}} — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
 </head>
 <body>
@@ -24,11 +24,11 @@
       <div class="grid three">
         {{range .Services}}
         <article class="panel stack service-card">
-          <img src="{{servicePhoto .}}" alt="{{.Name}}" loading="lazy"
+          <img src="{{servicePhoto .}}" alt="{{.DisplayName $.Lang}}" loading="lazy"
             style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">
           <div>
-            <h3 style="margin:0 0 0.25rem;">{{.Name}}</h3>
-            {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
+            <h3 style="margin:0 0 0.25rem;">{{.DisplayName $.Lang}}</h3>
+            {{if .DisplayDescription $.Lang}}<p class="muted" style="margin:0;">{{.DisplayDescription $.Lang}}</p>{{end}}
           </div>
           <div class="pill-row">
             <span class="pill">{{.DurationMin}} {{t $.Lang "unit.min"}}</span>
@@ -43,7 +43,7 @@
           {{if .Active}}
           <a class="btn mint" href="/book?location_id={{.LocationID}}">{{t $.Lang "svc.book"}}</a>
           {{else}}
-          <a class="btn secondary" href="{{waInquire .Name $loc.Location.Name}}" target="_blank" rel="noopener">{{t $.Lang "svc.contact"}}</a>
+          <a class="btn secondary" href="{{waInquire (.DisplayName $.Lang) $loc.Location.Name}}" target="_blank" rel="noopener">{{t $.Lang "svc.contact"}}</a>
           {{end}}
         </article>
         {{else}}

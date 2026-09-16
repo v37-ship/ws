@@ -4,12 +4,12 @@
   {{range .SlotGroups}}
   <div>
     <strong class="daypart">{{.Title}}</strong>
-    <div class="slot-grid" role="group" aria-label="{{.Title}} slots">
+    <div class="slot-grid" role="group" aria-label="{{.Title}}">
       {{range .Slots}}
       {{if .Available}}
       <button type="button" class="slot" aria-pressed="false"
         data-start="{{.Slot.StartAt.Format "2006-01-02T15:04:05Z07:00"}}" data-staff="{{.Slot.StaffID}}"
-        data-label="{{formatTime .Slot.StartAt "Mon 2 Jan, 15:04"}}"
+        data-label="{{slotLabel $.Lang .Slot.StartAt}}"
         @click="pick($el.dataset.start, $el.dataset.staff, $el.dataset.label)">
         {{formatTime .Slot.StartAt "15:04"}}
       </button>

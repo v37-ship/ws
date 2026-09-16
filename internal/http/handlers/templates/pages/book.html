@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Book — Wangga: Baby &amp; Mom Spa</title>
+  <title>{{t .Lang "book.title"}} — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
 </head>
 <body hx-boost="false">
@@ -15,7 +15,7 @@
 
       <form method="post" action="/book" id="book-form"
         x-data="{
-          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'Today', time:'', start:'', staff:'', place:'onsite',
+          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'{{t .Lang "book.today"}}', time:'', start:'', staff:'', place:'onsite',
           pick(s, st, label){
             if (this.start === s) { this.clearTime(); return; }
             this.start=s; this.staff=st; this.time=label||'';
@@ -87,7 +87,7 @@
         }">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 
-        <ol class="steps" aria-label="Booking progress">
+        <ol class="steps" aria-label="{{t .Lang "book.prog"}}">
           <li :class="{'done': svcLabel, 'active': !svcLabel}"><span>1</span> {{t .Lang "book.step1"}}</li>
           <li :class="{'done': dayLabel && staffLabel, 'active': svcLabel && !(dayLabel && staffLabel)}"><span>2</span> {{t .Lang "book.step2"}}</li>
           <li :class="{'done': time, 'active': (dayLabel && staffLabel) && !time}"><span>3</span> {{t .Lang "book.step3"}}</li>
@@ -97,7 +97,7 @@
         <div class="panel stack wiz-step">
           <h2><span class="step-n">1</span> {{t .Lang "book.s1"}}</h2>
           <p class="muted" style="margin:0; font-size:.85rem;">{{t .Lang "book.s1hint"}}</p>
-          <div class="pick-row" role="radiogroup" aria-label="Choose a location">
+          <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.pickloc"}}">
             {{range .Locations}}
             <label class="pill-pick">
               <input type="radio" name="location_id" value="{{.ID}}" required
@@ -132,7 +132,7 @@
 
         <div class="panel stack wiz-step" x-show="svcLabel" x-transition>
           <h2><span class="step-n">2</span> {{t .Lang "book.s2"}}</h2>
-          <div class="day-strip" role="group" aria-label="Choose a day">
+          <div class="day-strip" role="group" aria-label="{{t .Lang "book.pickday"}}">
             {{range $i, $d := .Days}}
             <button type="button" class="day" data-day="{{$d.Value}}" data-label="{{$d.Weekday}} {{$d.DayNum}} {{$d.Month}}"
               aria-pressed="{{if eq $i 0}}true{{else}}false{{end}}"

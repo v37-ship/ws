@@ -48,7 +48,7 @@
           <tbody>
           {{range .Jobs}}
             <tr>
-              <td><strong>{{.Title}}</strong><br><small class="muted">{{t $.Lang "a.jo.pd"}} {{formatTime .CreatedAt "02 Jan 2006"}}</small></td>
+              <td><strong>{{.Title}}</strong><br><small class="muted">{{t $.Lang "a.jo.pd"}} {{dateLong $.Lang .CreatedAt}}</small></td>
               <td>{{.EmploymentType.Display}}</td>
               <td>{{if .LocationName}}{{.LocationName}}{{else}}{{t $.Lang "a.jo.all"}}{{end}}</td>
               <td>{{if .Active}}<span class="badge confirmed">{{t $.Lang "a.jo.op"}}</span>{{else}}<span class="badge cancelled">{{t $.Lang "a.jo.cl"}}</span>{{end}}</td>

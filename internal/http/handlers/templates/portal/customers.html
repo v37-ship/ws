@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Customer Directory — Staff Portal</title>
+  <title>{{index (navParts (t .Lang "p.nav.cu")) 1}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -63,7 +63,7 @@
               <td>
                 {{if .MomCondition}}{{.MomCondition}}{{else}}<span class="muted">{{t $.Lang "p.cu.std"}}</span>{{end}}
               </td>
-              <td><small>{{formatTime .CreatedAt "02 Jan 2006"}}</small></td>
+              <td><small>{{dateLong $.Lang .CreatedAt}}</small></td>
               <td>
                 <div style="display:flex; gap:0.4rem;">
                   <a href="/portal/bookings/new?customer_id={{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.cu.book"}}</a>

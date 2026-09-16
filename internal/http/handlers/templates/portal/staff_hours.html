@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Hours — {{.Staff.Name}}</title>
+  <title>{{t .Lang "p.sh.title"}} {{.Staff.Name}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
@@ -24,8 +24,8 @@
       <div class="hours-grid">
         {{range .Hours}}
         <label class="day-cell">{{t $.Lang (printf "p.day.%d" .Num)}}
-          <input type="time" name="hours_{{.Num}}_from" value="{{.From}}" aria-label="{{.Name}} start">
-          <input type="time" name="hours_{{.Num}}_to" value="{{.To}}" aria-label="{{.Name}} end">
+          <input type="time" name="hours_{{.Num}}_from" value="{{.From}}" aria-label="{{printf (t $.Lang "a11y.start") .Name}}">
+          <input type="time" name="hours_{{.Num}}_to" value="{{.To}}" aria-label="{{printf (t $.Lang "a11y.end") .Name}}">
         </label>
         {{end}}
       </div>

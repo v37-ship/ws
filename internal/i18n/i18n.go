@@ -1,8 +1,10 @@
 package i18n
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -75,4 +77,28 @@ func normalize(s string) string {
 	default:
 		return ""
 	}
+}
+
+// WeekdayShort returns the abbreviated weekday name (p.dw.0-6).
+func WeekdayShort(lang string, wd time.Weekday) string {
+	return T(lang, fmt.Sprintf("p.dw.%d", int(wd)))
+}
+
+// MonthShort returns the abbreviated month name (r.ms.01-12).
+func MonthShort(lang string, m time.Month) string {
+	return T(lang, fmt.Sprintf("r.ms.%02d", int(m)))
+}
+
+// SlotLabel formats a slot start for booking displays,
+// e.g. "Sen 5 Okt 2026, 15:04" in Indonesian.
+func SlotLabel(lang string, t time.Time) string {
+	return fmt.Sprintf("%s %d %s %d, %s",
+		WeekdayShort(lang, t.Weekday()), t.Day(), MonthShort(lang, t.Month()), t.Year(), t.Format("15:04"))
+}
+
+// DateLong formats a full date, e.g. "Senin, 05 Januari 2026".
+func DateLong(lang string, t time.Time) string {
+	return fmt.Sprintf("%s, %02d %s %d",
+		T(lang, fmt.Sprintf("p.day.%d", int(t.Weekday()))),
+		t.Day(), T(lang, fmt.Sprintf("r.m.%02d", int(t.Month()))), t.Year())
 }

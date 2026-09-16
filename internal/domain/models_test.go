@@ -32,3 +32,23 @@ func TestBookingStatusDisplay(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceDisplayName(t *testing.T) {
+	s := Service{Name: "Baby Spa Soft", NameID: "Baby Spa Lembut", Description: "Gentle care", DescriptionID: "Perawatan lembut"}
+	if got := s.DisplayName("id"); got != "Baby Spa Lembut" {
+		t.Errorf("expected ID name, got %q", got)
+	}
+	if got := s.DisplayDescription("id"); got != "Perawatan lembut" {
+		t.Errorf("expected ID description, got %q", got)
+	}
+	if got := s.DisplayName("en"); got != "Baby Spa Soft" {
+		t.Errorf("expected canonical name, got %q", got)
+	}
+	empty := Service{Name: "Facial Massage", Description: "Massage"}
+	if got := empty.DisplayName("id"); got != "Facial Massage" {
+		t.Errorf("expected fallback name, got %q", got)
+	}
+	if got := empty.DisplayDescription("id"); got != "Massage" {
+		t.Errorf("expected fallback description, got %q", got)
+	}
+}

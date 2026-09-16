@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>New Customer Booking — Staff Portal</title>
+  <title>{{index (navParts (t .Lang "p.nav.new")) 1}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>

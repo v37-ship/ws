@@ -37,7 +37,7 @@
     span.textContent = message;
     var btn = document.createElement("button");
     btn.type = "button"; btn.className = "toast-close";
-    btn.setAttribute("aria-label", "Dismiss");
+    btn.setAttribute("aria-label", document.documentElement.lang === "en" ? "Dismiss" : "Tutup");
     btn.textContent = "×";
     btn.addEventListener("click", function () { el.remove(); });
     el.appendChild(span); el.appendChild(btn);

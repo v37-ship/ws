@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Pay with QRIS — Wangga: Baby &amp; Mom Spa</title>
+  <title>{{t .Lang "pay.title"}} — Wangga: Baby &amp; Mom Spa</title>
   {{template "head" .}}
 </head>
 <body>
@@ -11,7 +11,7 @@
   <main>
     <section class="stack" style="max-width:560px; margin:0 auto;">
       <h1 class="page-title" style="text-align:center;">{{t .Lang "pay.title"}}</h1>
-      <ol class="steps" aria-label="Checkout progress">
+      <ol class="steps" aria-label="{{t .Lang "pay.prog"}}">
         <li class="done"><span>1</span> {{t .Lang "book.step1"}}</li>
         <li class="done"><span>2</span> {{t .Lang "book.step2"}}</li>
         <li class="done"><span>3</span> {{t .Lang "book.step3"}}</li>
@@ -19,8 +19,8 @@
       </ol>
       <div class="panel stack" style="text-align:center; align-items:center;">
         <div>
-          <strong>{{.Booking.ServiceName}}</strong> with {{.Booking.StaffName}}
-          <div class="muted">{{formatTime .Booking.StartAt "Mon 02 Jan 2006 · 15:04"}} · {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} · {{t .Lang "book.badge_home"}}{{end}}</div>
+          <strong>{{.Booking.ServiceName}}</strong> {{t .Lang "pay.with"}} {{.Booking.StaffName}}
+          <div class="muted">{{slotLabel .Lang .Booking.StartAt}} · {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} · {{t .Lang "book.badge_home"}}{{end}}</div>
           {{if .Booking.VisitAddress}}<div class="muted">🏠 {{.Booking.VisitAddress}}</div>{{end}}
         </div>
         <div style="font-size:1.6rem; font-weight:800;">{{formatIDR .Booking.PriceIDR}}</div>

@@ -17,7 +17,7 @@
     title="{{t .Lang "p.nav.fold"}}" onclick="return __wanggaSideToggle()">
     <span id="side-toggle-icon" aria-hidden="true">☰</span>
   </button>
-  <nav class="portal-tabs" id="portal-tabs" aria-label="Staff menu">
+  <nav class="portal-tabs" id="portal-tabs" aria-label="{{t .Lang "p.nav.menu"}}">
     <div class="portal-group">
       <div class="portal-group-title">{{t .Lang "p.nav.g_ops"}}</div>
       {{template "portal_link" dict "Href" "/portal" "Active" (eq .Active "dashboard") "Label" (t .Lang "p.nav.dash")}}

@@ -17,7 +17,7 @@
         <tbody>
         {{range .Bookings}}
           <tr>
-            <td>{{formatTime .StartAt "Mon 02 Jan 15:04"}}</td>
+            <td>{{slotLabel $.Lang .StartAt}}</td>
             <td>{{.CustomerName}}</td>
             <td>{{.ServiceName}}</td>
             <td>{{.StaffName}}</td>

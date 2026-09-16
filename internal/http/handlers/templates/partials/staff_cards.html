@@ -1,5 +1,5 @@
 {{define "staff_cards.html"}}
-<div class="pick-grid people" role="radiogroup" aria-label="Choose a therapist">
+<div class="pick-grid people" role="radiogroup" aria-label="{{t .Lang "svc2.ther"}}">
   <label class="pick-card person">
     <input type="radio" name="staff_id" value="" data-label="{{t .Lang "book.first"}}"
       hx-get="/book/slots?view=cards" hx-target="#slots-wrap" hx-swap="innerHTML"

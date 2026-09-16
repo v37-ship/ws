@@ -71,7 +71,7 @@ func (r *CatalogRepo) UpdateLocation(ctx context.Context, l *domain.Location) er
 }
 
 func (r *CatalogRepo) ListServices(ctx context.Context, locationID uuid.UUID, activeOnly bool) ([]domain.Service, error) {
-	q := `SELECT id, location_id, name, description, duration_min, price_idr, active, image_path, image_url, created_at, updated_at
+	q := `SELECT id, location_id, name, name_id, description, description_id, duration_min, price_idr, active, image_path, image_url, created_at, updated_at
 		FROM services WHERE location_id=$1`
 	if activeOnly {
 		q += ` AND active=true`
@@ -85,7 +85,7 @@ func (r *CatalogRepo) ListServices(ctx context.Context, locationID uuid.UUID, ac
 	var out []domain.Service
 	for rows.Next() {
 		var s domain.Service
-		if err := rows.Scan(&s.ID, &s.LocationID, &s.Name, &s.Description, &s.DurationMin, &s.PriceIDR, &s.Active, &s.ImagePath, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.LocationID, &s.Name, &s.NameID, &s.Description, &s.DescriptionID, &s.DurationMin, &s.PriceIDR, &s.Active, &s.ImagePath, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -94,10 +94,10 @@ func (r *CatalogRepo) ListServices(ctx context.Context, locationID uuid.UUID, ac
 }
 
 func (r *CatalogRepo) ServiceByID(ctx context.Context, id uuid.UUID) (*domain.Service, error) {
-	const q = `SELECT id, location_id, name, description, duration_min, price_idr, active, image_path, image_url, created_at, updated_at
+	const q = `SELECT id, location_id, name, name_id, description, description_id, duration_min, price_idr, active, image_path, image_url, created_at, updated_at
 		FROM services WHERE id=$1`
 	var s domain.Service
-	err := r.pool.QueryRow(ctx, q, id).Scan(&s.ID, &s.LocationID, &s.Name, &s.Description, &s.DurationMin, &s.PriceIDR, &s.Active, &s.ImagePath, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt)
+	err := r.pool.QueryRow(ctx, q, id).Scan(&s.ID, &s.LocationID, &s.Name, &s.NameID, &s.Description, &s.DescriptionID, &s.DurationMin, &s.PriceIDR, &s.Active, &s.ImagePath, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -111,16 +111,16 @@ func (r *CatalogRepo) CreateService(ctx context.Context, s *domain.Service) erro
 	if s.ID == uuid.Nil {
 		s.ID = uuid.New()
 	}
-	const q = `INSERT INTO services (id, location_id, name, description, duration_min, price_idr, active, image_path, image_url)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING created_at, updated_at`
-	return r.pool.QueryRow(ctx, q, s.ID, s.LocationID, s.Name, s.Description, s.DurationMin, s.PriceIDR, s.Active, s.ImagePath, s.ImageURL).
+	const q = `INSERT INTO services (id, location_id, name, name_id, description, description_id, duration_min, price_idr, active, image_path, image_url)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING created_at, updated_at`
+	return r.pool.QueryRow(ctx, q, s.ID, s.LocationID, s.Name, s.NameID, s.Description, s.DescriptionID, s.DurationMin, s.PriceIDR, s.Active, s.ImagePath, s.ImageURL).
 		Scan(&s.CreatedAt, &s.UpdatedAt)
 }
 
 func (r *CatalogRepo) UpdateService(ctx context.Context, s *domain.Service) error {
-	const q = `UPDATE services SET name=$2, description=$3, duration_min=$4, price_idr=$5, active=$6, image_path=$7, image_url=$8, updated_at=now()
+	const q = `UPDATE services SET name=$2, name_id=$3, description=$4, description_id=$5, duration_min=$6, price_idr=$7, active=$8, image_path=$9, image_url=$10, updated_at=now()
 		WHERE id=$1 RETURNING updated_at`
-	return r.pool.QueryRow(ctx, q, s.ID, s.Name, s.Description, s.DurationMin, s.PriceIDR, s.Active, s.ImagePath, s.ImageURL).Scan(&s.UpdatedAt)
+	return r.pool.QueryRow(ctx, q, s.ID, s.Name, s.NameID, s.Description, s.DescriptionID, s.DurationMin, s.PriceIDR, s.Active, s.ImagePath, s.ImageURL).Scan(&s.UpdatedAt)
 }
 
 func (r *CatalogRepo) ListStaff(ctx context.Context, locationID uuid.UUID, activeOnly bool) ([]domain.Staff, error) {

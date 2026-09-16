@@ -1,17 +1,17 @@
 {{define "service_cards.html"}}
-<div class="pick-grid" role="radiogroup" aria-label="Choose a service">
+<div class="pick-grid" role="radiogroup" aria-label="{{t .Lang "svc2.service"}}">
   {{range .Services}}
   <label class="pick-card">
     <input type="radio" name="service_id" value="{{.ID}}" required
-      data-label="{{.Name}}" data-sub="{{formatIDR .PriceIDR}} · {{.DurationMin}} min"
+      data-label="{{.DisplayName $.Lang}}" data-sub="{{formatIDR .PriceIDR}} · {{.DurationMin}} min"
       hx-get="/book/staff?view=cards" hx-target="#staff-wrap" hx-swap="innerHTML"
       hx-include="input[name='location_id']:checked" hx-indicator="#stf-ind"
       hx-on::after-request="document.getElementById('slots-wrap').innerHTML=''"
       @click="onReclick($el,'svc')"
       @change="onPick($el,'svc')">>
     <img src="{{servicePhoto .}}" alt="" loading="lazy">
-    <span class="pick-name">{{.Name}}</span>
-    {{if .Description}}<span class="pick-desc">{{.Description}}</span>{{end}}
+    <span class="pick-name">{{.DisplayName $.Lang}}</span>
+    {{if .DisplayDescription $.Lang}}<span class="pick-desc">{{.DisplayDescription $.Lang}}</span>{{end}}
     <span class="pill-row"><span class="pill">{{.DurationMin}} {{t $.Lang "unit.min"}}</span><span class="pill mint">{{formatIDR .PriceIDR}}</span></span>
     <span class="pick-check" aria-hidden="true">✓</span>
   </label>

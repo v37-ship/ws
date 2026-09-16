@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
 <head>
-  <title>Register Mom &amp; Baby — Staff Portal</title>
+  <title>{{index (navParts (t .Lang "p.nav.newc")) 1}} — {{t .Lang "brand.staff"}}</title>
   {{template "head" .}}
 </head>
 <body>
