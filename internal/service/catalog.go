@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"spa-booking/internal/domain"
+	"spa-booking/internal/i18n"
 	"spa-booking/internal/repo"
 
 	"github.com/google/uuid"
@@ -146,13 +147,13 @@ func ResolveServiceImage(svc domain.Service) string {
 	return KeywordServiceImage(svc.Name)
 }
 
-// SummarizeServiceHours renders weekly windows compactly, e.g.
-// "Mon–Fri 15:00–20:00 · Sat 09:00–12:00 · closed Sun".
-func SummarizeServiceHours(hours []domain.ServiceHours) string {
+// SummarizeServiceHours renders weekly windows compactly in the request
+// language, e.g. "Mon–Fri 15:00–20:00 · Sat 09:00–12:00 · closed other days".
+func SummarizeServiceHours(hours []domain.ServiceHours, lang string) string {
 	if len(hours) == 0 {
-		return "All day, every day"
+		return i18n.T(lang, "hours.all")
 	}
-	short := []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+	short := func(d int) string { return i18n.WeekdayShort(lang, time.Weekday(d)) }
 	byDay := map[int]domain.ServiceHours{}
 	for _, h := range hours {
 		byDay[h.Weekday] = h
@@ -177,14 +178,14 @@ func SummarizeServiceHours(hours []domain.ServiceHours) string {
 	}
 	parts := make([]string, 0, len(spans)+1)
 	for _, sp := range spans {
-		label := short[sp.days[0]]
+		label := short(sp.days[0])
 		if len(sp.days) > 1 {
-			label += "–" + short[sp.days[len(sp.days)-1]]
+			label += "–" + short(sp.days[len(sp.days)-1])
 		}
 		parts = append(parts, label+" "+sp.window)
 	}
 	if len(byDay) < 7 {
-		parts = append(parts, "closed other days")
+		parts = append(parts, i18n.T(lang, "hours.closed"))
 	}
 	return strings.Join(parts, " · ")
 }

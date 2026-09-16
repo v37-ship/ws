@@ -492,7 +492,7 @@ func (s *Server) ServicesPage(w http.ResponseWriter, r *http.Request) {
 		for _, svc := range g.Services {
 			if _, ok := summaries[svc.ID.String()]; !ok {
 				hours, _ := s.catalog.ListServiceHours(r.Context(), svc.ID)
-				summaries[svc.ID.String()] = service.SummarizeServiceHours(hours)
+				summaries[svc.ID.String()] = service.SummarizeServiceHours(hours, i18n.Resolve(r))
 			}
 		}
 	}
@@ -1148,7 +1148,7 @@ func (s *Server) PortalServices(w http.ResponseWriter, r *http.Request) {
 	summaries := make(map[string]string, len(all))
 	for _, svc := range all {
 		hours, _ := s.catalog.ListServiceHours(r.Context(), svc.ID)
-		summaries[svc.ID.String()] = service.SummarizeServiceHours(hours)
+		summaries[svc.ID.String()] = service.SummarizeServiceHours(hours, i18n.Resolve(r))
 	}
 	s.render(w, r, "portal_services.html", pageData{
 		"Locations": locs,
