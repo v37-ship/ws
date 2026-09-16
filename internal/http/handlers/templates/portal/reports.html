@@ -14,10 +14,6 @@
         <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "r.title"}} · {{.Month}}</h1>
         <p class="muted">{{t .Lang "r.sub"}}</p>
       </div>
-      <div class="no-print" style="display:flex; gap:0.5rem;">
-        <a class="btn secondary on-light" href="/portal/reports.csv?month={{.Month}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.csv"}}</a>
-        <button class="btn" type="button" onclick="window.print()">{{t .Lang "r.print"}}</button>
-      </div>
     </div>
 
     {{template "portal_nav" dict "Active" "reports" "User" .User "Lang" $.Lang}}
@@ -56,6 +52,8 @@
         </select>
       </label>
       <button class="btn" type="submit">{{t .Lang "r.go"}}</button>
+      <a class="btn secondary on-light" href="/portal/reports.csv?month={{.Month}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.csv"}}</a>
+      <button class="btn secondary on-light" type="button" onclick="window.print()">{{t .Lang "r.print"}}</button>
     </form>
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
