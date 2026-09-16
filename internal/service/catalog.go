@@ -270,6 +270,19 @@ func (s *CatalogService) DeleteStaff(ctx context.Context, staffID uuid.UUID) err
 	return s.catalog.DeleteStaff(ctx, staffID)
 }
 
+// DeleteService removes a service only when no booking history references
+// it; otherwise it refuses so CS pauses the service instead.
+func (s *CatalogService) DeleteService(ctx context.Context, serviceID uuid.UUID) error {
+	n, err := s.catalog.ServiceBookingCount(ctx, serviceID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: service has booking history — pause instead of removing", ErrValidation)
+	}
+	return s.catalog.DeleteService(ctx, serviceID)
+}
+
 func (s *CatalogService) ListStaffTimeOff(ctx context.Context, staffID uuid.UUID) ([]domain.StaffTimeOff, error) {
 	return s.catalog.ListStaffTimeOff(ctx, staffID)
 }

@@ -432,3 +432,18 @@ func (r *CatalogRepo) DeleteStaff(ctx context.Context, staffID uuid.UUID) error 
 	_, err := r.pool.Exec(ctx, `DELETE FROM staff WHERE id=$1`, staffID)
 	return err
 }
+
+// ServiceBookingCount reports how many bookings reference a service.
+// Bookings use ON DELETE RESTRICT, so history must be absent for removal.
+func (r *CatalogRepo) ServiceBookingCount(ctx context.Context, serviceID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM bookings WHERE service_id=$1`, serviceID).Scan(&n)
+	return n, err
+}
+
+// DeleteService removes a service; staff mapping and hours rows cascade.
+// Fails on RESTRICT when booking history exists.
+func (r *CatalogRepo) DeleteService(ctx context.Context, serviceID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM services WHERE id=$1`, serviceID)
+	return err
+}

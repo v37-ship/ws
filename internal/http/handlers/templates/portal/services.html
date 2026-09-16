@@ -99,6 +99,11 @@
                       {{if .Active}}{{t $.Lang "p.sv.ps"}}{{else}}{{t $.Lang "p.sv.en"}}{{end}}
                     </button>
                   </form>
+                  <form method="post" action="/portal/services/{{.ID}}/delete"
+                    hx-post="/portal/services/{{.ID}}/delete" hx-swap="none" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="{{printf (t $.Lang "p.sv.cf") .Name}}" hx-disabled-elt="this">{{t $.Lang "p.sv.rm"}}</button>
+                  </form>
                 </div>
               </td>
             </tr>

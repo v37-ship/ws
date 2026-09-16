@@ -1148,6 +1148,35 @@ func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/portal/services", http.StatusSeeOther)
 }
 
+func (s *Server) PortalDeleteService(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.catalog.DeleteService(r.Context(), id); err != nil {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", err.Error())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		http.Redirect(w, r, "/portal/services?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Service removed")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/portal/services?toast="+url.QueryEscape("Service removed")+"&kind=success", http.StatusSeeOther)
+}
+
 func (s *Server) PortalToggleStaff(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
 		http.Error(w, "invalid", http.StatusBadRequest)

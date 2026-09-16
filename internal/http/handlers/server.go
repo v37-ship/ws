@@ -499,6 +499,7 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Get("/services/{id}/edit", s.PortalEditServiceForm)
 		pr.Post("/services/{id}/edit", s.PortalUpdateService)
 		pr.Post("/services/{id}/toggle", s.PortalToggleService)
+		pr.Post("/services/{id}/delete", s.PortalDeleteService)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})
 
