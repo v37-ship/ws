@@ -67,7 +67,7 @@ services:
       CONTACT_WHATSAPP: "628211347294"
       CONTACT_EMAIL: halo@wangga.biz.id
       CONTACT_ADDRESS: "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"
-      CONTACT_HOURS: "Everyday 11:00-20:00 WIB"
+      CONTACT_HOURS: "Setiap Hari 11:00-20:00 WIB"
       CONTACT_MAPS_URL: "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"
       ANALYTICS_URL: "${ANALYTICS_URL:-}"
       ANALYTICS_SITE_ID: "${ANALYTICS_SITE_ID:-}"
