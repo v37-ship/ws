@@ -207,6 +207,10 @@ func (s *AuthService) ListCustomers(ctx context.Context, query string) ([]domain
 	return s.users.ListCustomers(ctx, query)
 }
 
+func (s *AuthService) SearchCustomers(ctx context.Context, query string) ([]domain.User, error) {
+	return s.users.SearchCustomers(ctx, query, 20)
+}
+
 func (s *AuthService) ListCS(ctx context.Context) ([]domain.User, error) {
 	return s.users.ListByRole(ctx, domain.RoleCS)
 }

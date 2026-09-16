@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -145,6 +146,41 @@ func (r *UserRepo) ListCustomers(ctx context.Context, q string) ([]domain.User, 
 		FROM users
 		WHERE role='customer' AND (lower(email) LIKE $1 OR lower(full_name) LIKE $1 OR phone LIKE $1 OR lower(baby_name) LIKE $1)
 		ORDER BY full_name`
+	rows, err := r.pool.Query(ctx, sql, like)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(
+			&u.ID, &u.Email, &u.PasswordHash, &u.FullName, &u.Phone, &u.Role,
+			&u.IsActive, &u.BabyName, &u.BabyDOB, &u.MomCondition, &u.MedicalNotes,
+			&u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// SearchCustomers finds customers by name/email/phone/baby for the booking
+// pickers. Queries shorter than 2 chars return nothing; results are capped.
+func (r *UserRepo) SearchCustomers(ctx context.Context, q string, limit int) ([]domain.User, error) {
+	q = strings.TrimSpace(q)
+	if len([]rune(q)) < 2 {
+		return nil, nil
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	like := "%" + strings.ToLower(q) + "%"
+	sql := `SELECT id, email, password_hash, full_name, phone, role, is_active, baby_name, baby_dob, mom_condition, medical_notes, created_at, updated_at
+		FROM users
+		WHERE role='customer' AND (lower(email) LIKE $1 OR lower(full_name) LIKE $1 OR phone LIKE $1 OR lower(baby_name) LIKE $1)
+		ORDER BY full_name LIMIT ` + fmt.Sprintf("%d", limit)
 	rows, err := r.pool.Query(ctx, sql, like)
 	if err != nil {
 		return nil, err

@@ -22,20 +22,31 @@
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
     <form class="panel stack" method="post" action="/portal/bookings/new" id="staff-book-form"
-      x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', method:'cash', place:'onsite', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }}">
+      x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', method:'cash', place:'onsite', cust:'', custLabel:'', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }, pickCustomer(id, label){this.cust=id; this.custLabel=label; document.getElementById('customer_id').value=id; var c=document.getElementById('cust-chip'); if(c) c.remove(); document.getElementById('cust-results').innerHTML=''; }, clearCustomer(){this.cust=''; this.custLabel=''; document.getElementById('customer_id').value=''; var c=document.getElementById('cust-chip'); if(c) c.remove(); document.getElementById('cust-results').innerHTML=''; document.getElementById('cust_q').value=''; document.getElementById('cust_q').focus(); }}"
+      x-init="cust = document.getElementById('customer_id').value">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
 
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
-        <label>{{t .Lang "p.nb.cust"}}
-          <select name="customer_id" required autocomplete="off">
-            <option value="">{{t .Lang "p.nb.selc"}}</option>
-            {{range .Customers}}
-              <option value="{{.ID}}" {{if eq $.CustomerID .ID.String}}selected{{end}}>
-                {{.FullName}} ({{.Phone}}) {{if .BabyName}}— 👶 {{.BabyName}}{{end}}
-              </option>
-            {{end}}
-          </select>
-        </label>
+        <div>
+          <label>{{t .Lang "p.nb.cust"}}
+            <input type="search" name="cust_q" id="cust_q" autocomplete="off" placeholder="{{t .Lang "p.nb.find_ph"}}"
+              hx-get="/portal/customers/search" hx-target="#cust-results" hx-swap="innerHTML"
+              hx-trigger="keyup changed delay:300ms, search" hx-indicator="#cust-ind">
+          </label>
+          <span id="cust-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "p.nb.find"}}</span></span>
+          <div id="cust-results" aria-live="polite"></div>
+          <input type="hidden" name="customer_id" id="customer_id" value="{{.CustomerID}}" required>
+          {{if .PrefillCustomer}}
+          <div id="cust-chip" class="pick-card" style="margin-top:0.5rem;">
+            <span class="pick-name">{{.PrefillCustomer.FullName}} ({{.PrefillCustomer.Phone}})</span>
+            <button type="button" class="btn secondary on-light btn-sm" @click="clearCustomer()">{{t .Lang "p.nb.clear"}}</button>
+          </div>
+          {{end}}
+          <div x-show="custLabel" style="display:none; margin-top:0.5rem;" class="pick-card">
+            <span class="pick-name" x-text="custLabel"></span>
+            <button type="button" class="btn secondary on-light btn-sm" @click="clearCustomer()">{{t .Lang "p.nb.clear"}}</button>
+          </div>
+        </div>
 
         <label>{{t .Lang "p.nb.src"}}
           <select name="source">
@@ -129,7 +140,7 @@
         <textarea name="notes" rows="2" placeholder="{{t .Lang "p.nb.nph"}}">{{.Notes}}</textarea>
       </label>
 
-      <button class="btn" type="submit" style="align-self:flex-start;" :disabled="!start">{{t .Lang "p.nb.go"}}</button>
+      <button class="btn" type="submit" style="align-self:flex-start;" :disabled="!start || !cust">{{t .Lang "p.nb.go"}}</button>
     </form>
   </main>
   </div>

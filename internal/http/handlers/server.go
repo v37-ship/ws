@@ -486,6 +486,7 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Get("/reports.csv", s.PortalReportsCSV)
 
 		pr.Get("/customers", s.PortalCustomers)
+		pr.Get("/customers/search", s.PortalCustomerSearch)
 		pr.Get("/customers/new", s.PortalNewCustomerForm)
 		pr.Post("/customers/new", s.PortalCreateCustomer)
 		pr.Get("/customers/{id}", s.PortalCustomerDetail)

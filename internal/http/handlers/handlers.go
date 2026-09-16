@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -562,18 +563,41 @@ func (s *Server) PortalNewBookingForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load locations", http.StatusInternalServerError)
 		return
 	}
-	customers, err := s.auth.ListCustomers(r.Context(), "")
-	if err != nil {
-		http.Error(w, "failed to load customers", http.StatusInternalServerError)
-		return
-	}
 	customerID := r.URL.Query().Get("customer_id")
 	today := time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02")
 	s.render(w, r, "portal_booking_new.html", pageData{
-		"Locations":  locs,
-		"Customers":  customers,
-		"CustomerID": customerID,
-		"Date":       today,
+		"Locations":       locs,
+		"CustomerID":      customerID,
+		"PrefillCustomer": s.prefillCustomer(r.Context(), customerID),
+		"Date":            today,
+	})
+}
+
+// prefillCustomer resolves a customer id for the booking picker chip.
+// Returns nil when missing, invalid, or not a customer.
+func (s *Server) prefillCustomer(ctx context.Context, idStr string) *domain.User {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil
+	}
+	cust, err := s.auth.GetUser(ctx, id)
+	if err != nil || cust.Role != domain.RoleCustomer {
+		return nil
+	}
+	return cust
+}
+
+// PortalCustomerSearch serves the booking picker live-search results.
+func (s *Server) PortalCustomerSearch(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	list, err := s.auth.SearchCustomers(r.Context(), q)
+	if err != nil {
+		http.Error(w, "search failed", http.StatusInternalServerError)
+		return
+	}
+	s.renderPartial(w, r, "customer_search_rows.html", pageData{
+		"Customers": list,
+		"Query":     q,
 	})
 }
 
@@ -608,11 +632,12 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 		startAt, err = time.ParseInLocation("2006-01-02T15:04", startAtStr, loc)
 		if err != nil {
 			locs, _ := s.catalog.ListLocations(r.Context(), true)
-			customers, _ := s.auth.ListCustomers(r.Context(), "")
 			s.render(w, r, "portal_booking_new.html", pageData{
-				"Locations": locs, "Customers": customers, "Error": "Please select an available time slot",
-				"CustomerID": r.FormValue("customer_id"), "LocationID": r.FormValue("location_id"),
-				"Date": r.FormValue("date"), "Notes": notes,
+				"Locations": locs, "Error": "Please select an available time slot",
+				"CustomerID":      r.FormValue("customer_id"),
+				"PrefillCustomer": s.prefillCustomer(r.Context(), r.FormValue("customer_id")),
+				"LocationID":      r.FormValue("location_id"),
+				"Date":            r.FormValue("date"), "Notes": notes,
 			})
 			return
 		}
@@ -625,11 +650,12 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		locs, _ := s.catalog.ListLocations(r.Context(), true)
-		customers, _ := s.auth.ListCustomers(r.Context(), "")
 		s.render(w, r, "portal_booking_new.html", pageData{
-			"Locations": locs, "Customers": customers, "Error": err.Error(),
-			"CustomerID": r.FormValue("customer_id"), "LocationID": r.FormValue("location_id"),
-			"Date": r.FormValue("date"), "Notes": notes,
+			"Locations": locs, "Error": err.Error(),
+			"CustomerID":      r.FormValue("customer_id"),
+			"PrefillCustomer": s.prefillCustomer(r.Context(), r.FormValue("customer_id")),
+			"LocationID":      r.FormValue("location_id"),
+			"Date":            r.FormValue("date"), "Notes": notes,
 		})
 		return
 	}

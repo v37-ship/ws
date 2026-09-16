@@ -1,0 +1,16 @@
+{{define "customer_search_rows.html"}}
+{{if .Query}}
+<div class="pick-grid" role="listbox" aria-label="{{t .Lang "p.nb.cust"}}">
+  {{range .Customers}}
+  <button type="button" class="pick-card" role="option" aria-selected="false"
+    data-id="{{.ID}}" data-label="{{.FullName}} ({{.Phone}})"
+    @click="pickCustomer($el.dataset.id, $el.dataset.label)">
+    <span class="pick-name">{{.FullName}}</span>
+    <span class="pill-row"><span class="pill">{{.Phone}}</span>{{if .BabyName}}<span class="pill mint">👶 {{.BabyName}}</span>{{end}}</span>
+  </button>
+  {{else}}
+  <p class="muted">{{t .Lang "p.nb.nomatch"}}</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

@@ -183,6 +183,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				"services_partial.html", "staff_partial.html", "slots_partial.html",
 				"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 				"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
+				"customer_search_rows.html",
 			} {
 				var buf bytes.Buffer
 				if err := s.tpl.ExecuteTemplate(&buf, name, pageData{"Lang": lang}); err != nil {
