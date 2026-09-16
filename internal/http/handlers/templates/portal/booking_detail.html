@@ -93,31 +93,6 @@
             </div>
           </form>
         </div>
-
-        {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
-        <!-- Admin: correct status (backward moves allowed, logged) -->
-        <div class="panel stack">
-          <h2>{{t .Lang "p.det.fix"}}</h2>
-          <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
-            hx-post="/portal/bookings/{{.Booking.ID}}/status" hx-swap="none">
-            <input type="hidden" name="csrf" value="{{.CSRF}}">
-            <label>{{t .Lang "p.det.note"}}
-              <input type="text" name="note" required placeholder="{{t .Lang "p.det.nph"}}" autocomplete="off">
-            </label>
-            <label>{{t .Lang "p.det.st"}}
-              <select name="status" required>
-                {{range $.AllStatuses}}
-                  <option value="{{.}}" {{if eq $.Booking.Status .}}selected{{end}}>{{.Display}}</option>
-                {{end}}
-              </select>
-            </label>
-            <button type="submit" class="btn secondary on-light" hx-confirm="{{t .Lang "p.det.cfc"}}" hx-disabled-elt="this">
-              {{t .Lang "p.det.save"}}
-            </button>
-          </form>
-        </div>
-        {{end}}{{end}}
-
         <!-- Refund Section -->
         {{if or (gt .Refundable 0) (.Refunds)}}
         <div class="panel stack">
@@ -158,12 +133,15 @@
           {{end}}
         </div>
         {{end}}
+      </div>
+    </div>
 
-        <!-- Reschedule Section -->
-        <div class="panel stack">
-          <h2>{{t .Lang "p.det.rs"}}</h2>
-          <form method="post" action="/portal/bookings/{{.Booking.ID}}/reschedule" class="stack">
-            <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <!-- Reschedule (full width, inline fields) -->
+    <div class="panel stack">
+      <h2>{{t .Lang "p.det.rs"}}</h2>
+      <form method="post" action="/portal/bookings/{{.Booking.ID}}/reschedule">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem; align-items:end;">
             <label>{{t .Lang "p.det.rea"}}
               <select name="staff_id" required>
                 {{range .StaffList}}
@@ -183,11 +161,32 @@
             <button type="submit" class="btn secondary on-light" onclick="return confirm('{{t .Lang "p.det.cf"}}')">
               {{t .Lang "p.det.go"}}
             </button>
+        </div>
+      </form>
+    </div>
+
+    {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+        <div class="panel stack">
+          <h2>{{t .Lang "p.det.fix"}}</h2>
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/status" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <label>{{t .Lang "p.det.note"}}
+              <input type="text" name="note" required placeholder="{{t .Lang "p.det.nph"}}" autocomplete="off">
+            </label>
+            <label>{{t .Lang "p.det.st"}}
+              <select name="status" required>
+                {{range $.AllStatuses}}
+                  <option value="{{.}}" {{if eq $.Booking.Status .}}selected{{end}}>{{.Display}}</option>
+                {{end}}
+              </select>
+            </label>
+            <button type="submit" class="btn secondary on-light" hx-confirm="{{t .Lang "p.det.cfc"}}" hx-disabled-elt="this">
+              {{t .Lang "p.det.save"}}
+            </button>
           </form>
         </div>
-
-        {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
-        <!-- Admin: correct booking details (service/reprice, place, notes) -->
         <div class="panel stack">
           <h2>{{t .Lang "p.det.corr"}}</h2>
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/correct" class="stack"
@@ -227,9 +226,8 @@
             </button>
           </form>
         </div>
-        {{end}}{{end}}
-      </div>
     </div>
+    {{end}}{{end}}
 
     <!-- Audit Log -->
     <div class="panel stack">
