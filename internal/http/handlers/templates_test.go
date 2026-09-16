@@ -204,6 +204,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, "portal-side") || !contains(out, "side-toggle") {
 					t.Errorf("portal_dashboard.html (%s): missing sidebar shell/toggle", lang)
 				}
+				if !contains(out, "drawer-bar") || !contains(out, "drawer-backdrop") || !contains(out, "__wanggaDrawerToggle") {
+					t.Errorf("portal_dashboard.html (%s): missing mobile drawer markup", lang)
+				}
 				want := map[string]string{"en": "Operations", "id": "Operasional"}[lang]
 				if !contains(out, want) {
 					t.Errorf("portal_dashboard.html (%s): missing sidebar group %q", lang, want)

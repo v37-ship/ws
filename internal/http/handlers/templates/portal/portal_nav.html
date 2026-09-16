@@ -4,11 +4,24 @@
 {{end}}
 
 {{define "portal_nav"}}
-<aside class="portal-side no-print">
+<div class="drawer-bar no-print">
+  <button type="button" class="drawer-open" aria-expanded="false" aria-controls="portal-tabs"
+    title="{{t .Lang "p.nav.menu"}}" aria-label="{{t .Lang "p.nav.menu"}}" onclick="return __wanggaDrawerToggle()">
+    <span aria-hidden="true">☰</span> {{t .Lang "p.nav.menu"}}
+  </button>
+</div>
+<aside class="portal-side no-print" id="portal-side">
+  <div class="drawer-head no-print">
+    <span class="drawer-title">{{t .Lang "p.nav.menu"}}</span>
+    <button type="button" class="side-toggle drawer-close" aria-expanded="true" aria-controls="portal-tabs"
+      title="{{t .Lang "p.nav.close"}}" aria-label="{{t .Lang "p.nav.close"}}" onclick="return __wanggaDrawerClose()">
+      <span aria-hidden="true">✕</span>
+    </button>
+  </div>
   <button id="side-toggle" type="button" class="side-toggle" aria-expanded="true" aria-controls="portal-tabs"
     data-t-collapse="{{t .Lang "p.nav.fold"}}" data-t-expand="{{t .Lang "p.nav.expand"}}"
     title="{{t .Lang "p.nav.fold"}}" onclick="return __wanggaSideToggle()">
-    <span id="side-toggle-icon" aria-hidden="true">⏪</span>
+    <span id="side-toggle-icon" aria-hidden="true">☰</span>
   </button>
   <nav class="portal-tabs" id="portal-tabs" aria-label="Staff menu">
     <div class="portal-group">
@@ -39,4 +52,5 @@
     {{end}}
   </nav>
 </aside>
+<div class="drawer-backdrop no-print" id="drawer-backdrop" aria-hidden="true" onclick="return __wanggaDrawerClose()"></div>
 {{end}}

@@ -66,8 +66,6 @@ window.__wanggaSide = {
     if (b) {
       var mini = v === "mini";
       b.setAttribute("aria-expanded", mini ? "false" : "true");
-      var ic = document.getElementById("side-toggle-icon");
-      if (ic) ic.textContent = mini ? "⏩" : "⏪";
       var tt = mini ? b.getAttribute("data-t-expand") : b.getAttribute("data-t-collapse");
       if (tt) b.title = tt;
     }
@@ -87,6 +85,32 @@ window.__wanggaSide = {
   } catch (e) {}
 })();
 function __wanggaSideToggle() { try { return window.__wanggaSide.toggle(); } catch (e) { return false; } }
+/* Mobile drawer: transient per page load (always starts closed). */
+window.__wanggaDrawer = {
+  open: function () {
+    document.documentElement.setAttribute("data-drawer", "open");
+    document.body.style.overflow = "hidden";
+    var b = document.querySelector(".drawer-open");
+    if (b) b.setAttribute("aria-expanded", "true");
+    return false;
+  },
+  close: function () {
+    document.documentElement.removeAttribute("data-drawer");
+    document.body.style.overflow = "";
+    var b = document.querySelector(".drawer-open");
+    if (b) b.setAttribute("aria-expanded", "false");
+    return false;
+  },
+  toggle: function () {
+    if (document.documentElement.getAttribute("data-drawer") === "open") return this.close();
+    return this.open();
+  }
+};
+function __wanggaDrawerToggle() { try { return window.__wanggaDrawer.toggle(); } catch (e) { return false; } }
+function __wanggaDrawerClose() { try { return window.__wanggaDrawer.close(); } catch (e) { return false; } }
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") { try { window.__wanggaDrawer.close(); } catch (err) {} }
+});
 </script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">
