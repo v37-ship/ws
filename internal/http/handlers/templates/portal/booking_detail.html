@@ -34,43 +34,20 @@
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
       <!-- Column 1: Booking & Customer Info -->
-      <div class="panel stack">
+      <div class="panel">
         <h2>{{t .Lang "p.det.info"}}</h2>
-        <div style="display:grid; gap:0.5rem;">
-          <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.cust"}}</span>
-            <div style="font-size:1.1rem; font-weight:700;">{{.Booking.CustomerName}}</div>
-            <div>📞 {{.Booking.CustomerPhone}}</div>
-            <div>✉️ {{.Booking.CustomerEmail}}</div>
-          </div>
-          <hr style="border:none; border-top:1px solid var(--line); margin:0.15rem 0;">
-          <div>
-            <div>👶 <strong>{{t .Lang "p.det.baby"}}</strong> {{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em>{{t .Lang "p.det.none"}}</em>{{end}}</div>
-            <div>🤰 <strong>{{t .Lang "p.det.momc"}}</strong> {{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}<em>{{t .Lang "p.det.std"}}</em>{{end}}</div>
-          </div>
-          <hr style="border:none; border-top:1px solid var(--line); margin:0.15rem 0;">
-          <div>
-            <div style="font-weight:700;">{{.Booking.ServiceName}}</div>
-            <div>📍 {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}</div>
-            {{if .Booking.VisitAddress}}<div>🏠 {{.Booking.VisitAddress}}</div>{{end}}
-            <div>👩‍⚕️ Assigned Bidan: <strong>{{.Booking.StaffName}}</strong></div>
-            <div>📅 Schedule: <strong>{{formatTime .Booking.StartAt "Mon, 02 Jan 2006 15:04"}} - {{formatTime .Booking.EndAt "15:04"}} WIB</strong></div>
-          </div>
-          <hr style="border:none; border-top:1px solid var(--line); margin:0.15rem 0;">
-          <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.pay"}}</span>
-            <div>{{t .Lang "p.det.amt"}} <strong>{{formatIDR .Booking.PriceIDR}}</strong></div>
-            <div>{{t .Lang "p.det.meth"}} <strong>{{.Booking.PaymentMethod}}</strong></div>
-            <div>{{t .Lang "p.det.st"}} <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span></div>
-            <div>{{t .Lang "p.det.src"}} <span class="muted">{{.Booking.Source}}</span></div>
-          </div>
+        <dl class="review">
+          <div><dt>{{t .Lang "p.det.cust"}}</dt><dd>{{.Booking.CustomerName}}<br><small class="muted" style="font-weight:400;">📞 {{.Booking.CustomerPhone}}<br>✉️ {{.Booking.CustomerEmail}}</small></dd></div>
+          <div><dt>👶 {{t .Lang "p.det.baby"}}</dt><dd>{{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em class="muted">{{t .Lang "p.det.none"}}</em>{{end}}</dd></div>
+          <div><dt>🤰 {{t .Lang "p.det.momc"}}</dt><dd><small>{{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}{{t .Lang "p.det.std"}}{{end}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">📍 {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · 🏠 {{.Booking.VisitAddress}}{{end}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.staff"}}</dt><dd>{{.Booking.StaffName}}</dd></div>
+          <div><dt>{{t .Lang "book.when"}}</dt><dd><small>{{formatTime .Booking.StartAt "Mon, 02 Jan 2006 15:04"}} - {{formatTime .Booking.EndAt "15:04"}} WIB</small></dd></div>
+          <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}<br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
           {{if .Booking.Notes}}
-          <div>
-            <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.notes"}}</span>
-            <p style="margin:0.2rem 0; background:var(--bg-2); padding:0.4rem 0.6rem; border-radius:8px;">{{.Booking.Notes}}</p>
-          </div>
+          <div><dt>{{t .Lang "p.det.notes"}}</dt><dd><small>{{.Booking.Notes}}</small></dd></div>
           {{end}}
-        </div>
+        </dl>
       </div>
 
       <!-- Column 2: Status Transitions & Actions -->
