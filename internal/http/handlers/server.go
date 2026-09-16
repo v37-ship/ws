@@ -503,6 +503,10 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Get("/customers/new", s.PortalNewCustomerForm)
 		pr.Post("/customers/new", s.PortalCreateCustomer)
 		pr.Get("/customers/{id}", s.PortalCustomerDetail)
+		pr.Get("/customers/{id}/edit", s.PortalEditCustomerForm)
+		pr.Post("/customers/{id}/edit", s.PortalUpdateCustomer)
+		pr.Post("/customers/{id}/delete", s.PortalDeleteCustomer)
+		pr.Post("/customers/{id}/toggle-active", s.PortalToggleCustomerActive)
 
 		pr.Get("/schedule", s.PortalSchedule)
 		pr.Post("/schedule/time-off", s.PortalCreateTimeOff)

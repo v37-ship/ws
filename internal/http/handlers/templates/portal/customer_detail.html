@@ -11,16 +11,30 @@
   <div class="portal-shell">
     {{template "portal_nav" dict "Active" "customers" "User" .User "Lang" $.Lang}}
   <main class="stack">
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
       <div>
         <a href="/portal/customers" class="muted">&larr; {{t .Lang "p.cd.back"}}</a>
-        <h1 class="page-title" style="margin:0.25rem 0;">{{.Customer.FullName}}</h1>
+        <h1 class="page-title" style="margin:0.25rem 0;">{{.Customer.FullName}} {{if not .Customer.IsActive}}<span class="badge cancelled">{{t .Lang "p.cd.inact"}}</span>{{end}}</h1>
       </div>
-      <div style="display:flex; gap:0.5rem;">
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
         <a href="/portal/bookings/new?customer_id={{.Customer.ID}}" class="btn">{{t .Lang "p.cd.book"}}</a>
         {{if .Customer.Phone}}
           <a href="https://wa.me/{{.Customer.Phone}}" target="_blank" class="btn-wa">{{t .Lang "p.cd.wa"}}</a>
         {{end}}
+        <a href="/portal/customers/{{.Customer.ID}}/edit" class="btn secondary on-light">{{t .Lang "p.cd.edit"}}</a>
+        {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
+          <a href="/admin/customers/{{.Customer.ID}}/reset-password" class="btn secondary on-light">{{t .Lang "p.cd.reset"}}</a>
+        {{end}}{{end}}
+        <form method="post" action="/portal/customers/{{.Customer.ID}}/toggle-active" hx-post="/portal/customers/{{.Customer.ID}}/toggle-active" hx-swap="none" style="display:inline;">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button type="submit" class="btn secondary on-light btn-sm" hx-confirm="{{t .Lang "p.cd.cftog"}}" hx-disabled-elt="this">{{if .Customer.IsActive}}{{t .Lang "p.cd.deact"}}{{else}}{{t .Lang "p.cd.react"}}{{end}}</button>
+        </form>
+        <form method="post" action="/portal/customers/{{.Customer.ID}}/delete" hx-post="/portal/customers/{{.Customer.ID}}/delete" hx-swap="none" style="display:inline;">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="{{printf "%s" (t .Lang "p.cd.cfdel")}}" hx-disabled-elt="this">{{t .Lang "p.cd.del"}}</button>
+        </form>
       </div>
     </div>
 

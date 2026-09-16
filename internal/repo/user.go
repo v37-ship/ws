@@ -179,7 +179,7 @@ func (r *UserRepo) SearchCustomers(ctx context.Context, q string, limit int) ([]
 	like := "%" + strings.ToLower(q) + "%"
 	sql := `SELECT id, email, password_hash, full_name, phone, role, is_active, baby_name, baby_dob, mom_condition, medical_notes, created_at, updated_at
 		FROM users
-		WHERE role='customer' AND (lower(email) LIKE $1 OR lower(full_name) LIKE $1 OR phone LIKE $1 OR lower(baby_name) LIKE $1)
+		WHERE role='customer' AND is_active AND (lower(email) LIKE $1 OR lower(full_name) LIKE $1 OR phone LIKE $1 OR lower(baby_name) LIKE $1)
 		ORDER BY full_name LIMIT ` + fmt.Sprintf("%d", limit)
 	rows, err := r.pool.Query(ctx, sql, like)
 	if err != nil {
@@ -212,6 +212,21 @@ func (r *UserRepo) Update(ctx context.Context, u *domain.User) error {
 
 func (r *UserRepo) SetActive(ctx context.Context, id uuid.UUID, active bool) error {
 	_, err := r.pool.Exec(ctx, `UPDATE users SET is_active=$2, updated_at=now() WHERE id=$1`, id, active)
+	return err
+}
+
+// CustomerBookingCount reports how many bookings reference a customer.
+// Bookings use ON DELETE RESTRICT, so history must be absent for removal.
+func (r *UserRepo) CustomerBookingCount(ctx context.Context, customerID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM bookings WHERE customer_id=$1`, customerID).Scan(&n)
+	return n, err
+}
+
+// DeleteCustomer removes a customer row. Fails on RESTRICT when booking
+// history exists; callers check CustomerBookingCount first for a clean error.
+func (r *UserRepo) DeleteCustomer(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM users WHERE id=$1 AND role='customer'`, id)
 	return err
 }
 

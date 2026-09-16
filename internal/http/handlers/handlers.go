@@ -887,7 +887,125 @@ func (s *Server) PortalCustomerDetail(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "portal_customer_detail.html", pageData{
 		"Customer": cust,
 		"Bookings": bookings,
+		"Success":  r.URL.Query().Get("success"),
+		"Error":    r.URL.Query().Get("error"),
+		"Toast":    r.URL.Query().Get("toast"),
+		"Kind":     r.URL.Query().Get("kind"),
 	})
+}
+
+func (s *Server) PortalEditCustomerForm(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cust, err := s.auth.GetUser(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	dob := ""
+	if cust.BabyDOB != nil {
+		dob = cust.BabyDOB.Format("2006-01-02")
+	}
+	s.render(w, r, "portal_customer_edit.html", pageData{
+		"Customer": cust,
+		"FullName": cust.FullName, "Phone": cust.Phone, "Email": cust.Email,
+		"BabyName": cust.BabyName, "BabyDOB": dob,
+		"MomCondition": cust.MomCondition, "MedicalNotes": cust.MedicalNotes,
+	})
+}
+
+func (s *Server) PortalUpdateCustomer(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var babyDOB *time.Time
+	if dobStr := r.FormValue("baby_dob"); dobStr != "" {
+		if t, err := time.Parse("2006-01-02", dobStr); err == nil {
+			babyDOB = &t
+		}
+	}
+	form := pageData{
+		"FullName": r.FormValue("full_name"), "Phone": r.FormValue("phone"),
+		"Email": r.FormValue("email"), "BabyName": r.FormValue("baby_name"),
+		"BabyDOB": r.FormValue("baby_dob"), "MomCondition": r.FormValue("mom_condition"),
+		"MedicalNotes": r.FormValue("medical_notes"),
+	}
+	cust, err := s.auth.UpdateCustomer(r.Context(), id,
+		r.FormValue("full_name"), r.FormValue("phone"), r.FormValue("email"),
+		r.FormValue("baby_name"), babyDOB,
+		r.FormValue("mom_condition"), r.FormValue("medical_notes"))
+	if err != nil {
+		form["Error"] = err.Error()
+		if existing, gerr := s.auth.GetUser(r.Context(), id); gerr == nil {
+			form["Customer"] = existing
+		}
+		s.render(w, r, "portal_customer_edit.html", form)
+		return
+	}
+	http.Redirect(w, r, "/portal/customers/"+cust.ID.String()+"?toast="+url.QueryEscape("Customer updated")+"&kind=success", http.StatusSeeOther)
+}
+
+func (s *Server) PortalDeleteCustomer(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.auth.DeleteCustomer(r.Context(), id); err != nil {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", err.Error())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/portal/customers/%s?error=%s", id, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Customer removed")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/portal/customers?toast="+url.QueryEscape("Customer removed")+"&kind=success", http.StatusSeeOther)
+}
+
+func (s *Server) PortalToggleCustomerActive(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cust, err := s.auth.GetUser(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	_ = s.auth.SetUserActive(r.Context(), id, !cust.IsActive)
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Customer status updated")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/customers/%s?toast=%s&kind=success", id, url.QueryEscape("Customer status updated")), http.StatusSeeOther)
 }
 
 func (s *Server) PortalSchedule(w http.ResponseWriter, r *http.Request) {

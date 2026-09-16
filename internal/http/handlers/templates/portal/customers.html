@@ -48,7 +48,7 @@
           {{range .Customers}}
             <tr>
               <td>
-                <a href="/portal/customers/{{.ID}}" style="font-weight:700;">{{.FullName}}</a><br>
+                <a href="/portal/customers/{{.ID}}" style="font-weight:700;">{{.FullName}}</a>{{if not .IsActive}} <span class="badge cancelled">{{t $.Lang "p.cd.inact"}}</span>{{end}}<br>
                 <small class="muted">{{.Email}}</small>
               </td>
               <td>

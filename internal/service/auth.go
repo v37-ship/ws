@@ -211,6 +211,69 @@ func (s *AuthService) SearchCustomers(ctx context.Context, query string) ([]doma
 	return s.users.SearchCustomers(ctx, query, 20)
 }
 
+// UpdateCustomer validates and saves editable customer profile fields.
+// Role, activity status, and password are never touched here.
+func (s *AuthService) UpdateCustomer(
+	ctx context.Context, id uuid.UUID,
+	fullName, phone, email, babyName string,
+	babyDOB *time.Time,
+	momCondition, medicalNotes string,
+) (*domain.User, error) {
+	cust, err := s.users.ByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if cust.Role != domain.RoleCustomer {
+		return nil, fmt.Errorf("%w: not a customer account", ErrValidation)
+	}
+	fullName = strings.TrimSpace(fullName)
+	phone = strings.TrimSpace(phone)
+	email = strings.TrimSpace(strings.ToLower(email))
+	if fullName == "" || phone == "" {
+		return nil, fmt.Errorf("%w: full name and phone number required", ErrValidation)
+	}
+	if email == "" {
+		email = cust.Email // keep existing identity; never regenerate silently
+	}
+	if existing, err := s.users.ByEmail(ctx, email); err == nil && existing != nil && existing.ID != id {
+		return nil, fmt.Errorf("%w: user with email %s already exists", ErrValidation, email)
+	}
+	if existing, err := s.users.ByPhone(ctx, phone); err == nil && existing != nil && existing.ID != id {
+		return nil, fmt.Errorf("%w: phone %s already registered as %s", ErrValidation, phone, existing.FullName)
+	}
+	cust.Email = email
+	cust.FullName = fullName
+	cust.Phone = phone
+	cust.BabyName = strings.TrimSpace(babyName)
+	cust.BabyDOB = babyDOB
+	cust.MomCondition = strings.TrimSpace(momCondition)
+	cust.MedicalNotes = strings.TrimSpace(medicalNotes)
+	if err := s.users.Update(ctx, cust); err != nil {
+		return nil, err
+	}
+	return cust, nil
+}
+
+// DeleteCustomer removes a customer only when no booking history references
+// them; otherwise it refuses so staff deactivates the profile instead.
+func (s *AuthService) DeleteCustomer(ctx context.Context, id uuid.UUID) error {
+	cust, err := s.users.ByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if cust.Role != domain.RoleCustomer {
+		return fmt.Errorf("%w: not a customer account", ErrValidation)
+	}
+	n, err := s.users.CustomerBookingCount(ctx, id)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: customer has booking history — deactivate instead of removing", ErrValidation)
+	}
+	return s.users.DeleteCustomer(ctx, id)
+}
+
 func (s *AuthService) ListCS(ctx context.Context) ([]domain.User, error) {
 	return s.users.ListByRole(ctx, domain.RoleCS)
 }

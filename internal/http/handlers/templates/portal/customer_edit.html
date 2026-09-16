@@ -1,0 +1,78 @@
+{{define "portal_customer_edit.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.ce.title"}} — Staff Portal</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "customers" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <div>
+      <a href="/portal/customers/{{.Customer.ID}}" class="muted">&larr; {{t .Lang "p.ce.back"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{t .Lang "p.ce.title"}}</h1>
+    </div>
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <form class="panel stack" method="post" action="/portal/customers/{{.Customer.ID}}/edit">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+      <h2>{{t .Lang "p.cn.hm"}}</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem;">
+        <label>{{t .Lang "p.cn.name"}}
+          <input type="text" name="full_name" required value="{{.FullName}}" placeholder="{{t .Lang "p.cn.nph"}}">
+        </label>
+
+        <label>{{t .Lang "p.cn.ph"}}
+          <input type="tel" name="phone" required value="{{.Phone}}" placeholder="{{t .Lang "p.cn.pph"}}">
+        </label>
+
+        <label>{{t .Lang "p.cn.em"}}
+          <input type="email" name="email" value="{{.Email}}" placeholder="{{t .Lang "p.cn.eph"}}">
+        </label>
+      </div>
+
+      <hr style="border:none; border-top:1px solid var(--line); margin:1rem 0;">
+
+      <h2>{{t .Lang "p.cn.hb"}}</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem;">
+        <label>{{t .Lang "p.cn.bn"}}
+          <input type="text" name="baby_name" value="{{.BabyName}}" placeholder="{{t .Lang "p.cn.bph"}}">
+        </label>
+
+        <label>{{t .Lang "p.cn.dob"}}
+          <input type="date" name="baby_dob" value="{{.BabyDOB}}">
+        </label>
+
+        <label>{{t .Lang "p.cn.mc"}}
+          <select name="mom_condition">
+            <option value="">{{t .Lang "p.cn.gen"}}</option>
+            <option value="Hamil Trimester 1" {{if eq .MomCondition "Hamil Trimester 1"}}selected{{end}}>Hamil Trimester 1 (0-12 minggu)</option>
+            <option value="Hamil Trimester 2" {{if eq .MomCondition "Hamil Trimester 2"}}selected{{end}}>Hamil Trimester 2 (13-26 minggu)</option>
+            <option value="Hamil Trimester 3" {{if eq .MomCondition "Hamil Trimester 3"}}selected{{end}}>Hamil Trimester 3 (27+ minggu)</option>
+            <option value="Pasca Melahirkan Normal" {{if eq .MomCondition "Pasca Melahirkan Normal"}}selected{{end}}>Pasca Melahirkan Normal</option>
+            <option value="Pasca Melahirkan Caesar (C-Section)" {{if eq .MomCondition "Pasca Melahirkan Caesar (C-Section)"}}selected{{end}}>Pasca Melahirkan Caesar (C-Section)</option>
+            <option value="Menyusui (Laktasi)" {{if eq .MomCondition "Menyusui (Laktasi)"}}selected{{end}}>Menyusui / Pijat Laktasi</option>
+          </select>
+        </label>
+      </div>
+
+      <label>{{t .Lang "p.cn.med"}}
+        <textarea name="medical_notes" rows="3" placeholder="{{t .Lang "p.cn.mph"}}">{{.MedicalNotes}}</textarea>
+      </label>
+
+      <div style="display:flex; gap:0.75rem; align-items:center;">
+        <button class="btn" type="submit">{{t .Lang "p.ce.save"}}</button>
+        <a href="/portal/customers/{{.Customer.ID}}" class="btn secondary on-light">{{t .Lang "p.cn.cx"}}</a>
+      </div>
+    </form>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

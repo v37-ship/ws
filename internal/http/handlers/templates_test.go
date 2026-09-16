@@ -37,7 +37,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
-		"portal_customer_detail.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
+		"portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
 		"portal_reports.html",
 	}
 	for _, name := range pages {
@@ -58,6 +58,8 @@ func TestTemplatesExecute(t *testing.T) {
 			data["CSUsers"] = []domain.User{}
 		case "portal_customer_detail.html":
 			data["Bookings"] = []domain.Booking{}
+		case "portal_customer_edit.html":
+			data["Customer"] = domain.User{}
 		case "portal_reports.html":
 			data["Summary"] = domain.ReportSummary{
 				StaffRows: []domain.StaffRow{{
@@ -128,7 +130,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 			"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
-			"portal_customer_new.html", "portal_customer_detail.html", "portal_schedule.html",
+			"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 			"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
 			"portal_service_edit.html", "portal_reports.html",
 		} {
@@ -149,6 +151,8 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["CSUsers"] = []domain.User{}
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
+			case "portal_customer_edit.html":
+				data["Customer"] = domain.User{}
 			case "portal_service_edit.html":
 				data["Service"] = domain.Service{}
 			case "admin_job_applications.html":

@@ -68,6 +68,13 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 	if st.LocationID != locationID {
 		return nil, nil, fmt.Errorf("%w: staff/location mismatch", ErrValidation)
 	}
+	customer, err := s.users.ByID(ctx, customerID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !customer.IsActive || customer.Role != domain.RoleCustomer {
+		return nil, nil, fmt.Errorf("%w: customer account is deactivated", ErrValidation)
+	}
 	endAt := startAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	holdExp := time.Now().Add(s.holdTTL)
 	b := &domain.Booking{
@@ -89,10 +96,6 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		if isExclusionViolation(err) {
 			return nil, nil, ErrConflict
 		}
-		return nil, nil, err
-	}
-	customer, err := s.users.ByID(ctx, customerID)
-	if err != nil {
 		return nil, nil, err
 	}
 	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
@@ -196,6 +199,13 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	if st.LocationID != req.LocationID {
 		return nil, nil, fmt.Errorf("%w: staff/location mismatch", ErrValidation)
 	}
+	customer, err := s.users.ByID(ctx, req.CustomerID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !customer.IsActive || customer.Role != domain.RoleCustomer {
+		return nil, nil, fmt.Errorf("%w: customer account is deactivated", ErrValidation)
+	}
 
 	endAt := req.StartAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	b := &domain.Booking{
@@ -241,10 +251,6 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 		_ = s.bookings.LogActivity(ctx, b.ID, &req.ActorID, "Booking created by CS (Cash Payment - Services)", req.Notes)
 	} else {
 		// QRIS: can pay booking fee or service
-		customer, err := s.users.ByID(ctx, req.CustomerID)
-		if err != nil {
-			return nil, nil, err
-		}
 		holdExp := time.Now().Add(s.holdTTL)
 		b.Status = domain.BookingPendingPayment
 		b.HoldExpiresAt = &holdExp
