@@ -384,8 +384,9 @@ input:focus, select:focus, textarea:focus {
 @media (min-width: 1024px) {
   .portal-shell { display: grid; grid-template-columns: var(--side-w, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
   /* Floating acrylic card: translucent theme-tinted glass over the page bg.
-     Static (scrolls with the page) by request. */
+     Explicitly static (scrolls with the page) by request. */
   .portal-side {
+    position: static; align-self: start;
     border-radius: 1.25rem; padding: 0.6rem 0.75rem 0.75rem;
     background: var(--card);
     background: color-mix(in srgb, var(--card) 68%, transparent);
