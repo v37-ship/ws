@@ -384,10 +384,9 @@ input:focus, select:focus, textarea:focus {
 @media (min-width: 1024px) {
   .portal-shell { display: grid; grid-template-columns: var(--side-w, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
   /* Floating acrylic card: translucent theme-tinted glass over the page bg.
-     Sticky: stays visible while the main content scrolls (Reddit-style),
-     collapses to the icon rail via the header hamburger. */
+     Sticky below the sticky header (exact offset refined by JS at load). */
   .portal-side {
-    position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto;
+    position: sticky; top: 6rem; max-height: calc(100vh - 7rem); overflow-y: auto;
     align-self: start;
     border-radius: 1.25rem; padding: 0.6rem 0.75rem 0.75rem;
     background: var(--card);

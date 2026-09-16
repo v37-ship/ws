@@ -85,27 +85,29 @@ window.__wanggaSide = {
   } catch (e) {}
 })();
 function __wanggaSideToggle() { try { return window.__wanggaSide.toggle(); } catch (e) { return false; } }
-/* Mobile drawer: transient per page load (always starts closed).
-   Opens *below* the sticky header so the ☰ stays visible and tappable. */
+/* Desktop sticky sidebar must clear the sticky header (variable height):
+   measure at load/resize, clear below desktop width (drawer has own rules). */
+function __wanggaSideOffset() {
+  try {
+    var side = document.getElementById("portal-side");
+    if (!side) return;
+    if (window.matchMedia("(min-width:1024px)").matches) {
+      var h = document.querySelector(".site-header");
+      side.style.top = ((h ? h.offsetHeight : 0) + 16) + "px";
+      side.style.maxHeight = "calc(100vh - " + ((h ? h.offsetHeight : 0) + 32) + "px)";
+    } else {
+      side.style.top = "";
+      side.style.maxHeight = "";
+    }
+  } catch (e) {}
+}
+document.addEventListener("DOMContentLoaded", __wanggaSideOffset);
+window.addEventListener("resize", __wanggaSideOffset);
+/* Mobile drawer: transient per page load (always starts closed). */
 window.__wanggaDrawer = {
-  offset: function () {
-    var h = document.querySelector(".site-header");
-    var top = h ? h.offsetHeight : 0;
-    var side = document.getElementById("portal-side");
-    if (side) side.style.top = top + "px";
-    var bg = document.getElementById("drawer-backdrop");
-    if (bg) bg.style.top = top + "px";
-  },
-  clear: function () {
-    var side = document.getElementById("portal-side");
-    if (side) side.style.top = "";
-    var bg = document.getElementById("drawer-backdrop");
-    if (bg) bg.style.top = "";
-  },
   open: function () {
     document.documentElement.setAttribute("data-drawer", "open");
     document.body.style.overflow = "hidden";
-    try { window.__wanggaDrawer.offset(); } catch (e) {}
     var b = document.querySelector(".nav-toggle");
     if (b) b.setAttribute("aria-expanded", "true");
     return false;
@@ -113,7 +115,6 @@ window.__wanggaDrawer = {
   close: function () {
     document.documentElement.removeAttribute("data-drawer");
     document.body.style.overflow = "";
-    try { window.__wanggaDrawer.clear(); } catch (e) {}
     var b = document.querySelector(".nav-toggle");
     if (b) b.setAttribute("aria-expanded", "false");
     return false;
@@ -127,11 +128,6 @@ function __wanggaDrawerToggle() { try { return window.__wanggaDrawer.toggle(); }
 function __wanggaDrawerClose() { try { return window.__wanggaDrawer.close(); } catch (e) { return false; } }
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") { try { window.__wanggaDrawer.close(); } catch (err) {} }
-});
-window.addEventListener("resize", function () {
-  try {
-    if (document.documentElement.getAttribute("data-drawer") === "open") window.__wanggaDrawer.offset();
-  } catch (err) {}
 });
 </script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
