@@ -69,6 +69,17 @@ func TestTemplatesExecute(t *testing.T) {
 		if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 			t.Errorf("execute %s: %v", name, err)
 		}
+		// The customer picker input must send ?q= (what PortalCustomerSearch
+		// reads) — a mismatched name fails silently with empty results.
+		if name == "portal_booking_new.html" {
+			out := buf.String()
+			if !contains(out, `hx-get="/portal/customers/search"`) {
+				t.Errorf("portal_booking_new.html: missing customer search hx-get")
+			}
+			if !contains(out, `name="q"`) {
+				t.Errorf("portal_booking_new.html: search input must be named q")
+			}
+		}
 	}
 	partials := []string{
 		"services_partial.html", "staff_partial.html", "slots_partial.html",

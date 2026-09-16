@@ -29,7 +29,7 @@
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
         <div>
           <label>{{t .Lang "p.nb.cust"}}
-            <input type="search" name="cust_q" id="cust_q" autocomplete="off" placeholder="{{t .Lang "p.nb.find_ph"}}"
+            <input type="search" name="q" id="cust_q" autocomplete="off" placeholder="{{t .Lang "p.nb.find_ph"}}"
               hx-get="/portal/customers/search" hx-target="#cust-results" hx-swap="innerHTML"
               hx-trigger="keyup changed delay:300ms, search" hx-indicator="#cust-ind">
           </label>
