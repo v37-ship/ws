@@ -23,7 +23,8 @@ const jakartaMonth = `date_trunc('month', %s AT TIME ZONE 'Asia/Jakarta') = $1::
 // MonthlyLines returns paid payments in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportLine, error) {
 	q := fmt.Sprintf(`SELECT p.id, p.booking_id, p.amount_idr, p.payment_method, p.payment_purpose, p.paid_at,
-		b.start_at, COALESCE(u.full_name,''), COALESCE(sv.name,''), COALESCE(st.name,''),
+		b.start_at, b.customer_id, COALESCE(u.full_name,''), b.service_id, COALESCE(sv.name,''),
+		b.staff_id, COALESCE(st.name,''),
 		COALESCE(l.name,''), l.id, b.status
 		FROM payments p
 		JOIN bookings b ON b.id = p.booking_id
@@ -48,7 +49,8 @@ func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID 
 		var ln domain.ReportLine
 		if err := rows.Scan(
 			&ln.PaymentID, &ln.BookingID, &ln.AmountIDR, &ln.PaymentMethod, &ln.Purpose,
-			&ln.PaidAt, &ln.StartAt, &ln.CustomerName, &ln.ServiceName, &ln.StaffName,
+			&ln.PaidAt, &ln.StartAt, &ln.CustomerID, &ln.CustomerName, &ln.ServiceID, &ln.ServiceName,
+			&ln.StaffID, &ln.StaffName,
 			&ln.LocationName, &ln.LocationID, &ln.Status,
 		); err != nil {
 			return nil, err
@@ -62,11 +64,14 @@ func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID 
 func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportRefund, error) {
 	q := fmt.Sprintf(`SELECT r.id, r.booking_id, r.amount_idr, r.reason, r.created_by_id,
 		COALESCE(maker.full_name,''), r.created_at,
-		COALESCE(u.full_name,''), COALESCE(sv.name,''), COALESCE(l.name,''), l.id
+		COALESCE(u.full_name,''), COALESCE(sv.name,''),
+		b.staff_id, COALESCE(st.name,''),
+		COALESCE(l.name,''), l.id
 		FROM refunds r
 		JOIN bookings b ON b.id = r.booking_id
 		LEFT JOIN users u ON u.id = b.customer_id
 		LEFT JOIN services sv ON sv.id = b.service_id
+		LEFT JOIN staff st ON st.id = b.staff_id
 		LEFT JOIN locations l ON l.id = b.location_id
 		LEFT JOIN users maker ON maker.id = r.created_by_id
 		WHERE `+jakartaMonth, "r.created_at")
@@ -87,7 +92,9 @@ func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationI
 		if err := rows.Scan(
 			&rf.ID, &rf.BookingID, &rf.AmountIDR, &rf.Reason, &rf.CreatedByID,
 			&rf.CreatedBy, &rf.CreatedAt,
-			&rf.CustomerName, &rf.ServiceName, &rf.LocationName, &rf.LocationID,
+			&rf.CustomerName, &rf.ServiceName,
+			&rf.StaffID, &rf.StaffName,
+			&rf.LocationName, &rf.LocationID,
 		); err != nil {
 			return nil, err
 		}

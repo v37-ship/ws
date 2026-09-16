@@ -57,15 +57,25 @@
       </div>
       <div class="panel">
         <h2>{{t .Lang "r.bystaff"}}</h2>
-        <table class="table">
-          <tbody>
-          {{range .Summary.StaffRows}}
-            <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
-          {{else}}
-            <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
-          {{end}}
-          </tbody>
-        </table>
+        <div style="overflow-x:auto;">
+          <table class="table">
+            <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right;">{{t .Lang "r.gross"}}</th><th style="text-align:right;">{{t .Lang "r.net"}}</th></tr></thead>
+            <tbody>
+            {{range .Summary.StaffRows}}
+              <tr>
+                <td><strong>{{if .Name}}{{.Name}}{{else}}-{{end}}</strong>{{if .Services}}<br><small class="muted">{{range $i, $s := .Services}}{{if $i}} · {{end}}{{$s.Name}} {{$s.Count}}×{{end}}</small>{{end}}</td>
+                <td style="text-align:center;">{{.Sessions}}</td>
+                <td style="text-align:center;">{{.UniqueCustomers}}</td>
+                <td style="text-align:right;">{{formatIDR .AvgIDR}}</td>
+                <td style="text-align:right;">{{formatIDR .GrossIDR}}</td>
+                <td style="text-align:right; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}}<br><small class="muted">−{{formatIDR .RefundIDR}}</small>{{end}}</td>
+              </tr>
+            {{else}}
+              <tr><td colspan="6" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+            {{end}}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 

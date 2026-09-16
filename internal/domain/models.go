@@ -296,8 +296,11 @@ type ReportLine struct {
 	Purpose       PaymentPurpose
 	PaidAt        time.Time
 	StartAt       time.Time
+	CustomerID    uuid.UUID
 	CustomerName  string
+	ServiceID     uuid.UUID
 	ServiceName   string
+	StaffID       uuid.UUID
 	StaffName     string
 	LocationName  string
 	LocationID    uuid.UUID
@@ -309,6 +312,8 @@ type ReportRefund struct {
 	Refund
 	CustomerName string
 	ServiceName  string
+	StaffID      uuid.UUID
+	StaffName    string
 	LocationName string
 	LocationID   uuid.UUID
 }
@@ -324,13 +329,34 @@ type ReportSummary struct {
 	QRISIDR     int64
 	CashIDR     int64
 	ServiceRows []NameTotal // sorted desc
-	StaffRows   []NameTotal // sorted desc
+	StaffRows   []StaffRow  // sorted desc by net
 }
 
-// NameTotal is a named amount row (service / staff breakdowns).
+// NameTotal is a named amount row (service breakdowns).
 type NameTotal struct {
 	Name  string
 	Total int64
+}
+
+// StaffServiceRow counts one service handled by one staff member.
+type StaffServiceRow struct {
+	Name  string
+	Count int
+	Total int64
+}
+
+// StaffRow is the per-bidan/staff detail: workload, reach, mix, ticket.
+type StaffRow struct {
+	StaffID         uuid.UUID
+	Name            string
+	Sessions        int
+	UniqueCustomers int
+	GrossIDR        int64
+	RefundIDR       int64
+	NetIDR          int64
+	AvgIDR          int64
+	TopService      string
+	Services        []StaffServiceRow // sorted desc by count, then total
 }
 
 type Slot struct {

@@ -36,7 +36,8 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 	}
 	sum := domain.ReportSummary{Month: month}
 	byService := map[string]int64{}
-	byStaff := map[string]int64{}
+	staffAgg := map[uuid.UUID]*staffAccum{}
+	staffOrder := map[uuid.UUID]string{}
 	for _, ln := range lines {
 		sum.GrossIDR += ln.AmountIDR
 		sum.Count++
@@ -46,16 +47,97 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 			sum.QRISIDR += ln.AmountIDR
 		}
 		byService[ln.ServiceName] += ln.AmountIDR
-		byStaff[ln.StaffName] += ln.AmountIDR
+		acc := staffAgg[ln.StaffID]
+		if acc == nil {
+			acc = &staffAccum{customers: map[uuid.UUID]struct{}{}, services: map[string]*domain.StaffServiceRow{}}
+			staffAgg[ln.StaffID] = acc
+		}
+		acc.sessions++
+		acc.gross += ln.AmountIDR
+		acc.customers[ln.CustomerID] = struct{}{}
+		svc := acc.services[ln.ServiceName]
+		if svc == nil {
+			svc = &domain.StaffServiceRow{Name: ln.ServiceName}
+			acc.services[ln.ServiceName] = svc
+		}
+		svc.Count++
+		svc.Total += ln.AmountIDR
+		staffOrder[ln.StaffID] = ln.StaffName
 	}
 	for _, rf := range refunds {
 		sum.RefundIDR += rf.AmountIDR
 		sum.RefundCnt++
+		acc := staffAgg[rf.StaffID]
+		if acc == nil {
+			acc = &staffAccum{customers: map[uuid.UUID]struct{}{}, services: map[string]*domain.StaffServiceRow{}}
+			staffAgg[rf.StaffID] = acc
+		}
+		acc.refund += rf.AmountIDR
+		if _, ok := staffOrder[rf.StaffID]; !ok || staffOrder[rf.StaffID] == "" {
+			staffOrder[rf.StaffID] = rf.StaffName
+		}
 	}
 	sum.NetIDR = sum.GrossIDR - sum.RefundIDR
 	sum.ServiceRows = sortedTotals(byService)
-	sum.StaffRows = sortedTotals(byStaff)
+	sum.StaffRows = buildStaffRows(staffAgg, staffOrder)
 	return sum, lines, refunds, nil
+}
+
+// staffAccum gathers per-staff detail before flattening into domain.StaffRow.
+type staffAccum struct {
+	sessions  int
+	gross     int64
+	refund    int64
+	customers map[uuid.UUID]struct{}
+	services  map[string]*domain.StaffServiceRow
+}
+
+// buildStaffRows flattens per-staff accumulators into desc-sorted rows (by net,
+// then gross, then name). Avg = gross / sessions. Pure function — unit-testable.
+func buildStaffRows(staffAgg map[uuid.UUID]*staffAccum, staffOrder map[uuid.UUID]string) []domain.StaffRow {
+	rows := make([]domain.StaffRow, 0, len(staffAgg))
+	for id, acc := range staffAgg {
+		row := domain.StaffRow{
+			StaffID:         id,
+			Name:            staffOrder[id],
+			Sessions:        acc.sessions,
+			UniqueCustomers: len(acc.customers),
+			GrossIDR:        acc.gross,
+			RefundIDR:       acc.refund,
+		}
+		row.NetIDR = row.GrossIDR - row.RefundIDR
+		if row.Sessions > 0 {
+			row.AvgIDR = row.GrossIDR / int64(row.Sessions)
+		}
+		svcs := make([]domain.StaffServiceRow, 0, len(acc.services))
+		for _, s := range acc.services {
+			svcs = append(svcs, *s)
+		}
+		sort.Slice(svcs, func(i, j int) bool {
+			if svcs[i].Count == svcs[j].Count {
+				if svcs[i].Total == svcs[j].Total {
+					return svcs[i].Name < svcs[j].Name
+				}
+				return svcs[i].Total > svcs[j].Total
+			}
+			return svcs[i].Count > svcs[j].Count
+		})
+		row.Services = svcs
+		if len(svcs) > 0 {
+			row.TopService = svcs[0].Name
+		}
+		rows = append(rows, row)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].NetIDR == rows[j].NetIDR {
+			if rows[i].GrossIDR == rows[j].GrossIDR {
+				return rows[i].Name < rows[j].Name
+			}
+			return rows[i].GrossIDR > rows[j].GrossIDR
+		}
+		return rows[i].NetIDR > rows[j].NetIDR
+	})
+	return rows
 }
 
 // sortedTotals flattens a name->total map into desc-sorted rows.

@@ -85,6 +85,25 @@ func (s *Server) PortalReportsCSV(w http.ResponseWriter, r *http.Request) {
 			ln.StaffName, string(ln.PaymentMethod), strconv.FormatInt(ln.AmountIDR, 10),
 		})
 	}
+	if len(sum.StaffRows) > 0 {
+		_ = cw.Write([]string{})
+		_ = cw.Write([]string{t("r.bystaff")})
+		_ = cw.Write([]string{t("r.th.staff"), t("r.th.sessions"), t("r.th.uniq"), t("r.th.avg"), t("r.gross"), t("r.refunds"), t("r.net"), t("r.th.top")})
+		for _, st := range sum.StaffRows {
+			top := ""
+			for i, s := range st.Services {
+				if i > 0 {
+					top += "; "
+				}
+				top += s.Name + " x" + strconv.Itoa(s.Count)
+			}
+			_ = cw.Write([]string{
+				st.Name, strconv.Itoa(st.Sessions), strconv.Itoa(st.UniqueCustomers),
+				strconv.FormatInt(st.AvgIDR, 10), strconv.FormatInt(st.GrossIDR, 10),
+				strconv.FormatInt(st.RefundIDR, 10), strconv.FormatInt(st.NetIDR, 10), top,
+			})
+		}
+	}
 	if len(refunds) > 0 {
 		_ = cw.Write([]string{})
 		_ = cw.Write([]string{t("r.reflines")})
