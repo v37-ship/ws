@@ -33,6 +33,18 @@ func TestCreateStaffBooking_CashPaymentRule(t *testing.T) {
 	}
 }
 
+func TestRescheduleRejectsPast(t *testing.T) {
+	svc := &BookingService{}
+	err := svc.Reschedule(context.Background(), uuid.New(), uuid.New(),
+		time.Now().Add(-time.Hour), nil, "oops")
+	if err == nil {
+		t.Fatalf("expected error rescheduling to the past, got nil")
+	}
+	if !errors.Is(err, ErrValidation) {
+		t.Errorf("expected ErrValidation, got %v", err)
+	}
+}
+
 func TestNormalizePlace(t *testing.T) {
 	cases := []struct {
 		name      string

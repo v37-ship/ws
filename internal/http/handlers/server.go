@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 )
 
 //go:embed all:templates
@@ -353,6 +354,16 @@ func (s *Server) requireCSRF(r *http.Request) bool {
 	return form != "" && subtleConstantTimeEq(form, c.Value)
 }
 
+// requirePortalAdmin enforces admin-only corrections inside the shared
+// staff portal (all /portal routes admit CS too, so the check is in-handler).
+func (s *Server) requirePortalAdmin(r *http.Request) (*uuid.UUID, bool) {
+	u := middleware.UserFrom(r.Context())
+	if u == nil || u.Role != domain.RoleAdmin {
+		return nil, false
+	}
+	return &u.ID, true
+}
+
 func subtleConstantTimeEq(a, b string) bool {
 	if len(a) != len(b) {
 		return false
@@ -480,7 +491,9 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Get("/bookings/{id}", s.PortalBookingDetail)
 		pr.Post("/bookings/{id}/status", s.PortalUpdateBookingStatus)
 		pr.Post("/bookings/{id}/reschedule", s.PortalRescheduleBooking)
+		pr.Post("/bookings/{id}/correct", s.PortalCorrectBooking)
 		pr.Post("/bookings/{id}/refunds", s.PortalRecordRefund)
+		pr.Post("/bookings/{id}/refunds/{rid}/void", s.PortalVoidRefund)
 
 		pr.Get("/reports", s.PortalReports)
 		pr.Get("/reports.csv", s.PortalReportsCSV)

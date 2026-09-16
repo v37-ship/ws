@@ -295,7 +295,14 @@ type Refund struct {
 	CreatedByID *uuid.UUID
 	CreatedBy   string
 	CreatedAt   time.Time
+	VoidedAt    *time.Time
+	VoidedByID  *uuid.UUID
+	VoidedBy    string
+	VoidReason  string
 }
+
+// IsVoid reports whether the refund was voided by an admin correction.
+func (r Refund) IsVoid() bool { return r.VoidedAt != nil }
 
 // ReportLine is one paid payment row in a monthly revenue report.
 type ReportLine struct {

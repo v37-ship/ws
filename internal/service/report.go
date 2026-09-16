@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"spa-booking/internal/domain"
@@ -236,6 +237,28 @@ func (s *ReportService) RecordRefund(ctx context.Context, bookingID uuid.UUID, a
 	_ = s.bookings.LogActivity(ctx, bookingID, actorID,
 		fmt.Sprintf("Refund recorded Rp %d", amount), reason)
 	return rf, nil
+}
+
+// VoidRefund voids a mistyped refund (admin correction). The row stays as
+// the correction trail; totals exclude it from that moment on. Re-record
+// the correct amount with RecordRefund afterwards.
+func (s *ReportService) VoidRefund(ctx context.Context, refundID uuid.UUID, reason string, actorID *uuid.UUID) error {
+	if strings.TrimSpace(reason) == "" {
+		return fmt.Errorf("%w: void reason is required", ErrValidation)
+	}
+	rf, err := s.reports.RefundByID(ctx, refundID)
+	if err != nil {
+		return err
+	}
+	if rf.IsVoid() {
+		return fmt.Errorf("%w: refund already voided", ErrValidation)
+	}
+	if err := s.reports.VoidRefund(ctx, refundID, actorID, reason); err != nil {
+		return err
+	}
+	_ = s.bookings.LogActivity(ctx, rf.BookingID, actorID,
+		fmt.Sprintf("Refund Rp %d voided", rf.AmountIDR), reason)
+	return nil
 }
 
 // BookingRefunds returns a booking's payment (if any), its refunds, and total refunded.

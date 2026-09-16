@@ -381,7 +381,7 @@ func (s *Server) CancelBooking(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.book.Cancel(r.Context(), id, u.ID, u.Role == domain.RoleAdmin, r.FormValue("reason")); err != nil {
+	if err := s.book.Cancel(r.Context(), id, u.ID, u.Role.IsStaff(), r.FormValue("reason")); err != nil {
 		http.Redirect(w, r, "/bookings?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
@@ -674,6 +674,7 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	staffList, _ := s.catalog.ListStaff(r.Context(), b.LocationID, true)
+	services, _ := s.catalog.ListServices(r.Context(), b.LocationID, false)
 	logs, _ := s.book.ListLogs(r.Context(), b.ID)
 	pay, payRefunds, refundedTotal, _ := s.reports.BookingRefunds(r.Context(), b.ID)
 	var refundable int64
@@ -681,8 +682,14 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		refundable = pay.AmountIDR - refundedTotal
 	}
 	s.render(w, r, "portal_booking_detail.html", pageData{
-		"Booking":       b,
-		"StaffList":     staffList,
+		"Booking":   b,
+		"StaffList": staffList,
+		"Services":  services,
+		"AllStatuses": []domain.BookingStatus{
+			domain.BookingPendingPayment, domain.BookingConfirmed, domain.BookingCheckedIn,
+			domain.BookingInService, domain.BookingCompleted, domain.BookingCancelled,
+			domain.BookingExpired, domain.BookingNoShow,
+		},
 		"Logs":          logs,
 		"Payment":       pay,
 		"Refunds":       payRefunds,
@@ -762,6 +769,54 @@ func (s *Server) PortalRescheduleBooking(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape("Booking rescheduled successfully")), http.StatusSeeOther)
+}
+
+// PortalCorrectBooking applies an admin correction to booking details
+// (service/reprice, place/address, notes) with a mandatory logged reason.
+func (s *Server) PortalCorrectBooking(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	actorID, ok := s.requirePortalAdmin(r)
+	if !ok {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	svcID, _ := uuid.Parse(r.FormValue("service_id"))
+	priceBelowPaid, err := s.book.CorrectDetails(r.Context(), id, service.CorrectDetailsRequest{
+		ServiceID:    svcID,
+		Place:        domain.Place(r.FormValue("place")),
+		VisitAddress: r.FormValue("visit_address"),
+		Notes:        r.FormValue("notes"),
+		Reason:       r.FormValue("reason"),
+		ActorID:      *actorID,
+	})
+	if err != nil {
+		if htmx.IsRequest(r) {
+			s.toast(w, "error", err.Error())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?error=%s", id, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+	msg := "Booking details corrected"
+	if priceBelowPaid {
+		msg += " — paid amount exceeds new price, consider refunding the difference"
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", msg)
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }
 
 func (s *Server) PortalCustomers(w http.ResponseWriter, r *http.Request) {

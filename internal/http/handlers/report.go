@@ -201,3 +201,37 @@ func (s *Server) refundFail(w http.ResponseWriter, r *http.Request, id uuid.UUID
 	}
 	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?error=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }
+
+// PortalVoidRefund voids a mistyped refund (admin-only correction).
+func (s *Server) PortalVoidRefund(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	actorID, ok := s.requirePortalAdmin(r)
+	if !ok {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	rid, err := uuid.Parse(chi.URLParam(r, "rid"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.reports.VoidRefund(r.Context(), rid, r.FormValue("void_reason"), actorID); err != nil {
+		s.refundFail(w, r, id, err.Error())
+		return
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", "Refund voided")
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape("Refund voided")), http.StatusSeeOther)
+}

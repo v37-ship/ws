@@ -315,6 +315,9 @@ func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, 
 }
 
 func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid.UUID, startAt time.Time, actorID *uuid.UUID, note string) error {
+	if startAt.Before(time.Now()) {
+		return fmt.Errorf("%w: cannot reschedule to the past", ErrValidation)
+	}
 	b, err := s.bookings.ByID(ctx, bookingID)
 	if err != nil {
 		return err
@@ -325,6 +328,13 @@ func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid
 	}
 	if staffID == uuid.Nil {
 		staffID = b.StaffID
+	}
+	st, err := s.catalog.StaffByID(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	if st.LocationID != b.LocationID {
+		return fmt.Errorf("%w: staff/location mismatch", ErrValidation)
 	}
 	endAt := startAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 
@@ -342,6 +352,71 @@ func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid
 				b.ServiceName, startAt.Format(time.RFC1123), note))
 	}
 	return nil
+}
+
+// CorrectDetailsRequest is an admin correction of booking details that CS
+// cannot change after creation (service/price, place/address, notes).
+type CorrectDetailsRequest struct {
+	ServiceID    uuid.UUID
+	Place        domain.Place
+	VisitAddress string
+	Notes        string
+	Reason       string // mandatory correction justification, logged
+	ActorID      uuid.UUID
+}
+
+// CorrectDetails applies an admin correction on any booking, logging old→new.
+// It returns priceBelowPaid=true when the corrected price drops below what
+// was already paid, so the UI can suggest refunding the difference. The
+// charged payment row itself is never altered.
+func (s *BookingService) CorrectDetails(ctx context.Context, bookingID uuid.UUID, req CorrectDetailsRequest) (priceBelowPaid bool, err error) {
+	b, err := s.bookings.ByID(ctx, bookingID)
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		return false, fmt.Errorf("%w: correction reason is required", ErrValidation)
+	}
+	place, visitAddress, err := normalizePlace(req.Place, req.VisitAddress)
+	if err != nil {
+		return false, err
+	}
+	serviceID := b.ServiceID
+	priceIDR := b.PriceIDR
+	var changes []string
+	if req.ServiceID != uuid.Nil && req.ServiceID != b.ServiceID {
+		svc, err := s.catalog.ServiceByID(ctx, req.ServiceID)
+		if err != nil {
+			return false, err
+		}
+		if svc.LocationID != b.LocationID {
+			return false, fmt.Errorf("%w: service/location mismatch", ErrValidation)
+		}
+		changes = append(changes, fmt.Sprintf("service %s → %s (Rp %d → Rp %d)",
+			b.ServiceName, svc.Name, b.PriceIDR, svc.PriceIDR))
+		serviceID = svc.ID
+		priceIDR = svc.PriceIDR
+	}
+	if place != b.Place || visitAddress != b.VisitAddress {
+		changes = append(changes, fmt.Sprintf("place %s → %s", b.Place, place))
+	}
+	notes := strings.TrimSpace(req.Notes)
+	if notes != b.Notes {
+		changes = append(changes, "notes updated")
+	}
+	if len(changes) == 0 {
+		return false, fmt.Errorf("%w: nothing to correct", ErrValidation)
+	}
+	logNotes := strings.TrimSpace(req.Reason) + " [" + strings.Join(changes, "; ") + "]"
+	if err := s.bookings.UpdateDetailsWithLog(ctx, bookingID, serviceID, priceIDR,
+		place, visitAddress, notes, &req.ActorID, logNotes); err != nil {
+		return false, err
+	}
+	if p, err := s.payments.ByBookingID(ctx, bookingID); err == nil && p != nil &&
+		p.Status == domain.PaymentPaid && p.AmountIDR > priceIDR {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s *BookingService) ListFiltered(ctx context.Context, filter repo.FilterParams) ([]domain.Booking, error) {

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"spa-booking/internal/domain"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -61,7 +63,7 @@ func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID 
 	return out, rows.Err()
 }
 
-// MonthlyRefunds returns refunds recorded in the given YYYY-MM month.
+// MonthlyRefunds returns active (non-voided) refunds recorded in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportRefund, error) {
 	q := fmt.Sprintf(`SELECT r.id, r.booking_id, r.amount_idr, r.reason, r.created_by_id,
 		COALESCE(maker.full_name,''), r.created_at,
@@ -75,7 +77,7 @@ func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationI
 		LEFT JOIN staff st ON st.id = b.staff_id
 		LEFT JOIN locations l ON l.id = b.location_id
 		LEFT JOIN users maker ON maker.id = r.created_by_id
-		WHERE `+jakartaMonth, "r.created_at")
+		WHERE r.voided_at IS NULL AND `+jakartaMonth, "r.created_at")
 	args := []any{month + "-01"}
 	if locationID != uuid.Nil {
 		q += " AND b.location_id = $2"
@@ -125,7 +127,7 @@ func (r *ReportRepo) AvailableMonths(ctx context.Context, locationID uuid.UUID, 
 		UNION
 		SELECT DISTINCT date_trunc('month', r.created_at AT TIME ZONE 'Asia/Jakarta') AS m
 		FROM refunds r JOIN bookings b ON b.id = r.booking_id
-		WHERE 1=1` + locFilterR + `
+		WHERE r.voided_at IS NULL` + locFilterR + `
 	) t ORDER BY m DESC LIMIT ` + fmt.Sprintf("%d", limit)
 	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {
@@ -143,12 +145,15 @@ func (r *ReportRepo) AvailableMonths(ctx context.Context, locationID uuid.UUID, 
 	return out, rows.Err()
 }
 
-// RefundsForBooking lists refunds for one booking, newest first.
+// RefundsForBooking lists refunds for one booking, newest first,
+// including voided rows (shown struck-through as the correction trail).
 func (r *ReportRepo) RefundsForBooking(ctx context.Context, bookingID uuid.UUID) ([]domain.Refund, error) {
 	const q = `SELECT r.id, r.booking_id, r.amount_idr, r.reason, r.created_by_id,
-		COALESCE(maker.full_name,''), r.created_at
+		COALESCE(maker.full_name,''), r.created_at,
+		r.voided_at, r.voided_by_id, COALESCE(voider.full_name,''), r.void_reason
 		FROM refunds r
 		LEFT JOIN users maker ON maker.id = r.created_by_id
+		LEFT JOIN users voider ON voider.id = r.voided_by_id
 		WHERE r.booking_id=$1 ORDER BY r.created_at DESC`
 	rows, err := r.pool.Query(ctx, q, bookingID)
 	if err != nil {
@@ -159,7 +164,8 @@ func (r *ReportRepo) RefundsForBooking(ctx context.Context, bookingID uuid.UUID)
 	for rows.Next() {
 		var rf domain.Refund
 		if err := rows.Scan(&rf.ID, &rf.BookingID, &rf.AmountIDR, &rf.Reason,
-			&rf.CreatedByID, &rf.CreatedBy, &rf.CreatedAt); err != nil {
+			&rf.CreatedByID, &rf.CreatedBy, &rf.CreatedAt,
+			&rf.VoidedAt, &rf.VoidedByID, &rf.VoidedBy, &rf.VoidReason); err != nil {
 			return nil, err
 		}
 		out = append(out, rf)
@@ -167,11 +173,48 @@ func (r *ReportRepo) RefundsForBooking(ctx context.Context, bookingID uuid.UUID)
 	return out, rows.Err()
 }
 
-// RefundedTotal sums all refunds recorded for a booking.
+// RefundByID returns one refund row with its void state.
+func (r *ReportRepo) RefundByID(ctx context.Context, refundID uuid.UUID) (*domain.Refund, error) {
+	const q = `SELECT r.id, r.booking_id, r.amount_idr, r.reason, r.created_by_id,
+		COALESCE(maker.full_name,''), r.created_at,
+		r.voided_at, r.voided_by_id, COALESCE(voider.full_name,''), r.void_reason
+		FROM refunds r
+		LEFT JOIN users maker ON maker.id = r.created_by_id
+		LEFT JOIN users voider ON voider.id = r.voided_by_id
+		WHERE r.id=$1`
+	var rf domain.Refund
+	err := r.pool.QueryRow(ctx, q, refundID).Scan(&rf.ID, &rf.BookingID, &rf.AmountIDR, &rf.Reason,
+		&rf.CreatedByID, &rf.CreatedBy, &rf.CreatedAt,
+		&rf.VoidedAt, &rf.VoidedByID, &rf.VoidedBy, &rf.VoidReason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &rf, nil
+}
+
+// VoidRefund marks a refund voided; totals exclude it from that moment on.
+// Returns ErrNotFound when the row is missing or already voided.
+func (r *ReportRepo) VoidRefund(ctx context.Context, refundID uuid.UUID, actorID *uuid.UUID, reason string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE refunds SET voided_at=now(), voided_by_id=$2, void_reason=$3
+		WHERE id=$1 AND voided_at IS NULL`, refundID, actorID, strings.TrimSpace(reason))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// RefundedTotal sums active (non-voided) refunds recorded for a booking.
 func (r *ReportRepo) RefundedTotal(ctx context.Context, bookingID uuid.UUID) (int64, error) {
 	var total int64
 	err := r.pool.QueryRow(ctx,
-		`SELECT COALESCE(SUM(amount_idr),0) FROM refunds WHERE booking_id=$1`, bookingID).Scan(&total)
+		`SELECT COALESCE(SUM(amount_idr),0) FROM refunds WHERE booking_id=$1 AND voided_at IS NULL`, bookingID).Scan(&total)
 	return total, err
 }
 

@@ -276,6 +276,30 @@ func (r *BookingRepo) RescheduleWithLog(ctx context.Context, id uuid.UUID, staff
 	return tx.Commit(ctx)
 }
 
+// UpdateDetailsWithLog corrects service/price/place/address/notes in one
+// admin action, recording the old→new change as an audit log entry.
+func (r *BookingRepo) UpdateDetailsWithLog(ctx context.Context, id, serviceID uuid.UUID, priceIDR int64, place domain.Place, visitAddress, notes string, actorID *uuid.UUID, logNotes string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+		UPDATE bookings SET service_id=$2, price_idr=$3, place=$4, visit_address=$5, notes=$6, updated_by_id=$7, updated_at=now()
+		WHERE id=$1`, id, serviceID, priceIDR, place, visitAddress, notes, actorID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `INSERT INTO booking_logs (booking_id, user_id, action, notes) VALUES ($1,$2,$3,$4)`,
+		id, actorID, "Booking details corrected", logNotes)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (r *BookingRepo) LogActivity(ctx context.Context, bookingID uuid.UUID, actorID *uuid.UUID, action, notes string) error {
 	_, err := r.pool.Exec(ctx, `INSERT INTO booking_logs (booking_id, user_id, action, notes) VALUES ($1,$2,$3,$4)`,
 		bookingID, actorID, action, notes)

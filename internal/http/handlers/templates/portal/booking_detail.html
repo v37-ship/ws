@@ -119,16 +119,54 @@
           </form>
         </div>
 
+        {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
+        <!-- Admin: correct status (backward moves allowed, logged) -->
+        <div class="panel stack">
+          <h2>{{t .Lang "p.det.fix"}}</h2>
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/status" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <label>{{t .Lang "p.det.note"}}
+              <input type="text" name="note" required placeholder="{{t .Lang "p.det.nph"}}" autocomplete="off">
+            </label>
+            <label>{{t .Lang "p.det.st"}}
+              <select name="status" required>
+                {{range $.AllStatuses}}
+                  <option value="{{.}}" {{if eq $.Booking.Status .}}selected{{end}}>{{.Display}}</option>
+                {{end}}
+              </select>
+            </label>
+            <button type="submit" class="btn secondary on-light" hx-confirm="{{t .Lang "p.det.cfc"}}" hx-disabled-elt="this">
+              {{t .Lang "p.det.save"}}
+            </button>
+          </form>
+        </div>
+        {{end}}{{end}}
+
         <!-- Refund Section -->
-        {{if gt .Refundable 0}}
+        {{if or (gt .Refundable 0) (.Refunds)}}
         <div class="panel stack">
           <h2>{{t .Lang "r.rf.title"}}</h2>
+          {{if gt .Refundable 0}}
           <p class="muted">{{t .Lang "r.rf.max"}} {{formatIDR .Refundable}}{{if gt .RefundedTotal 0}} · {{t .Lang "r.rf.done"}} {{formatIDR .RefundedTotal}}{{end}}</p>
+          {{end}}
           {{if .Refunds}}
+          <h3 style="margin:0;">{{t .Lang "r.rf.hist"}}</h3>
           <ul class="muted" style="margin:0; padding-left:1.2rem; font-size:0.85rem;">
-            {{range .Refunds}}<li>{{formatTime .CreatedAt "02 Jan 15:04"}} — {{formatIDR .AmountIDR}}{{if .Reason}} ({{.Reason}}){{end}}</li>{{end}}
+            {{range .Refunds}}
+            <li>{{formatTime .CreatedAt "02 Jan 15:04"}} — {{if .IsVoid}}<s>{{formatIDR .AmountIDR}}</s> <span>{{t $.Lang "r.rf.vby"}} {{if .VoidedBy}}{{.VoidedBy}}{{else}}-{{end}}{{if .VoidReason}}: {{.VoidReason}}{{end}}</span>{{else}}{{formatIDR .AmountIDR}}{{if .Reason}} ({{.Reason}}){{end}}
+              {{if $.User}}{{if and (not .IsVoid) (eq (printf "%s" $.User.Role) "admin")}}
+              <form method="post" action="/portal/bookings/{{$.Booking.ID}}/refunds/{{.ID}}/void" hx-post="/portal/bookings/{{$.Booking.ID}}/refunds/{{.ID}}/void" hx-swap="none" style="display:inline;">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="text" name="void_reason" required placeholder="{{t $.Lang "r.rf.vph"}}" autocomplete="off" size="18">
+                <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="{{printf "%s" (t $.Lang "r.rf.vcf")}}" hx-disabled-elt="this">{{t $.Lang "r.rf.void"}}</button>
+              </form>
+              {{end}}{{end}}
+            {{end}}</li>
+            {{end}}
           </ul>
           {{end}}
+          {{if gt .Refundable 0}}
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/refunds" class="stack"
             hx-post="/portal/bookings/{{.Booking.ID}}/refunds" hx-swap="none">
             <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -142,6 +180,7 @@
               {{t .Lang "r.rf.go"}}
             </button>
           </form>
+          {{end}}
         </div>
         {{end}}
 
@@ -171,6 +210,49 @@
             </button>
           </form>
         </div>
+
+        {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
+        <!-- Admin: correct booking details (service/reprice, place, notes) -->
+        <div class="panel stack">
+          <h2>{{t .Lang "p.det.corr"}}</h2>
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/correct" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/correct" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <label>{{t .Lang "p.det.svc"}}
+              <select name="service_id" required>
+                {{range .Services}}
+                  <option value="{{.ID}}" {{if eq $.Booking.ServiceID .ID}}selected{{end}}>{{.Name}} — {{formatIDR .PriceIDR}}</option>
+                {{end}}
+              </select>
+            </label>
+            <div>
+              <span class="muted" style="font-size:.85rem;">{{t .Lang "book.place"}}</span>
+              <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
+                <label class="pill-pick">
+                  <input type="radio" name="place" value="onsite" {{if eq (printf "%s" .Booking.Place) "onsite"}}checked{{end}}>
+                  <span>{{t .Lang "book.onsite"}}</span>
+                </label>
+                <label class="pill-pick">
+                  <input type="radio" name="place" value="homecare" {{if eq (printf "%s" .Booking.Place) "homecare"}}checked{{end}}>
+                  <span>{{t .Lang "book.homecare"}}</span>
+                </label>
+              </div>
+            </div>
+            <label>{{t .Lang "book.address"}}
+              <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}">{{.Booking.VisitAddress}}</textarea>
+            </label>
+            <label>{{t .Lang "p.det.notes"}}
+              <textarea name="notes" rows="2" autocomplete="off">{{.Booking.Notes}}</textarea>
+            </label>
+            <label>{{t .Lang "r.rf.reason"}}
+              <input type="text" name="reason" required placeholder="{{t .Lang "p.det.nph"}}" autocomplete="off">
+            </label>
+            <button type="submit" class="btn secondary on-light" onclick="return confirm('{{t .Lang "p.det.cf"}}')" hx-disabled-elt="this">
+              {{t .Lang "p.det.save"}}
+            </button>
+          </form>
+        </div>
+        {{end}}{{end}}
       </div>
     </div>
 
