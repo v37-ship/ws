@@ -20,7 +20,8 @@
       <div class="panel stack" style="text-align:center; align-items:center;">
         <div>
           <strong>{{.Booking.ServiceName}}</strong> with {{.Booking.StaffName}}
-          <div class="muted">{{formatTime .Booking.StartAt "Mon 02 Jan 2006 · 15:04"}} · {{.Booking.LocationName}}</div>
+          <div class="muted">{{formatTime .Booking.StartAt "Mon 02 Jan 2006 · 15:04"}} · {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} · {{t .Lang "book.badge_home"}}{{end}}</div>
+          {{if .Booking.VisitAddress}}<div class="muted">🏠 {{.Booking.VisitAddress}}</div>{{end}}
         </div>
         <div style="font-size:1.6rem; font-weight:800;">{{formatIDR .Booking.PriceIDR}}</div>
         <div id="pay-status" style="width:100%;"

@@ -286,10 +286,15 @@ func (s *Server) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Please select location, service, and a time slot", http.StatusBadRequest)
 		return
 	}
-	b, _, err := s.book.CreatePending(r.Context(), u.ID, lid, sid, staffID, startAt, r.FormValue("notes"))
+	b, _, err := s.book.CreatePending(r.Context(), u.ID, lid, sid, staffID, startAt,
+		r.FormValue("notes"), domain.Place(r.FormValue("place")), r.FormValue("visit_address"))
 	if err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			http.Error(w, "That slot was just taken. Pick another time.", http.StatusConflict)
+			return
+		}
+		if errors.Is(err, service.ErrValidation) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		s.log.Error("create booking", "err", err)
@@ -588,6 +593,8 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 	staffID, _ := uuid.Parse(r.FormValue("staff_id_selected"))
 	startAtStr := r.FormValue("start_at")
 	notes := r.FormValue("notes")
+	place := domain.Place(r.FormValue("place"))
+	visitAddress := r.FormValue("visit_address")
 	source := r.FormValue("source")
 	payMethod := domain.PaymentMethod(r.FormValue("payment_method"))
 	payPurpose := domain.PaymentPurpose(r.FormValue("payment_purpose"))
@@ -613,7 +620,7 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 
 	b, _, err := s.book.CreateStaffBooking(r.Context(), service.StaffBookingRequest{
 		CustomerID: custID, LocationID: locID, ServiceID: svcID, StaffID: staffID,
-		StartAt: startAt, Notes: notes, Source: source,
+		StartAt: startAt, Notes: notes, Place: place, VisitAddress: visitAddress, Source: source,
 		PaymentMethod: payMethod, PaymentPurpose: payPurpose, ActorID: u.ID,
 	})
 	if err != nil {

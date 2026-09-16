@@ -203,6 +203,14 @@ const (
 	PaymentPurposeFull       PaymentPurpose = "full"
 )
 
+// Place is where a booking is fulfilled: at the branch or at the customer's home.
+type Place string
+
+const (
+	PlaceOnsite   Place = "onsite"
+	PlaceHomecare Place = "homecare"
+)
+
 type Booking struct {
 	ID            uuid.UUID
 	CustomerID    uuid.UUID
@@ -216,6 +224,8 @@ type Booking struct {
 	BookingFeeIDR int64
 	HoldExpiresAt *time.Time
 	Notes         string
+	Place         Place  // 'onsite' (at branch) or 'homecare' (customer address)
+	VisitAddress  string // required when Place is homecare
 	Source        string // 'web', 'walkin', 'whatsapp', 'phone'
 	CreatedByID   *uuid.UUID
 	UpdatedByID   *uuid.UUID

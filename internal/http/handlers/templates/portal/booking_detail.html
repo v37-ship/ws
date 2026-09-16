@@ -19,7 +19,8 @@
           {{.Booking.Status.Display}}
         </span>
         {{if .Booking.CustomerPhone}}
-          <a href="{{waURL .Booking.CustomerPhone .Booking.CustomerName .Booking.ServiceName .Booking.StaffName (formatTime .Booking.StartAt "Mon, 02 Jan 15:04") .Booking.LocationName}}" target="_blank" class="btn-wa">
+          {{$loc := .Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}}{{$loc = printf "%s · 🏠 %s" .Booking.LocationName .Booking.VisitAddress}}{{end}}
+          <a href="{{waURL .Booking.CustomerPhone .Booking.CustomerName .Booking.ServiceName .Booking.StaffName (formatTime .Booking.StartAt "Mon, 02 Jan 15:04") $loc}}" target="_blank" class="btn-wa">
             {{t .Lang "p.det.wa"}}
           </a>
         {{end}}
@@ -52,7 +53,8 @@
           <div>
             <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.det.sc"}}</span>
             <div style="font-weight:700;">{{.Booking.ServiceName}}</div>
-            <div>📍 {{.Booking.LocationName}}</div>
+            <div>📍 {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}</div>
+            {{if .Booking.VisitAddress}}<div>🏠 {{.Booking.VisitAddress}}</div>{{end}}
             <div>👩‍⚕️ Assigned Bidan: <strong>{{.Booking.StaffName}}</strong></div>
             <div>📅 Schedule: <strong>{{formatTime .Booking.StartAt "Mon, 02 Jan 2006 15:04"}} - {{formatTime .Booking.EndAt "15:04"}} WIB</strong></div>
           </div>

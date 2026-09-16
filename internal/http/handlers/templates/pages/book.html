@@ -15,7 +15,7 @@
 
       <form method="post" action="/book" id="book-form"
         x-data="{
-          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'Today', time:'', start:'', staff:'',
+          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'Today', time:'', start:'', staff:'', place:'onsite',
           pick(s, st, label){
             if (this.start === s) { this.clearTime(); return; }
             this.start=s; this.staff=st; this.time=label||'';
@@ -111,6 +111,17 @@
             </label>
             {{end}}
           </div>
+          <p class="muted" style="margin:.5rem 0 0; font-size:.85rem;">{{t .Lang "book.place"}}</p>
+          <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
+            <label class="pill-pick">
+              <input type="radio" name="place" value="onsite" checked @change="place='onsite'">
+              <span>{{t .Lang "book.onsite"}}</span>
+            </label>
+            <label class="pill-pick">
+              <input type="radio" name="place" value="homecare" @change="place='homecare'">
+              <span>{{t .Lang "book.homecare"}}</span>
+            </label>
+          </div>
           <span id="svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "book.loading_t"}}</span></span>
           <div id="service-wrap" aria-live="polite">
             {{if .Services}}{{template "service_cards.html" .}}{{end}}
@@ -146,9 +157,11 @@
             <div><dt>{{t .Lang "book.therapist"}}</dt><dd x-text="staffLabel || '{{t .Lang "book.first"}}'"></dd></div>
             <div><dt>{{t .Lang "book.when"}}</dt><dd><span x-text="dayLabel"></span> · <span x-text="time"></span></dd></div>
             <div><dt>{{t .Lang "book.price"}}</dt><dd x-text="svcSub || '—'"></dd></div>
+            <div><dt>{{t .Lang "book.place"}}</dt><dd x-text="place==='homecare' ? '{{t .Lang "book.homecare"}}' : '{{t .Lang "book.onsite"}}'"></dd></div>
           </dl>
           <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
           <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
+          <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}} <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" :required="place==='homecare'"></textarea></label>
           <label>{{t .Lang "book.notes"}} <textarea name="notes" rows="2" autocomplete="off" placeholder="{{t .Lang "book.notes_ph"}}">{{.Notes}}</textarea></label>
           {{if .User}}
             <button class="btn big" type="submit" :disabled="!time">{{t .Lang "book.continue"}}</button>

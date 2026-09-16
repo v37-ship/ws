@@ -3,14 +3,15 @@
 <tr>
   <td>
     <strong>{{formatTime .StartAt "Mon, 02 Jan 15:04"}}</strong><br>
-    <small class="muted">{{formatTime .EndAt "15:04"}} ({{.LocationName}})</small>
+    <small class="muted">{{formatTime .EndAt "15:04"}} ({{.LocationName}}){{if eq (printf "%s" .Place) "homecare"}} 🏠{{end}}</small>
   </td>
   <td>
     <strong>{{.CustomerName}}</strong><br>
     <small>{{.CustomerPhone}}</small>
     {{if .CustomerPhone}}
       <br>
-      <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "Mon, 02 Jan 15:04") .LocationName}}" target="_blank" class="btn-wa btn-sm" style="margin-top:0.25rem;">
+      {{$loc := .LocationName}}{{if eq (printf "%s" .Place) "homecare"}}{{$loc = printf "%s · 🏠 %s" .LocationName .VisitAddress}}{{end}}
+      <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "Mon, 02 Jan 15:04") $loc}}" target="_blank" class="btn-wa btn-sm" style="margin-top:0.25rem;">
         💬 WA
       </a>
     {{end}}

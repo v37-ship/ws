@@ -49,13 +49,17 @@ func NewBookingService(
 	}
 }
 
-func (s *BookingService) CreatePending(ctx context.Context, customerID, locationID, serviceID, staffID uuid.UUID, startAt time.Time, notes string) (*domain.Booking, *domain.Payment, error) {
+func (s *BookingService) CreatePending(ctx context.Context, customerID, locationID, serviceID, staffID uuid.UUID, startAt time.Time, notes string, place domain.Place, visitAddress string) (*domain.Booking, *domain.Payment, error) {
 	svc, err := s.catalog.ServiceByID(ctx, serviceID)
 	if err != nil {
 		return nil, nil, err
 	}
 	if svc.LocationID != locationID {
 		return nil, nil, fmt.Errorf("%w: service/location mismatch", ErrValidation)
+	}
+	place, visitAddress, err = normalizePlace(place, visitAddress)
+	if err != nil {
+		return nil, nil, err
 	}
 	st, err := s.catalog.StaffByID(ctx, staffID)
 	if err != nil {
@@ -77,6 +81,8 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		PriceIDR:      svc.PriceIDR,
 		HoldExpiresAt: &holdExp,
 		Notes:         strings.TrimSpace(notes),
+		Place:         place,
+		VisitAddress:  visitAddress,
 		Source:        "web",
 	}
 	if err := s.bookings.Create(ctx, b); err != nil {
@@ -122,6 +128,25 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 	return b, p, nil
 }
 
+// normalizePlace validates the fulfillment place. Empty defaults to onsite;
+// homecare requires a visit address (min 10 chars). Onsite drops any address.
+func normalizePlace(place domain.Place, visitAddress string) (domain.Place, string, error) {
+	if place == "" {
+		place = domain.PlaceOnsite
+	}
+	if place != domain.PlaceOnsite && place != domain.PlaceHomecare {
+		return "", "", fmt.Errorf("%w: unknown place", ErrValidation)
+	}
+	addr := strings.TrimSpace(visitAddress)
+	if place == domain.PlaceHomecare {
+		if len([]rune(addr)) < 10 {
+			return "", "", fmt.Errorf("%w: homecare requires a visit address", ErrValidation)
+		}
+		return place, addr, nil
+	}
+	return place, "", nil
+}
+
 type StaffBookingRequest struct {
 	CustomerID     uuid.UUID
 	LocationID     uuid.UUID
@@ -129,6 +154,8 @@ type StaffBookingRequest struct {
 	StaffID        uuid.UUID
 	StartAt        time.Time
 	Notes          string
+	Place          domain.Place
+	VisitAddress   string
 	Source         string                // 'walkin', 'whatsapp', 'phone'
 	PaymentMethod  domain.PaymentMethod  // 'qris' or 'cash'
 	PaymentPurpose domain.PaymentPurpose // 'service' or 'booking_fee' or 'full'
@@ -150,6 +177,10 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	if req.Source == "" {
 		req.Source = "walkin"
 	}
+	place, visitAddress, err := normalizePlace(req.Place, req.VisitAddress)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	svc, err := s.catalog.ServiceByID(ctx, req.ServiceID)
 	if err != nil {
@@ -168,17 +199,19 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 
 	endAt := req.StartAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	b := &domain.Booking{
-		CustomerID:  req.CustomerID,
-		LocationID:  req.LocationID,
-		ServiceID:   req.ServiceID,
-		StaffID:     req.StaffID,
-		StartAt:     req.StartAt.UTC(),
-		EndAt:       endAt.UTC(),
-		PriceIDR:    svc.PriceIDR,
-		Notes:       strings.TrimSpace(req.Notes),
-		Source:      req.Source,
-		CreatedByID: &req.ActorID,
-		UpdatedByID: &req.ActorID,
+		CustomerID:   req.CustomerID,
+		LocationID:   req.LocationID,
+		ServiceID:    req.ServiceID,
+		StaffID:      req.StaffID,
+		StartAt:      req.StartAt.UTC(),
+		EndAt:        endAt.UTC(),
+		PriceIDR:     svc.PriceIDR,
+		Notes:        strings.TrimSpace(req.Notes),
+		Place:        place,
+		VisitAddress: visitAddress,
+		Source:       req.Source,
+		CreatedByID:  &req.ActorID,
+		UpdatedByID:  &req.ActorID,
 	}
 
 	orderID := fmt.Sprintf("STAFF-%s", strings.ReplaceAll(uuid.New().String(), "-", "")[:14])

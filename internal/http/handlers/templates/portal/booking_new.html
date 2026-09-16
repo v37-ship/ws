@@ -22,7 +22,7 @@
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
     <form class="panel stack" method="post" action="/portal/bookings/new" id="staff-book-form"
-      x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', method:'cash', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }}">
+      x-data="{start:'{{.StartAt}}', staff:'{{.StaffIDSelected}}', method:'cash', place:'onsite', pick(s, st){this.start=s; this.staff=st; document.getElementById('start_at').value=s; document.getElementById('staff_id_selected').value=st; document.querySelectorAll('.slot').forEach(x=>x.setAttribute('aria-pressed', x.dataset.start===s ? 'true':'false')); }}">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
 
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
@@ -57,7 +57,25 @@
             {{end}}
           </select>
         </label>
+
+        <div>
+          <span class="muted" style="font-size:.85rem;">{{t .Lang "book.place"}}</span>
+          <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
+            <label class="pill-pick">
+              <input type="radio" name="place" value="onsite" checked @change="place='onsite'">
+              <span>{{t .Lang "book.onsite"}}</span>
+            </label>
+            <label class="pill-pick">
+              <input type="radio" name="place" value="homecare" @change="place='homecare'">
+              <span>{{t .Lang "book.homecare"}}</span>
+            </label>
+          </div>
+        </div>
       </div>
+
+      <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}}
+        <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" :required="place==='homecare'"></textarea>
+      </label>
       <span id="staff-svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "p.nb.load"}}</span></span>
 
       <div id="service-wrap" aria-live="polite">

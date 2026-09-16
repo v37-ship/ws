@@ -38,7 +38,8 @@
           <div>
             <strong>{{.ServiceName}}</strong>
             <div class="muted" style="font-size:.85rem;">{{formatTime .StartAt "Mon 02 Jan 2006 · 15:04"}} — {{formatTime .EndAt "15:04"}}</div>
-            <div class="muted" style="font-size:.85rem;">{{.LocationName}} · 👩‍⚕️ {{.StaffName}}</div>
+            <div class="muted" style="font-size:.85rem;">{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}} · 👩‍⚕️ {{.StaffName}}</div>
+            {{if .VisitAddress}}<div class="muted" style="font-size:.85rem;">🏠 {{.VisitAddress}}</div>{{end}}
           </div>
           <span class="badge {{.Status}}">{{.Status.Display}}</span>
         </div>
@@ -57,7 +58,7 @@
             <dl class="review">
               <div><dt>{{t $.Lang "myb.treatment"}}</dt><dd>{{.ServiceName}}</dd></div>
               <div><dt>{{t $.Lang "myb.when"}}</dt><dd>{{formatTime .StartAt "Mon 02 Jan 2006 · 15:04"}}</dd></div>
-              <div><dt>{{t $.Lang "myb.loc"}}</dt><dd>{{.LocationName}}</dd></div>
+              <div><dt>{{t $.Lang "myb.loc"}}</dt><dd>{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}}{{if .VisitAddress}} — 🏠 {{.VisitAddress}}{{end}}</dd></div>
               <div><dt>{{t $.Lang "myb.price"}}</dt><dd>{{formatIDR .PriceIDR}}</dd></div>
             </dl>
             {{if eq (printf "%s" .PaymentStatus) "paid"}}
