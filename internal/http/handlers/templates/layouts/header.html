@@ -1,5 +1,6 @@
 {{define "header"}}
 <header class="site-header">
+  <div style="display:flex; align-items:center; gap:0.75rem;">
   {{if .HasDrawer}}
   <button type="button" class="theme-btn nav-toggle" aria-expanded="false" aria-controls="portal-tabs"
     title="{{t .Lang "p.nav.menu"}}" aria-label="{{t .Lang "p.nav.menu"}}" onclick="return __wanggaDrawerToggle()">☰</button>
@@ -8,6 +9,7 @@
     <span class="brand-mark">Wangga</span>
     <span class="brand-sub">Baby &amp; Mom Spa</span>
   </a>
+  </div>
   <nav class="nav">
     <form method="post" action="/lang" class="lang-switch" style="display:inline-flex" role="group" aria-label="{{t .Lang "lang.label"}}">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
