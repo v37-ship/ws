@@ -1,29 +1,39 @@
+{{define "portal_link"}}
+{{$p := navParts .Label}}
+<a href="{{.Href}}" class="portal-tab {{if .Active}}active{{end}}" title="{{index $p 1}}"><span class="portal-ico" aria-hidden="true">{{index $p 0}}</span> <span class="portal-label">{{index $p 1}}</span></a>
+{{end}}
+
 {{define "portal_nav"}}
 <aside class="portal-side no-print">
-  <nav class="portal-tabs" aria-label="Staff menu">
+  <button id="side-toggle" type="button" class="side-toggle" aria-expanded="true" aria-controls="portal-tabs"
+    data-t-collapse="{{t .Lang "p.nav.fold"}}" data-t-expand="{{t .Lang "p.nav.expand"}}"
+    title="{{t .Lang "p.nav.fold"}}" onclick="return __wanggaSideToggle()">
+    <span id="side-toggle-icon" aria-hidden="true">⏪</span>
+  </button>
+  <nav class="portal-tabs" id="portal-tabs" aria-label="Staff menu">
     <div class="portal-group">
       <div class="portal-group-title">{{t .Lang "p.nav.g_ops"}}</div>
-      <a href="/portal" class="portal-tab {{if eq .Active "dashboard"}}active{{end}}">{{t .Lang "p.nav.dash"}}</a>
-      <a href="/portal/bookings" class="portal-tab {{if eq .Active "bookings"}}active{{end}}">{{t .Lang "p.nav.bk"}}</a>
-      <a href="/portal/bookings/new" class="portal-tab {{if eq .Active "new_booking"}}active{{end}}">{{t .Lang "p.nav.new"}}</a>
-      <a href="/portal/customers" class="portal-tab {{if eq .Active "customers"}}active{{end}}">{{t .Lang "p.nav.cu"}}</a>
-      <a href="/portal/customers/new" class="portal-tab {{if eq .Active "new_customer"}}active{{end}}">{{t .Lang "p.nav.newc"}}</a>
+      {{template "portal_link" dict "Href" "/portal" "Active" (eq .Active "dashboard") "Label" (t .Lang "p.nav.dash")}}
+      {{template "portal_link" dict "Href" "/portal/bookings" "Active" (eq .Active "bookings") "Label" (t .Lang "p.nav.bk")}}
+      {{template "portal_link" dict "Href" "/portal/bookings/new" "Active" (eq .Active "new_booking") "Label" (t .Lang "p.nav.new")}}
+      {{template "portal_link" dict "Href" "/portal/customers" "Active" (eq .Active "customers") "Label" (t .Lang "p.nav.cu")}}
+      {{template "portal_link" dict "Href" "/portal/customers/new" "Active" (eq .Active "new_customer") "Label" (t .Lang "p.nav.newc")}}
     </div>
     <div class="portal-group">
       <div class="portal-group-title">{{t .Lang "p.nav.g_mng"}}</div>
-      <a href="/portal/schedule" class="portal-tab {{if eq .Active "schedule"}}active{{end}}">{{t .Lang "p.nav.team"}}</a>
-      <a href="/portal/services" class="portal-tab {{if eq .Active "services"}}active{{end}}">{{t .Lang "p.nav.svc"}}</a>
+      {{template "portal_link" dict "Href" "/portal/schedule" "Active" (eq .Active "schedule") "Label" (t .Lang "p.nav.team")}}
+      {{template "portal_link" dict "Href" "/portal/services" "Active" (eq .Active "services") "Label" (t .Lang "p.nav.svc")}}
     </div>
     <div class="portal-group">
       <div class="portal-group-title">{{t .Lang "p.nav.g_ins"}}</div>
-      <a href="/portal/reports" class="portal-tab {{if eq .Active "reports"}}active{{end}}">{{t .Lang "r.nav"}}</a>
+      {{template "portal_link" dict "Href" "/portal/reports" "Active" (eq .Active "reports") "Label" (t .Lang "r.nav")}}
     </div>
     {{if .User}}
       {{if eq (printf "%s" .User.Role) "admin"}}
       <div class="portal-group">
         <div class="portal-group-title">{{t .Lang "p.nav.g_adm"}}</div>
-        <a href="/admin/cs" class="portal-tab {{if eq .Active "admin_cs"}}active{{end}}">{{t .Lang "p.nav.cs"}}</a>
-        <a href="/admin" class="portal-tab {{if eq .Active "admin"}}active{{end}}">{{t .Lang "p.nav.adm"}}</a>
+        {{template "portal_link" dict "Href" "/admin/cs" "Active" (eq .Active "admin_cs") "Label" (t .Lang "p.nav.cs")}}
+        {{template "portal_link" dict "Href" "/admin" "Active" (eq .Active "admin") "Label" (t .Lang "p.nav.adm")}}
       </div>
       {{end}}
     {{end}}

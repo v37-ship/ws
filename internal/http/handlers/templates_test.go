@@ -166,6 +166,15 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			if lang == "en" && name == "portal_reports.html" && !contains(out, "Revenue report") {
 				t.Errorf("portal_reports.html (en): missing English title")
 			}
+			if name == "portal_dashboard.html" {
+				if !contains(out, "portal-side") || !contains(out, "side-toggle") {
+					t.Errorf("portal_dashboard.html (%s): missing sidebar shell/toggle", lang)
+				}
+				want := map[string]string{"en": "Operations", "id": "Operasional"}[lang]
+				if !contains(out, want) {
+					t.Errorf("portal_dashboard.html (%s): missing sidebar group %q", lang, want)
+				}
+			}
 		}
 		// HTMX partials must also render in both languages without missing-key leaks
 		// (t echoes the key itself when absent, so a literal key in output = leak).

@@ -51,6 +51,42 @@ window.__wanggaTheme = {
   } catch (e) {}
 })();
 function __wanggaThemeCycle() { try { return window.__wanggaTheme.cycle(); } catch (e) { return false; } }
+/* Sidebar collapse ships the same way: stored choice (full/mini) paints
+   before first render so the rail never flashes expanded on load. */
+window.__wanggaSide = {
+  get: function () {
+    try { return localStorage.getItem("wangga-side") === "mini" ? "mini" : "full"; }
+    catch (e) { return "full"; }
+  },
+  apply: function (v) {
+    if (v === "mini") { document.documentElement.setAttribute("data-side", "mini"); }
+    else { document.documentElement.removeAttribute("data-side"); }
+    try { localStorage.setItem("wangga-side", v); } catch (e) {}
+    var b = document.getElementById("side-toggle");
+    if (b) {
+      var mini = v === "mini";
+      b.setAttribute("aria-expanded", mini ? "false" : "true");
+      var ic = document.getElementById("side-toggle-icon");
+      if (ic) ic.textContent = mini ? "⏩" : "⏪";
+      var tt = mini ? b.getAttribute("data-t-expand") : b.getAttribute("data-t-collapse");
+      if (tt) b.title = tt;
+    }
+  },
+  toggle: function () {
+    this.apply(this.get() === "mini" ? "full" : "mini");
+    return false;
+  }
+};
+(function () {
+  try {
+    if (window.__wanggaSide.get() === "mini") document.documentElement.setAttribute("data-side", "mini");
+    var paint = function () { window.__wanggaSide.apply(window.__wanggaSide.get()); };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", paint);
+    } else { paint(); }
+  } catch (e) {}
+})();
+function __wanggaSideToggle() { try { return window.__wanggaSide.toggle(); } catch (e) { return false; } }
 </script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">

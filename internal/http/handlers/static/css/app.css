@@ -379,14 +379,42 @@ input:focus, select:focus, textarea:focus {
 .portal-group-title { display: none; }
 
 @media (min-width: 1024px) {
-  .portal-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 1.5rem; align-items: start; }
-  .portal-side { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
-  .portal-side .portal-tabs { flex-direction: column; align-items: stretch; gap: 0; border-bottom: none; border-right: 2px solid var(--line); margin-bottom: 0; padding-right: 0.75rem; }
+  .portal-shell { display: grid; grid-template-columns: var(--side-w, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  /* Floating acrylic card: translucent theme-tinted glass over the page bg. */
+  .portal-side {
+    position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto;
+    border-radius: 1.25rem; padding: 0.6rem 0.75rem 0.75rem;
+    background: var(--card);
+    background: color-mix(in srgb, var(--card) 68%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft);
+  }
+  .portal-side .portal-tabs { flex-direction: column; align-items: stretch; gap: 0; border-bottom: none; margin-bottom: 0; }
   .portal-group { display: grid; gap: 0.15rem; padding: 0.5rem 0; }
   .portal-group + .portal-group { border-top: 1px solid var(--line); }
   .portal-group-title { display: block; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 0.25rem 0.75rem; }
-  .portal-side .portal-tab { border-bottom: none; border-left: 3px solid transparent; margin-bottom: 0; padding-left: calc(0.75rem - 3px); border-radius: 0 8px 8px 0; }
+  .portal-side .portal-tab { display: flex; align-items: center; gap: 0.6rem; border-bottom: none; border-left: 3px solid transparent; margin-bottom: 0; padding-left: calc(0.75rem - 3px); border-radius: 0 8px 8px 0; white-space: nowrap; }
   .portal-side .portal-tab.active, .portal-side .portal-tab:hover { background: var(--bg-2); }
+  .portal-ico { flex: none; font-size: 1.05rem; }
+  .portal-label { overflow: hidden; text-overflow: ellipsis; }
+  .side-toggle {
+    display: block; margin-left: auto; border: 1px solid var(--line); background: var(--card);
+    border-radius: 999px; width: 2rem; height: 2rem; line-height: 1; cursor: pointer; color: var(--muted);
+  }
+  .side-toggle:hover { color: var(--accent-deep); border-color: var(--accent-deep); }
+  /* Collapsed icon rail. */
+  html[data-side="mini"] .portal-shell { --side-w: 68px; }
+  html[data-side="mini"] .portal-side { padding: 0.6rem 0.5rem 0.75rem; }
+  html[data-side="mini"] .portal-label, html[data-side="mini"] .portal-group-title { display: none; }
+  html[data-side="mini"] .portal-side .portal-tab { justify-content: center; padding-left: 0; border-left-color: transparent; }
+  html[data-side="mini"] .portal-side .portal-tab.active { border-left-color: var(--accent-deep); }
+  html[data-side="mini"] .side-toggle { margin: 0 auto; }
+}
+
+@media (max-width: 1023.98px) {
+  .side-toggle { display: none; }
 }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
 .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow-soft); }

@@ -123,6 +123,12 @@ func New(
 		"staffPhoto": func(st domain.Staff) string {
 			return service.ResolveStaffPhoto(st)
 		},
+		"navParts": func(s string) []string {
+			if i := strings.Index(s, " "); i > 0 {
+				return []string{s[:i], strings.TrimSpace(s[i+1:])}
+			}
+			return []string{"", s}
+		},
 		"waURL": func(phone, customerName, serviceName, staffName, whenStr, locName string) string {
 			cleanPhone := strings.TrimSpace(phone)
 			cleanPhone = strings.ReplaceAll(cleanPhone, "-", "")
