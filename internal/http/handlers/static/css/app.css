@@ -379,13 +379,13 @@ input:focus, select:focus, textarea:focus {
 .portal-group { display: grid; gap: 0.15rem; padding: 0.5rem 0; }
 .portal-group + .portal-group { border-top: 1px solid var(--line); }
 .portal-group-title { display: block; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 0.25rem 0.75rem; }
-.drawer-bar, .drawer-head, .drawer-backdrop { display: none; }
+.drawer-head, .drawer-backdrop, .nav-toggle { display: none; }
 
 @media (min-width: 1024px) {
   .portal-shell { display: grid; grid-template-columns: var(--side-w, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
-  /* Floating acrylic card: translucent theme-tinted glass over the page bg. */
+  /* Floating acrylic card: translucent theme-tinted glass over the page bg.
+     Static (scrolls with the page) by request. */
   .portal-side {
-    position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto;
     border-radius: 1.25rem; padding: 0.6rem 0.75rem 0.75rem;
     background: var(--card);
     background: color-mix(in srgb, var(--card) 68%, transparent);
@@ -399,7 +399,7 @@ input:focus, select:focus, textarea:focus {
   .portal-side .portal-tab.active, .portal-side .portal-tab:hover { background: var(--bg-2); }
   .portal-ico { flex: none; font-size: 1.05rem; }
   .portal-label { overflow: hidden; text-overflow: ellipsis; }
-  .drawer-bar, .drawer-head, .drawer-backdrop { display: none !important; }
+  .drawer-head, .drawer-backdrop, .nav-toggle { display: none !important; }
   .side-toggle {
     display: block; margin-left: auto; border: 1px solid var(--line); background: var(--card);
     border-radius: 999px; width: 2rem; height: 2rem; line-height: 1; cursor: pointer; color: var(--muted);
@@ -416,14 +416,8 @@ input:focus, select:focus, textarea:focus {
 
 @media (max-width: 1023.98px) {
   .side-toggle { display: none; }
-  /* Reddit-style overlay drawer. */
-  .drawer-bar { display: block; margin-bottom: 1rem; }
-  .drawer-open {
-    display: inline-flex; align-items: center; gap: 0.5rem;
-    border: 1px solid var(--line); background: var(--card); color: var(--ink, inherit);
-    border-radius: 999px; padding: 0.5rem 1.1rem; font-weight: 800; cursor: pointer;
-  }
-  .drawer-open:hover { border-color: var(--accent-deep); color: var(--accent-deep); }
+  /* Sticky-header hamburger opens the overlay drawer. */
+  .nav-toggle { display: inline-flex; }
   .portal-side {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 60;
     width: min(300px, 85vw); max-height: none;

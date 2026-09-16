@@ -90,14 +90,14 @@ window.__wanggaDrawer = {
   open: function () {
     document.documentElement.setAttribute("data-drawer", "open");
     document.body.style.overflow = "hidden";
-    var b = document.querySelector(".drawer-open");
+    var b = document.querySelector(".nav-toggle");
     if (b) b.setAttribute("aria-expanded", "true");
     return false;
   },
   close: function () {
     document.documentElement.removeAttribute("data-drawer");
     document.body.style.overflow = "";
-    var b = document.querySelector(".drawer-open");
+    var b = document.querySelector(".nav-toggle");
     if (b) b.setAttribute("aria-expanded", "false");
     return false;
   },

@@ -178,6 +178,10 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	token := s.ensureCSRF(w, r)
 	data["CSRF"] = token
 	data["Request"] = r
+	// Portal/admin pages containing portal_nav get the sticky-header hamburger.
+	if _, ok := data["HasDrawer"]; !ok {
+		data["HasDrawer"] = strings.HasPrefix(name, "portal_") || name == "admin_cs.html"
+	}
 	data["Contact"] = pageData{
 		"WhatsApp": s.cfg.ContactWhatsApp,
 		"Email":    s.cfg.ContactEmail,

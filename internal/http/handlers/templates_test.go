@@ -153,6 +153,8 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":
 				data["Customer"] = domain.User{}
+			case "portal_dashboard.html":
+				data["HasDrawer"] = true
 			case "portal_service_edit.html":
 				data["Service"] = domain.Service{}
 			case "admin_job_applications.html":
@@ -182,6 +184,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			if lang == "en" && name == "home.html" && !contains(out, "Gentle beginnings") {
 				t.Errorf("home.html (en): missing English hero title")
 			}
+			if (name == "home.html" || name == "login.html") && contains(out, "theme-btn nav-toggle") {
+				t.Errorf("%s (%s): public page must not have drawer hamburger", name, lang)
+			}
 			if lang == "id" && name == "portal_bookings.html" && !contains(out, "Manajemen Booking") {
 				t.Errorf("portal_bookings.html (id): missing Indonesian title")
 			}
@@ -204,8 +209,11 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, "portal-side") || !contains(out, "side-toggle") {
 					t.Errorf("portal_dashboard.html (%s): missing sidebar shell/toggle", lang)
 				}
-				if !contains(out, "drawer-bar") || !contains(out, "drawer-backdrop") || !contains(out, "__wanggaDrawerToggle") {
+				if !contains(out, "drawer-backdrop") || !contains(out, "__wanggaDrawerToggle") {
 					t.Errorf("portal_dashboard.html (%s): missing mobile drawer markup", lang)
+				}
+				if !contains(out, "theme-btn nav-toggle") {
+					t.Errorf("portal_dashboard.html (%s): missing header hamburger", lang)
 				}
 				want := map[string]string{"en": "Operations", "id": "Operasional"}[lang]
 				if !contains(out, want) {

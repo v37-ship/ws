@@ -1,5 +1,9 @@
 {{define "header"}}
 <header class="site-header">
+  {{if .HasDrawer}}
+  <button type="button" class="theme-btn nav-toggle" aria-expanded="false" aria-controls="portal-tabs"
+    title="{{t .Lang "p.nav.menu"}}" aria-label="{{t .Lang "p.nav.menu"}}" onclick="return __wanggaDrawerToggle()">☰</button>
+  {{end}}
   <a class="brand" href="/">
     <span class="brand-mark">Wangga</span>
     <span class="brand-sub">Baby &amp; Mom Spa</span>
