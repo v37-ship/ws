@@ -8,6 +8,8 @@ import (
 
 	"spa-booking/internal/config"
 	"spa-booking/internal/domain"
+
+	"github.com/google/uuid"
 )
 
 // TestTemplatesParse ensures all embedded html/template files parse with the
@@ -57,11 +59,24 @@ func TestTemplatesExecute(t *testing.T) {
 		case "portal_customer_detail.html":
 			data["Bookings"] = []domain.Booking{}
 		case "portal_reports.html":
-			data["Summary"] = domain.ReportSummary{}
+			data["Summary"] = domain.ReportSummary{
+				StaffRows: []domain.StaffRow{{
+					StaffID: uuid.New(), Name: "Bidan Ayu", Sessions: 1,
+					UniqueCustomers: 1, GrossIDR: 100000, NetIDR: 100000, AvgIDR: 100000,
+					Services:    []domain.StaffServiceRow{{Name: "Baby Massage", Count: 1, Total: 100000}},
+					TopServices: []domain.StaffServiceRow{{Name: "Baby Massage", Count: 1, Total: 100000}},
+					Lines: []domain.ReportLine{{
+						CustomerName: "Mom", ServiceName: "Baby Massage", StaffName: "Bidan Ayu",
+						PaymentMethod: domain.PaymentMethodCash, AmountIDR: 100000,
+						PaidAt: time.Now(), Status: domain.BookingConfirmed,
+					}},
+				}},
+			}
 			data["Month"] = "2026-09"
 			data["Year"] = "2026"
 			data["Mon"] = "09"
 			data["Years"] = []string{"2026", "2025"}
+			data["ShowLoc"] = true
 			data["Lines"] = []domain.ReportLine{}
 			data["Refunds"] = []domain.ReportRefund{}
 		}

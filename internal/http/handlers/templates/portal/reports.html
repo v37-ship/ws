@@ -63,11 +63,11 @@
       <div class="panel stat-card"><div class="muted">QRIS / {{t .Lang "r.cash"}}</div><div style="font-weight:700;">{{formatIDR .Summary.QRISIDR}} / {{formatIDR .Summary.CashIDR}}</div></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" x-data="{openId:null}" @keydown.escape.window="openId=null">
       <h2>{{t .Lang "r.bystaff"}}</h2>
       <div style="overflow-x:auto;">
         <table class="table">
-          <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th></tr></thead>
+          <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th><th></th></tr></thead>
           <tbody>
           {{range .Summary.StaffRows}}
             <tr>
@@ -77,13 +77,44 @@
               <td style="text-align:right; white-space:nowrap;">{{formatIDR .AvgIDR}}</td>
               <td style="text-align:right; white-space:nowrap;">{{formatIDR .GrossIDR}}</td>
               <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}} <small class="muted">(−{{formatIDR .RefundIDR}})</small>{{end}}</td>
+              <td><button type="button" class="btn secondary on-light btn-sm" @click="openId='{{.StaffID}}'">{{t $.Lang "r.detail"}}</button></td>
             </tr>
           {{else}}
-            <tr><td colspan="6" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+            <tr><td colspan="7" class="muted">{{t $.Lang "r.empty"}}</td></tr>
           {{end}}
           </tbody>
         </table>
       </div>
+      {{range .Summary.StaffRows}}
+      <div class="modal-backdrop no-print" x-show="openId==='{{.StaffID}}'" x-transition style="display:none;">
+        <div class="modal wide" role="dialog" aria-modal="true" aria-label="{{if .Name}}{{.Name}}{{else}}-{{end}}" @click.outside="openId=null">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.5rem;">
+            <h2 style="margin:0;">{{if .Name}}{{.Name}}{{else}}-{{end}} · {{$.Month}}</h2>
+            <button type="button" class="btn secondary on-light btn-sm" @click="openId=null" aria-label="Close">✕</button>
+          </div>
+          <p class="muted" style="margin-top:0;">{{.Sessions}}× · {{formatIDR .GrossIDR}}{{if .RefundIDR}} − {{formatIDR .RefundIDR}}{{end}} = <strong>{{formatIDR .NetIDR}}</strong> · {{.UniqueCustomers}} {{t $.Lang "r.th.uniq"}}</p>
+          <div style="overflow-x:auto;">
+            <table class="table">
+              <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.svc"}}</th>{{if $.ShowLoc}}<th>{{t $.Lang "r.loc"}}</th>{{end}}<th>{{t $.Lang "r.th.meth"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
+              <tbody>
+              {{range .Lines}}
+                <tr>
+                  <td><small>{{formatTime .PaidAt "02 Jan 15:04"}}</small></td>
+                  <td>{{.CustomerName}}</td>
+                  <td>{{.ServiceName}}{{if eq (printf "%s" .Status) "cancelled"}} <span class="badge cancelled">{{.Status.Display}}</span>{{end}}</td>
+                  {{if $.ShowLoc}}<td><small>{{.LocationName}}</small></td>{{end}}
+                  <td>{{.PaymentMethod}}</td>
+                  <td style="text-align:right; font-weight:700;">{{formatIDR .AmountIDR}}</td>
+                </tr>
+              {{else}}
+                <tr><td colspan="{{if $.ShowLoc}}6{{else}}5{{end}}" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+              {{end}}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {{end}}
     </div>
 
     <div class="panel">

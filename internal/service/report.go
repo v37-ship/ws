@@ -81,7 +81,20 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 	sum.NetIDR = sum.GrossIDR - sum.RefundIDR
 	sum.ServiceRows = sortedTotals(byService)
 	sum.StaffRows = buildStaffRows(staffAgg, staffOrder)
+	attachStaffLines(sum.StaffRows, lines)
 	return sum, lines, refunds, nil
+}
+
+// attachStaffLines files each paid line under its staff row (lines arrive
+// paid-date ordered from the repo, so per-staff order is preserved).
+func attachStaffLines(rows []domain.StaffRow, lines []domain.ReportLine) {
+	byStaff := map[uuid.UUID][]domain.ReportLine{}
+	for _, ln := range lines {
+		byStaff[ln.StaffID] = append(byStaff[ln.StaffID], ln)
+	}
+	for i := range rows {
+		rows[i].Lines = byStaff[rows[i].StaffID]
+	}
 }
 
 // staffAccum gathers per-staff detail before flattening into domain.StaffRow.

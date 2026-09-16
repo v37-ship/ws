@@ -124,3 +124,21 @@ func TestBuildStaffRowsTopThree(t *testing.T) {
 		t.Errorf("expected S1 first, got %q", r.TopServices[0].Name)
 	}
 }
+
+func TestAttachStaffLines(t *testing.T) {
+	staffA := uuid.New()
+	staffB := uuid.New()
+	rows := []domain.StaffRow{{StaffID: staffA, Name: "A"}, {StaffID: staffB, Name: "B"}}
+	lines := []domain.ReportLine{
+		{StaffID: staffA, CustomerName: "Mom 1", AmountIDR: 100},
+		{StaffID: staffB, CustomerName: "Mom 2", AmountIDR: 200},
+		{StaffID: staffA, CustomerName: "Mom 3", AmountIDR: 300},
+	}
+	attachStaffLines(rows, lines)
+	if len(rows[0].Lines) != 2 || rows[0].Lines[0].CustomerName != "Mom 1" || rows[0].Lines[1].CustomerName != "Mom 3" {
+		t.Errorf("staff A lines wrong: %+v", rows[0].Lines)
+	}
+	if len(rows[1].Lines) != 1 || rows[1].Lines[0].CustomerName != "Mom 2" {
+		t.Errorf("staff B lines wrong: %+v", rows[1].Lines)
+	}
+}

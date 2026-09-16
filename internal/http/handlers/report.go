@@ -89,6 +89,7 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 		"Next":      service.NextMonth(month),
 		"Today":     today,
 		"IsCurrent": month == today,
+		"ShowLoc":   locID == uuid.Nil,
 		"LocID":     locID.String(),
 		"Locations": locs,
 		"Summary":   sum,

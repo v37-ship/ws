@@ -423,6 +423,7 @@ input:focus, select:focus, textarea:focus {
 .btn-wa { display: inline-flex; align-items: center; gap: 0.4rem; background: #25d366; color: #fff !important; font-weight: 700; border-radius: 999px; padding: 0.55rem 1.1rem; border: none; cursor: pointer; text-decoration: none; }
 .btn-wa:hover { background: #20ba5a; color: #fff; text-decoration: none; }
 .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.85rem; border-radius: 8px; }
+.modal.wide { max-width: 44rem; }
 
 .qr-box {
   display: grid;
