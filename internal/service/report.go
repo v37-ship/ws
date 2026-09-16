@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/repo"
@@ -153,6 +154,27 @@ func sortedTotals(m map[string]int64) []domain.NameTotal {
 		return rows[i].Total > rows[j].Total
 	})
 	return rows
+}
+
+// shiftMonth moves a YYYY-MM month by delta months; invalid input yields "".
+func shiftMonth(month string, delta int) string {
+	t, err := time.Parse("2006-01", month)
+	if err != nil {
+		return ""
+	}
+	return t.AddDate(0, delta, 0).Format("2006-01")
+}
+
+// PrevMonth returns the month before the given YYYY-MM ("" if invalid).
+func PrevMonth(month string) string { return shiftMonth(month, -1) }
+
+// NextMonth returns the month after the given YYYY-MM ("" if invalid).
+func NextMonth(month string) string { return shiftMonth(month, 1) }
+
+// AvailableMonths lists YYYY-MM months (desc) with report data for the
+// jump-to-month dropdown.
+func (s *ReportService) AvailableMonths(ctx context.Context, locationID uuid.UUID) ([]string, error) {
+	return s.reports.AvailableMonths(ctx, locationID, 24)
 }
 
 // RecordRefund validates and stores a refund, plus an audit log entry.

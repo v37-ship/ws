@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"spa-booking/internal/domain"
 
@@ -99,6 +100,45 @@ func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationI
 			return nil, err
 		}
 		out = append(out, rf)
+	}
+	return out, rows.Err()
+}
+
+// AvailableMonths returns YYYY-MM months (desc) that have paid payments or
+// recorded refunds, for the jump-to-month dropdown. Bounded by limit.
+func (r *ReportRepo) AvailableMonths(ctx context.Context, locationID uuid.UUID, limit int) ([]string, error) {
+	if limit <= 0 || limit > 60 {
+		limit = 24
+	}
+	args := []any{}
+	locFilterP := ""
+	locFilterR := ""
+	if locationID != uuid.Nil {
+		args = append(args, locationID)
+		locFilterP = " AND b.location_id = $1"
+		locFilterR = " AND b.location_id = $1"
+	}
+	q := `SELECT m FROM (
+		SELECT DISTINCT date_trunc('month', p.paid_at AT TIME ZONE 'Asia/Jakarta') AS m
+		FROM payments p JOIN bookings b ON b.id = p.booking_id
+		WHERE p.status='paid' AND p.paid_at IS NOT NULL` + locFilterP + `
+		UNION
+		SELECT DISTINCT date_trunc('month', r.created_at AT TIME ZONE 'Asia/Jakarta') AS m
+		FROM refunds r JOIN bookings b ON b.id = r.booking_id
+		WHERE 1=1` + locFilterR + `
+	) t ORDER BY m DESC LIMIT ` + fmt.Sprintf("%d", limit)
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var when time.Time
+		if err := rows.Scan(&when); err != nil {
+			return nil, err
+		}
+		out = append(out, when.Format("2006-01"))
 	}
 	return out, rows.Err()
 }

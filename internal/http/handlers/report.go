@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"time"
 
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/i18n"
+	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -38,17 +40,52 @@ func (s *Server) reportParams(r *http.Request) (string, uuid.UUID) {
 	return month, locID
 }
 
+// MonthOption is one entry in the jump-to-month dropdown.
+type MonthOption struct {
+	Value string // YYYY-MM
+	Label string // localized, e.g. "September 2026"
+}
+
+// monthLabel renders "MonthName YYYY" using the r.m.01..r.m.12 keys.
+func monthLabel(lang, month string) string {
+	if len(month) != 7 {
+		return month
+	}
+	name := i18n.T(lang, "r.m."+month[5:7])
+	return name + " " + month[:4]
+}
+
 // PortalReports renders the monthly revenue report (all portal staff).
 func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	month, locID := s.reportParams(r)
+	lang := i18n.Resolve(r)
 	sum, lines, refunds, err := s.reports.MonthlyReport(r.Context(), month, locID)
 	if err != nil {
 		http.Error(w, "failed to load report", http.StatusInternalServerError)
 		return
 	}
+	today := currentMonth()
+	var months []MonthOption
+	if avail, err := s.reports.AvailableMonths(r.Context(), locID); err == nil {
+		ordered := []string{month}
+		for _, m := range avail {
+			if m != month {
+				ordered = append(ordered, m)
+			}
+		}
+		sort.Slice(ordered, func(i, j int) bool { return ordered[i] > ordered[j] })
+		for _, m := range ordered {
+			months = append(months, MonthOption{Value: m, Label: monthLabel(lang, m)})
+		}
+	}
 	locs, _ := s.catalog.ListLocations(r.Context(), true)
 	s.render(w, r, "portal_reports.html", pageData{
 		"Month":     month,
+		"Prev":      service.PrevMonth(month),
+		"Next":      service.NextMonth(month),
+		"Today":     today,
+		"IsCurrent": month == today,
+		"Months":    months,
 		"LocID":     locID.String(),
 		"Locations": locs,
 		"Summary":   sum,

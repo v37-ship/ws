@@ -23,6 +23,18 @@
     {{template "portal_nav" dict "Active" "reports" "User" .User "Lang" $.Lang}}
 
     <form class="panel no-print" method="get" action="/portal/reports" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+      <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap;">
+        <a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Prev}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.prev"}}</a>
+        {{if .IsCurrent}}{{else}}<a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Today}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.today"}}</a>
+        <a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Next}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.next"}}</a>{{end}}
+        {{if .Months}}
+        <label>{{t .Lang "r.jump"}}
+          <select name="jump" onchange="location.href='/portal/reports?month='+this.value+'{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}'">
+            {{range .Months}}<option value="{{.Value}}" {{if eq .Value $.Month}}selected{{end}}>{{.Label}}</option>{{end}}
+          </select>
+        </label>
+        {{end}}
+      </div>
       <label>{{t .Lang "r.month"}}
         <input type="month" name="month" value="{{.Month}}" required>
       </label>

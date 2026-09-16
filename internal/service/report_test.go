@@ -8,6 +8,22 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestPrevNextMonth(t *testing.T) {
+	cases := []struct{ in, prev, next string }{
+		{"2026-09", "2026-08", "2026-10"},
+		{"2026-01", "2025-12", "2026-02"},
+		{"2026-12", "2026-11", "2027-01"},
+		{"nope", "", ""},
+	}
+	for _, c := range cases {
+		if got := PrevMonth(c.in); got != c.prev {
+			t.Errorf("PrevMonth(%q) = %q, want %q", c.in, got, c.prev)
+		}
+		if got := NextMonth(c.in); got != c.next {
+			t.Errorf("NextMonth(%q) = %q, want %q", c.in, got, c.next)
+		}
+	}
+}
 func TestBuildStaffRowsSessionsUniqueServices(t *testing.T) {
 	staffA := uuid.New()
 	staffB := uuid.New()
