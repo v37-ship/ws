@@ -195,11 +195,12 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 		data["HasDrawer"] = strings.HasPrefix(name, "portal_") || name == "admin_cs.html"
 	}
 	data["Contact"] = pageData{
-		"WhatsApp": s.cfg.ContactWhatsApp,
-		"Email":    s.cfg.ContactEmail,
-		"Address":  s.cfg.ContactAddress,
-		"Hours":    s.cfg.ContactHours,
-		"Maps":     s.cfg.ContactMapsURL,
+		"WhatsApp":  s.cfg.ContactWhatsApp,
+		"Email":     s.cfg.ContactEmail,
+		"Address":   s.cfg.ContactAddress,
+		"Hours":     s.cfg.ContactHours,
+		"Maps":      s.cfg.ContactMapsURL,
+		"Instagram": s.cfg.ContactIG,
 	}
 	// Umami tracker config; head.html renders the snippet only when both set.
 	data["Analytics"] = pageData{

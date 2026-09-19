@@ -34,6 +34,7 @@ type Config struct {
 	ContactAddress  string
 	ContactHours    string
 	ContactMapsURL  string
+	ContactIG       string
 	AnalyticsURL    string // Umami base URL, e.g. http://localhost:8030 (empty = tracker off)
 	AnalyticsSiteID string // Umami website ID (empty = tracker off)
 }
@@ -66,6 +67,7 @@ func Load() (Config, error) {
 		ContactAddress:  getenv("CONTACT_ADDRESS", "Studio kayu putih No.32, Kayu Putih, Pulo Gadung, Jakarta Timur. 13260"),
 		ContactHours:    getenv("CONTACT_HOURS", "Setiap Hari 11:00–21:00 WIB"),
 		ContactMapsURL:  getenv("CONTACT_MAPS_URL", "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"),
+		ContactIG:       getenv("CONTACT_INSTAGRAM", "https://www.instagram.com/wanggababymomwoman/"),
 		AnalyticsURL:    getenv("ANALYTICS_URL", ""),
 		AnalyticsSiteID: getenv("ANALYTICS_SITE_ID", ""),
 	}

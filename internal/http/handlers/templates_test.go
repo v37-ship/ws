@@ -46,6 +46,7 @@ func TestTemplatesExecute(t *testing.T) {
 			"Contact": pageData{
 				"WhatsApp": "62800", "Email": "a@b.c",
 				"Address": "addr", "Hours": "hours", "Maps": "https://maps.example/",
+				"Instagram": "https://instagram.example/",
 			},
 		}
 		switch name {
@@ -139,6 +140,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				"Contact": pageData{
 					"WhatsApp": "62800", "Email": "a@b.c",
 					"Address": "addr", "Hours": "hours", "Maps": "https://maps.example/",
+					"Instagram": "https://instagram.example/",
 				},
 			}
 			switch name {
