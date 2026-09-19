@@ -499,7 +499,7 @@ func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []b
 		}
 		customer, err := s.users.ByID(ctx, b.CustomerID)
 		if err == nil {
-			body := fmt.Sprintf("Booking confirmed at Wangga: Baby & Mom Spa.\n\nService: %s\nLocation: %s\nTherapist: %s\nWhen: %s\nAmount: Rp %d\n\nManage: %s/bookings\n",
+			body := fmt.Sprintf("Booking confirmed at Wangga Spa Baby, Mom, & Woman.\n\nService: %s\nLocation: %s\nTherapist: %s\nWhen: %s\nAmount: Rp %d\n\nManage: %s/bookings\n",
 				b.ServiceName, b.LocationName, b.StaffName, b.StartAt.Format(time.RFC1123), b.PriceIDR, s.baseURL)
 			if err := s.mailer.Send(customer.Email, "Wangga booking confirmed", body); err != nil {
 				s.log.Warn("email send failed", "err", err)

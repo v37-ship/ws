@@ -1,6 +1,6 @@
-# Wangga: Baby & Mom Spa
+# Wangga Spa Baby, Mom, & Woman
 
-Go + HTMX booking app for **Wangga: Baby & Mom Spa** — PostgreSQL, Docker Compose, Midtrans QRIS, Frontdesk Staff Portal, and Role-Based Access (Customer, CS, Admin).
+Go + HTMX booking app for **Wangga Spa Baby, Mom, & Woman** — PostgreSQL, Docker Compose, Midtrans QRIS, Frontdesk Staff Portal, and Role-Based Access (Customer, CS, Admin).
 
 ## Quick start
 

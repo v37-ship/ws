@@ -109,7 +109,7 @@ func New(
 			return dict, nil
 		},
 		"waInquire": func(serviceName, locName string) string {
-			msg := fmt.Sprintf("Halo Wangga: Baby & Mom Spa! Saya ingin bertanya tentang layanan %s di %s. Apakah masih tersedia?", serviceName, locName)
+			msg := fmt.Sprintf("Halo Wangga Spa Baby, Mom, & Woman! Saya ingin bertanya tentang layanan %s di %s. Apakah masih tersedia?", serviceName, locName)
 			return "https://wa.me/?text=" + url.QueryEscape(msg)
 		},
 		"waLink": func(phone, msg string) string {
@@ -150,7 +150,7 @@ func New(
 			if strings.HasPrefix(cleanPhone, "0") {
 				cleanPhone = "62" + cleanPhone[1:]
 			}
-			msg := fmt.Sprintf("Halo Bunda %s! Konfirmasi booking di Wangga: Baby & Mom Spa:\n\n✨ Layanan: %s\n👩‍⚕️ Bidan/Terapis: %s\n📅 Waktu: %s\n📍 Lokasi: %s\n\nSampai jumpa di Wangga Spa! Ada yang ingin ditanyakan sebelumnya, Bunda? 🥰",
+			msg := fmt.Sprintf("Halo Bunda %s! Konfirmasi booking di Wangga Spa Baby, Mom, & Woman:\n\n✨ Layanan: %s\n👩‍⚕️ Bidan/Terapis: %s\n📅 Waktu: %s\n📍 Lokasi: %s\n\nSampai jumpa di Wangga Spa! Ada yang ingin ditanyakan sebelumnya, Bunda? 🥰",
 				customerName, serviceName, staffName, whenStr, locName)
 			return "https://wa.me/" + cleanPhone + "?text=" + url.QueryEscape(msg)
 		},
