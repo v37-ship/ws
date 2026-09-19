@@ -36,10 +36,10 @@
           </div>
           <div class="food-prices">
             {{if and .HasM .HasL}}
-            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val">{{formatIDR .M}}</span></div>
-            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val fp-m">{{formatIDR .M}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val fp-l">{{formatIDR .L}}</span></div>
             {{else if .HasL}}
-            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val fp-l">{{formatIDR .L}}</span></div>
             {{else}}
             <div><span class="fp-val solo">{{formatIDR .M}}</span></div>
             {{end}}
@@ -66,10 +66,10 @@
           </div>
           <div class="food-prices">
             {{if and .HasM .HasL}}
-            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val">{{formatIDR .M}}</span></div>
-            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val fp-m">{{formatIDR .M}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val fp-l">{{formatIDR .L}}</span></div>
             {{else if .HasL}}
-            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val fp-l">{{formatIDR .L}}</span></div>
             {{else}}
             <div><span class="fp-val solo">{{formatIDR .M}}</span></div>
             {{end}}
@@ -96,10 +96,10 @@
           </div>
           <div class="food-prices">
             {{if and .HasM .HasL}}
-            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val">{{formatIDR .M}}</span></div>
-            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val fp-m">{{formatIDR .M}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val fp-l">{{formatIDR .L}}</span></div>
             {{else if .HasL}}
-            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val fp-l">{{formatIDR .L}}</span></div>
             {{else}}
             <div><span class="fp-val solo">{{formatIDR .M}}</span></div>
             {{end}}

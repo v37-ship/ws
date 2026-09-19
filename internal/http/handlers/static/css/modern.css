@@ -483,6 +483,8 @@ html[data-theme="dark"] code { background: #3a2b41; }
     color: #ad1457;
   }
   html:not([data-theme]) .pill { background: rgba(255, 111, 165, 0.18); color: #ffb3cd; }
+  html:not([data-theme]) .food-prices .fp-m { color: #8ab8ff; }
+  html:not([data-theme]) .food-prices .fp-l { color: #ff8585; }
   html:not([data-theme]) .pill.mint { background: rgba(43, 217, 198, 0.15); color: #7df0e0; }
   html:not([data-theme]) .pill.sun { background: rgba(255, 196, 77, 0.16); color: #ffd88a; }
   html:not([data-theme]) .feature-icon { background: #3a2a41; }
@@ -585,3 +587,7 @@ html[data-theme="dark"] .rate-row span { background: var(--card); }
 .food-prices .fp-lab { display: block; font-size: .78rem; font-weight: 800; color: var(--muted); }
 .food-prices .fp-lab.big { font-weight: 800; color: var(--ink); font-size: .85rem; }
 .food-prices .fp-val { display: block; font-weight: 800; font-size: 1.05rem; }
+.food-prices .fp-m { color: #1f6feb; }
+.food-prices .fp-l { color: #d64545; }
+html[data-theme="dark"] .food-prices .fp-m { color: #8ab8ff; }
+html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
