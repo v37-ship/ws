@@ -55,7 +55,11 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 
 - Homecare is `Booking.Place` (`onsite`/`homecare`), never a second Location.
   `VisitAddress` is required for homecare. `?place=homecare` pre-checks the
-  wizard's Homecare radio.
+  wizard's Homecare radio (homepage Homecare card links there).
+- Contact/social links follow the `CONTACT_*` pattern: env default in
+  `config.go` → `Contact` map in `render()` → footer template; document in
+  `.env.example`, `docker-compose.yml`, `README.md` (precedent:
+  `CONTACT_INSTAGRAM`).
 - `Service.Name` is canonical EN; `name_id`/`description_id` are optional
   (empty = same as canonical via `DisplayName`/`DisplayDescription`).
 - Bookings snapshot `ServiceName`; reports group by it, history untouched.
@@ -65,6 +69,16 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - Reports are cash-basis Asia/Jakarta: revenue from paid payments by
   `paid_at` month, refunds deduct in the recorded month, cancelled-but-paid
   counts until refunded.
+- Testimonials are moderated: `pending`/`approved`/`hidden`, only approved
+  renders (homepage Alpine filmstrip: drag-to-slide, dots, no arrows).
+  Entries snapshot name/photo/message (account edits never rewrite reviews);
+  messages display as-written in both languages (no `message_id`).
+  Launch seeds live in `SeedTestimonials` (seed-if-empty, like `SeedDemo`).
+  Key prefixes: `tm.*` (section/form), `acc.*` (account), `a.tm.*` (admin).
+- `/account` is the self-service profile page (name + avatar upload/link
+  under `uploads/avatars/`); header user chip links there. Review uploads go
+  under `uploads/testimonials/`, served by traversal-safe handlers mirroring
+  `ServeServicePhoto`.
 
 ## Git
 
