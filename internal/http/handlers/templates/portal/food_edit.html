@@ -21,6 +21,7 @@
           <select name="category" required>
             <option value="food" {{if eq (printf "%s" .Item.Category) "food"}}selected{{end}}>{{t .Lang "fd.food"}}</option>
             <option value="beverage" {{if eq (printf "%s" .Item.Category) "beverage"}}selected{{end}}>{{t .Lang "fd.bev"}}</option>
+            <option value="snack" {{if eq (printf "%s" .Item.Category) "snack"}}selected{{end}}>{{t .Lang "fd.snacks"}}</option>
           </select>
         </label>
         <label>{{t .Lang "p.fd.sort"}} <input type="number" name="sort" value="{{.Item.Sort}}" min="0"></label>
@@ -31,7 +32,6 @@
       </div>
       <label>{{t .Lang "p.fd.desc"}} <textarea name="description" rows="2">{{.Item.Description}}</textarea></label>
       <label>{{t .Lang "p.fd.var"}} <input name="variants" autocomplete="off" value="{{.Item.Variants}}"></label>
-      <label style="display:flex; gap:.5rem; align-items:center;"><input type="checkbox" name="pre_order" value="1" {{if .Item.PreOrder}}checked{{end}}> {{t .Lang "p.fd.pre"}}</label>
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
         <label>{{t .Lang "tm.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
         <label>URL <input name="image_url" placeholder="https://…" autocomplete="off" value="{{.Item.ImageURL}}"></label>

@@ -465,13 +465,13 @@ type FoodCategory string
 const (
 	FoodCategoryFood     FoodCategory = "food"
 	FoodCategoryBeverage FoodCategory = "beverage"
+	FoodCategorySnack    FoodCategory = "snack"
 )
 
 // FoodItem is one Bu Nah menu row. Names/descriptions display as-written in
 // both languages. Prices are Medium/Large variants (either may be NULL);
-// single-price items (drinks) use PriceM. Variants holds comma-separated
-// sub-options (pudding flavors, snack kinds). PreOrder marks items
-// delivered to homes on the day (jamu, puding, snack).
+// single-price items (drinks, snacks) use PriceM. Variants holds
+// comma-separated sub-options (pudding flavors, snack kinds).
 type FoodItem struct {
 	ID          uuid.UUID
 	Category    FoodCategory
@@ -480,7 +480,6 @@ type FoodItem struct {
 	PriceM      *int64
 	PriceL      *int64
 	Variants    string
-	PreOrder    bool
 	Active      bool
 	ImagePath   string // local upload under uploads/food/
 	ImageURL    string // internet picture link

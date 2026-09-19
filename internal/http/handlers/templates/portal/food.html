@@ -29,6 +29,7 @@
             <select name="category" required>
               <option value="food">{{t .Lang "fd.food"}}</option>
               <option value="beverage">{{t .Lang "fd.bev"}}</option>
+              <option value="snack">{{t .Lang "fd.snacks"}}</option>
             </select>
           </label>
           <label>{{t .Lang "p.fd.sort"}} <input type="number" name="sort" value="0" min="0"></label>
@@ -39,7 +40,6 @@
         </div>
         <label>{{t .Lang "p.fd.desc"}} <textarea name="description" rows="2"></textarea></label>
         <label>{{t .Lang "p.fd.var"}} <input name="variants" autocomplete="off" placeholder="coklat, stroberi, mangga"></label>
-        <label style="display:flex; gap:.5rem; align-items:center;"><input type="checkbox" name="pre_order" value="1"> {{t .Lang "p.fd.pre"}}</label>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
           <label>{{t .Lang "tm.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
           <label>URL <input name="image_url" placeholder="https://…" autocomplete="off"></label>
@@ -64,9 +64,9 @@
           {{range .Items}}
             <tr>
               <td>
-                <div><strong>{{.Name}}</strong>{{if .PreOrder}}<sup>*</sup>{{end}}{{if .Variants}}<br><small class="muted">{{.Variants}}</small>{{end}}</div>
+                <div><strong>{{.Name}}</strong>{{if .Variants}}<br><small class="muted">{{.Variants}}</small>{{end}}</div>
               </td>
-              <td>{{if eq (printf "%s" .Category) "beverage"}}{{t $.Lang "fd.bev"}}{{else}}{{t $.Lang "fd.food"}}{{end}}</td>
+              <td>{{if eq (printf "%s" .Category) "beverage"}}{{t $.Lang "fd.bev"}}{{else if eq (printf "%s" .Category) "snack"}}{{t $.Lang "fd.snacks"}}{{else}}{{t $.Lang "fd.food"}}{{end}}</td>
               <td>{{if .HasM}}{{formatIDR .M}}{{else}}—{{end}}<br><small class="muted">{{if .HasL}}{{formatIDR .L}}{{else}}—{{end}}</small></td>
               <td>
                 {{if .Active}}

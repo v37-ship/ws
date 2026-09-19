@@ -19,16 +19,19 @@ func (s *Server) FoodPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load menu", http.StatusInternalServerError)
 		return
 	}
-	var foods, beverages []domain.FoodItem
+	var foods, beverages, snacks []domain.FoodItem
 	for _, f := range items {
-		if f.Category == domain.FoodCategoryBeverage {
+		switch f.Category {
+		case domain.FoodCategoryBeverage:
 			beverages = append(beverages, f)
-		} else {
+		case domain.FoodCategorySnack:
+			snacks = append(snacks, f)
+		default:
 			foods = append(foods, f)
 		}
 	}
 	s.render(w, r, "food.html", pageData{
-		"Foods": foods, "Beverages": beverages,
+		"Foods": foods, "Beverages": beverages, "Snacks": snacks,
 		"Error": r.URL.Query().Get("error"),
 	})
 }
@@ -58,7 +61,6 @@ func parseFoodForm(r *http.Request) (domain.FoodItem, string) {
 		}
 	}
 	f.Variants = r.FormValue("variants")
-	f.PreOrder = r.FormValue("pre_order") == "1"
 	if v := strings.TrimSpace(r.FormValue("sort")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			f.Sort = n

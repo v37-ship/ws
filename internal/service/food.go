@@ -53,8 +53,8 @@ func (s *FoodService) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func ValidateFoodItem(f *domain.FoodItem) error {
-	if f.Category != domain.FoodCategoryFood && f.Category != domain.FoodCategoryBeverage {
-		return fmt.Errorf("%w: category must be food or beverage", ErrValidation)
+	if f.Category != domain.FoodCategoryFood && f.Category != domain.FoodCategoryBeverage && f.Category != domain.FoodCategorySnack {
+		return fmt.Errorf("%w: category must be food, beverage or snack", ErrValidation)
 	}
 	name := strings.TrimSpace(f.Name)
 	if utf8.RuneCountInString(name) < 2 || utf8.RuneCountInString(name) > 100 {
@@ -127,15 +127,22 @@ func (s *FoodService) SeedFood(ctx context.Context) error {
 		}
 	}
 	beverages := []domain.FoodItem{
-		{Category: domain.FoodCategoryBeverage, Name: "Jamu BK/KA 350ml", PriceM: idr(15000), PreOrder: true, Active: true, Sort: 1},
-		{Category: domain.FoodCategoryBeverage, Name: "Jamu BK/KA 1 liter", PriceM: idr(30000), PreOrder: true, Active: true, Sort: 2},
+		{Category: domain.FoodCategoryBeverage, Name: "Jamu BK/KA 350ml", PriceM: idr(15000), Active: true, Sort: 1},
+		{Category: domain.FoodCategoryBeverage, Name: "Jamu BK/KA 1 liter", PriceM: idr(30000), Active: true, Sort: 2},
 		{Category: domain.FoodCategoryBeverage, Name: "Teh/es teh", PriceM: idr(5000), Active: true, Sort: 3},
 		{Category: domain.FoodCategoryBeverage, Name: "Jeruk/es jeruk", PriceM: idr(10000), Active: true, Sort: 4},
-		{Category: domain.FoodCategoryBeverage, Name: "Puding", PriceM: idr(10000), Variants: "coklat, stroberi, mangga, hazelnut, alpukat, caramel", PreOrder: true, Active: true, Sort: 5},
-		{Category: domain.FoodCategoryBeverage, Name: "Snack", PriceM: idr(25000), Variants: "Ceker, Usus, Peyek, Kacang", PreOrder: true, Active: true, Sort: 6},
 	}
 	for i := range beverages {
 		if err := s.repo.Create(ctx, &beverages[i]); err != nil {
+			return err
+		}
+	}
+	snacks := []domain.FoodItem{
+		{Category: domain.FoodCategorySnack, Name: "Puding", PriceM: idr(10000), Variants: "coklat, stroberi, mangga, hazelnut, alpukat, caramel", Active: true, Sort: 1},
+		{Category: domain.FoodCategorySnack, Name: "Snack", PriceM: idr(25000), Variants: "Ceker, Usus, Peyek, Kacang", Active: true, Sort: 2},
+	}
+	for i := range snacks {
+		if err := s.repo.Create(ctx, &snacks[i]); err != nil {
 			return err
 		}
 	}

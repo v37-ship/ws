@@ -15,19 +15,19 @@ type FoodRepo struct{ pool *pgxpool.Pool }
 
 func NewFoodRepo(pool *pgxpool.Pool) *FoodRepo { return &FoodRepo{pool: pool} }
 
-const foodCols = `id, category, name, description, price_m, price_l, variants, pre_order, active, image_path, image_url, sort, created_at, updated_at`
+const foodCols = `id, category, name, description, price_m, price_l, variants, active, image_path, image_url, sort, created_at, updated_at`
 
 func scanFood(row pgx.Row) (domain.FoodItem, error) {
 	var f domain.FoodItem
 	err := row.Scan(
 		&f.ID, &f.Category, &f.Name, &f.Description, &f.PriceM, &f.PriceL,
-		&f.Variants, &f.PreOrder, &f.Active, &f.ImagePath, &f.ImageURL,
+		&f.Variants, &f.Active, &f.ImagePath, &f.ImageURL,
 		&f.Sort, &f.CreatedAt, &f.UpdatedAt,
 	)
 	return f, err
 }
 
-const foodOrder = ` ORDER BY (category='beverage'), sort, name`
+const foodOrder = ` ORDER BY CASE category WHEN 'food' THEN 0 WHEN 'beverage' THEN 1 ELSE 2 END, sort, name`
 
 // ListActive returns visible menu rows, food section first.
 func (r *FoodRepo) ListActive(ctx context.Context) ([]domain.FoodItem, error) {
@@ -77,24 +77,24 @@ func (r *FoodRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.FoodItem, er
 }
 
 func (r *FoodRepo) Create(ctx context.Context, f *domain.FoodItem) error {
-	const q = `INSERT INTO food_items (id, category, name, description, price_m, price_l, variants, pre_order, active, image_path, image_url, sort)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+	const q = `INSERT INTO food_items (id, category, name, description, price_m, price_l, variants, active, image_path, image_url, sort)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		RETURNING created_at, updated_at`
 	if f.ID == uuid.Nil {
 		f.ID = uuid.New()
 	}
 	return r.pool.QueryRow(ctx, q,
 		f.ID, f.Category, f.Name, f.Description, f.PriceM, f.PriceL,
-		f.Variants, f.PreOrder, f.Active, f.ImagePath, f.ImageURL, f.Sort,
+		f.Variants, f.Active, f.ImagePath, f.ImageURL, f.Sort,
 	).Scan(&f.CreatedAt, &f.UpdatedAt)
 }
 
 func (r *FoodRepo) Update(ctx context.Context, f *domain.FoodItem) error {
-	const q = `UPDATE food_items SET category=$2, name=$3, description=$4, price_m=$5, price_l=$6, variants=$7, pre_order=$8, active=$9, image_path=$10, image_url=$11, sort=$12, updated_at=now()
+	const q = `UPDATE food_items SET category=$2, name=$3, description=$4, price_m=$5, price_l=$6, variants=$7, active=$8, image_path=$9, image_url=$10, sort=$11, updated_at=now()
 		WHERE id=$1 RETURNING updated_at`
 	return r.pool.QueryRow(ctx, q,
 		f.ID, f.Category, f.Name, f.Description, f.PriceM, f.PriceL,
-		f.Variants, f.PreOrder, f.Active, f.ImagePath, f.ImageURL, f.Sort,
+		f.Variants, f.Active, f.ImagePath, f.ImageURL, f.Sort,
 	).Scan(&f.UpdatedAt)
 }
 

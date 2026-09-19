@@ -18,7 +18,7 @@ func TestValidateFoodItem(t *testing.T) {
 	badPrice := int64(-100)
 	for name, mutate := range map[string]func(*domain.FoodItem){
 		"short name": func(f *domain.FoodItem) { f.Name = "A" },
-		"bad cat":    func(f *domain.FoodItem) { f.Category = "snack" },
+		"bad cat":    func(f *domain.FoodItem) { f.Category = "dessert" },
 		"no price":   func(f *domain.FoodItem) { f.PriceM = nil; f.PriceL = nil },
 		"neg price":  func(f *domain.FoodItem) { f.PriceM = &badPrice },
 		"bad photo":  func(f *domain.FoodItem) { f.ImageURL = "notaurl" },

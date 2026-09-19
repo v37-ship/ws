@@ -18,7 +18,6 @@
       <h2 style="margin:0;">{{t .Lang "fd.how"}}</h2>
       <p class="muted" style="margin:0;">🕒 {{t .Lang "fd.hours"}} · 📍 {{t .Lang "fd.addr"}}</p>
       <p class="muted" style="margin:0;">{{t .Lang "fd.delivery"}}</p>
-      <p class="muted" style="margin:0; font-size:.85rem;">{{t .Lang "fd.note"}}</p>
       <p style="margin:0;"><a class="btn mint" href="{{waLink "628211347293" "Halo Bu Nah! Saya ingin memesan makanan."}}" target="_blank" rel="noopener">💬 {{t .Lang "fd.order"}} ({{t .Lang "fd.wa"}})</a></p>
     </section>
 
@@ -31,14 +30,13 @@
           {{if $photo}}<img src="{{$photo}}" alt="{{.Name}}" loading="lazy"
             style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">{{end}}
           <div>
-            <h3 style="margin:0 0 0.25rem;">{{.Name}}{{if .PreOrder}}<sup>*</sup>{{end}}</h3>
+            <h3 style="margin:0 0 0.25rem;">{{.Name}}</h3>
             {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
             {{if .Variants}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Variants}}</p>{{end}}
           </div>
           <div class="pill-row">
             {{if .HasM}}<span class="pill mint">M {{formatIDR .M}}</span>{{end}}
             {{if .HasL}}<span class="pill sun">L {{formatIDR .L}}</span>{{end}}
-            {{if .PreOrder}}<span class="pill">{{t $.Lang "fd.pre"}}</span>{{end}}
           </div>
         </article>
         {{else}}
@@ -56,14 +54,37 @@
           {{if $photo}}<img src="{{$photo}}" alt="{{.Name}}" loading="lazy"
             style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">{{end}}
           <div>
-            <h3 style="margin:0 0 0.25rem;">{{.Name}}{{if .PreOrder}}<sup>*</sup>{{end}}</h3>
+            <h3 style="margin:0 0 0.25rem;">{{.Name}}</h3>
             {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
             {{if .Variants}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Variants}}</p>{{end}}
           </div>
           <div class="pill-row">
             {{if .HasM}}<span class="pill mint">{{formatIDR .M}}</span>{{end}}
             {{if .HasL}}<span class="pill sun">L {{formatIDR .L}}</span>{{end}}
-            {{if .PreOrder}}<span class="pill">{{t $.Lang "fd.pre"}}</span>{{end}}
+          </div>
+        </article>
+        {{else}}
+        <p class="muted">{{t .Lang "fd.empty"}}</p>
+        {{end}}
+      </div>
+    </section>
+
+    <section class="stack">
+      <h2>{{t .Lang "fd.snacks"}}</h2>
+      <div class="grid three">
+        {{range .Snacks}}
+        <article class="panel stack service-card">
+          {{$photo := foodPhoto .}}
+          {{if $photo}}<img src="{{$photo}}" alt="{{.Name}}" loading="lazy"
+            style="width:100%; height:auto; border-radius:1rem; aspect-ratio:4/3; object-fit:cover; background:var(--bg-2);">{{end}}
+          <div>
+            <h3 style="margin:0 0 0.25rem;">{{.Name}}</h3>
+            {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
+            {{if .Variants}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Variants}}</p>{{end}}
+          </div>
+          <div class="pill-row">
+            {{if .HasM}}<span class="pill mint">{{formatIDR .M}}</span>{{end}}
+            {{if .HasL}}<span class="pill sun">L {{formatIDR .L}}</span>{{end}}
           </div>
         </article>
         {{else}}
