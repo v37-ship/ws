@@ -8,7 +8,7 @@
       hx-include="input[name='location_id']:checked" hx-indicator="#stf-ind"
       hx-on::after-request="document.getElementById('slots-wrap').innerHTML=''"
       @click="onReclick($el,'svc')"
-      @change="onPick($el,'svc')">>
+      @change="onPick($el,'svc')">
     <img src="{{servicePhoto .}}" alt="" loading="lazy">
     <span class="pick-name">{{.DisplayName $.Lang}}</span>
     {{if .DisplayDescription $.Lang}}<span class="pick-desc">{{.DisplayDescription $.Lang}}</span>{{end}}
