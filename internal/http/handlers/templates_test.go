@@ -178,10 +178,10 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				t.Errorf("%s (%s): missing html lang=%s", name, lang, lang)
 			}
 			// Spot-check translated chrome per language.
-			if lang == "id" && name == "home.html" && !contains(out, "Awal lembut") {
+			if lang == "id" && name == "home.html" && !contains(out, "Perawatan diri untuk wanita") {
 				t.Errorf("home.html (id): missing Indonesian hero title")
 			}
-			if lang == "en" && name == "home.html" && !contains(out, "Gentle beginnings") {
+			if lang == "en" && name == "home.html" && !contains(out, "Self-care for women") {
 				t.Errorf("home.html (en): missing English hero title")
 			}
 			if (name == "home.html" || name == "login.html") && contains(out, "theme-btn nav-toggle") {
