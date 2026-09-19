@@ -1,0 +1,39 @@
+{{define "testimonial_new.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "tm.new"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main>
+    <section class="auth-shell stack">
+      <h1 class="page-title">{{t .Lang "tm.new"}}</h1>
+      {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+      <form class="panel stack" method="post" action="/testimonials/new" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label>{{t .Lang "tm.name"}} <input name="name" required minlength="2" maxlength="80" value="{{.Name}}" autocomplete="name"></label>
+        <label>{{t .Lang "tm.age"}} <input type="number" name="age" min="10" max="100" inputmode="numeric"></label>
+        <div>
+          <span class="muted" style="font-size:.85rem;">{{t .Lang "tm.rate"}}</span>
+          <div class="rate-row" role="radiogroup" aria-label="{{t .Lang "tm.rate"}}">
+            <label><input type="radio" name="rating" value="1" required><span>★</span></label>
+            <label><input type="radio" name="rating" value="2"><span>★★</span></label>
+            <label><input type="radio" name="rating" value="3"><span>★★★</span></label>
+            <label><input type="radio" name="rating" value="4"><span>★★★★</span></label>
+            <label><input type="radio" name="rating" value="5" checked><span>★★★★★</span></label>
+          </div>
+        </div>
+        <label>{{t .Lang "tm.msg"}} <textarea name="message" rows="4" required minlength="10" maxlength="1000"></textarea></label>
+        <label>{{t .Lang "tm.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+        {{if .Avatar}}<p class="muted" style="font-size:.85rem;">{{t .Lang "tm.cur"}}: <img src="{{.Avatar}}" alt="" loading="lazy" style="width:2.5rem; height:2.5rem; border-radius:9999px; object-fit:cover; vertical-align:middle;"></p>{{end}}
+        <button class="btn" type="submit">{{t .Lang "tm.send"}}</button>
+      </form>
+    </section>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

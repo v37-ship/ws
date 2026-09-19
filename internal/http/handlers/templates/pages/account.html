@@ -1,0 +1,28 @@
+{{define "account.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "acc.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main>
+    <section class="auth-shell stack">
+      <h1 class="page-title">{{t .Lang "acc.title"}}</h1>
+      {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+      <form class="panel stack" method="post" action="/account" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        {{if .Avatar}}<p><img src="{{.Avatar}}" alt="" loading="lazy" style="width:4rem; height:4rem; border-radius:9999px; object-fit:cover;"></p>{{end}}
+        <label>{{t .Lang "acc.name"}} <input name="full_name" required minlength="2" maxlength="80" value="{{.User.FullName}}" autocomplete="name"></label>
+        <label>{{t .Lang "acc.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+        <label>URL <input name="photo_url" type="url" placeholder="https://…" autocomplete="off"></label>
+        <button class="btn" type="submit">{{t .Lang "acc.save"}}</button>
+      </form>
+    </section>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

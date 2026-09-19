@@ -544,3 +544,42 @@ html[data-theme="dark"] code { background: #3a2b41; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
 }
+
+/* Testimonials: auto-rotating review carousel + star inputs */
+[x-cloak] { display: none !important; }
+.tm-shell { position: relative; overflow: hidden; }
+.tm-track { position: relative; min-height: 12rem; }
+.tm-card { margin: 0; display: flex; flex-direction: column; gap: .6rem; align-items: center; text-align: center; padding: .5rem .5rem 0; }
+.tm-stars { color: var(--sun); font-size: 1.3rem; letter-spacing: .15em; }
+.tm-card blockquote { margin: 0; font-size: 1.05rem; line-height: 1.6; max-width: 44rem; font-style: italic; }
+.tm-who { display: flex; align-items: center; gap: .7rem; }
+.tm-avatar {
+  position: relative; width: 3.2rem; height: 3.2rem; border-radius: 9999px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 1.1rem; color: #fff;
+  background: linear-gradient(120deg, var(--accent-deep), var(--mint-deep));
+  overflow: hidden;
+}
+.tm-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tm-name { font-weight: 800; }
+.tm-nav { display: flex; align-items: center; justify-content: center; gap: .75rem; margin-top: .75rem; }
+.tm-arrow {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  width: 2.2rem; height: 2.2rem; border-radius: 9999px; font-size: 1.2rem;
+  cursor: pointer; line-height: 1;
+}
+.tm-arrow:hover { border-color: var(--accent); }
+.tm-dots { display: flex; gap: .4rem; }
+.tm-dots button {
+  width: .65rem; height: .65rem; border-radius: 9999px; border: 0;
+  background: var(--line); cursor: pointer; padding: 0;
+}
+.tm-dots button[aria-pressed="true"] { background: var(--accent-deep); }
+/* Star rating input: cumulative stars per option, gold when picked */
+.rate-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.rate-row input { position: absolute; opacity: 0; pointer-events: none; }
+.rate-row span { font-size: 1.1rem; letter-spacing: .1em; color: var(--muted); cursor: pointer; padding: .3rem .55rem; border: 2px solid var(--line); border-radius: .75rem; background: #fff; }
+.rate-row label:has(input:checked) span { color: var(--sun); border-color: var(--sun); background: #fffdf5; }
+.rate-row label:has(input:focus-visible) span { outline: 2px solid var(--sun); outline-offset: 2px; }
+html[data-theme="dark"] .tm-card blockquote, html:not([data-theme]) .tm-card blockquote { color: inherit; }
+html[data-theme="dark"] .rate-row span { background: var(--card); }

@@ -48,6 +48,7 @@ func main() {
 	bookings := repo.NewBookingRepo(pool)
 	payments := repo.NewPaymentRepo(pool)
 	careers := repo.NewCareerRepo(pool)
+	testimonials := repo.NewTestimonialRepo(pool)
 
 	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
 	catalogSvc := service.NewCatalogService(catalogRepo)
@@ -57,6 +58,7 @@ func main() {
 	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
 	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
 	careerSvc := service.NewCareerService(careers)
+	tmSvc := service.NewTestimonialService(testimonials)
 
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
 		log.Error("upload dir", "err", err)
@@ -71,8 +73,12 @@ func main() {
 		log.Error("seed", "err", err)
 		os.Exit(1)
 	}
+	if err := tmSvc.SeedTestimonials(ctx); err != nil {
+		log.Error("seed testimonials", "err", err)
+		os.Exit(1)
+	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

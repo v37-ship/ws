@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"spa-booking/internal/auth"
 	"spa-booking/internal/domain"
@@ -310,6 +312,38 @@ func (s *AuthService) CreateCS(ctx context.Context, email, password, fullName, p
 		return nil, err
 	}
 	return u, nil
+}
+
+// UpdateProfile lets a user edit their own display name and profile photo.
+// Uploads are stored paths ("" clears); links are validated http(s) URLs.
+func (s *AuthService) UpdateProfile(ctx context.Context, id uuid.UUID, fullName, photoPath, photoURL string) (*domain.User, error) {
+	u, err := s.users.ByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	fullName = strings.TrimSpace(fullName)
+	if n := utf8.RuneCountInString(fullName); n < 2 || n > 80 {
+		return nil, fmt.Errorf("%w: name must be 2-80 characters", ErrValidation)
+	}
+	if err := ValidateImageURL(photoURL); err != nil {
+		return nil, err
+	}
+	u.FullName = fullName
+	u.PhotoPath = strings.TrimSpace(photoPath)
+	u.PhotoURL = strings.TrimSpace(photoURL)
+	if err := s.users.Update(ctx, u); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// ResolveAvatar picks the display picture: local upload first, then
+// internet link, then "" (templates fall back to initials avatars).
+func ResolveAvatar(u domain.User) string {
+	if u.PhotoPath != "" {
+		return "/uploads/avatars/" + path.Base(u.PhotoPath)
+	}
+	return strings.TrimSpace(u.PhotoURL)
 }
 
 func (s *AuthService) SetUserActive(ctx context.Context, userID uuid.UUID, active bool) error {

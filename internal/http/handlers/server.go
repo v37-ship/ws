@@ -40,6 +40,7 @@ type Server struct {
 	book       *service.BookingService
 	reports    *service.ReportService
 	career     *service.CareerService
+	tm         *service.TestimonialService
 	tpl        *template.Template
 	csrfSecure bool
 }
@@ -53,6 +54,7 @@ func New(
 	book *service.BookingService,
 	reports *service.ReportService,
 	career *service.CareerService,
+	tm *service.TestimonialService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -127,6 +129,26 @@ func New(
 		"servicePhoto": func(svc domain.Service) string {
 			return service.ResolveServiceImage(svc)
 		},
+		"tmPhoto": func(t domain.Testimonial) string {
+			return service.ResolveTestimonialPhoto(t)
+		},
+		"stars": func(rating int) string {
+			if rating < 0 {
+				rating = 0
+			}
+			if rating > 5 {
+				rating = 5
+			}
+			s := ""
+			for i := 0; i < 5; i++ {
+				if i < rating {
+					s += "★"
+				} else {
+					s += "☆"
+				}
+			}
+			return s
+		},
 		"static": func(path string) string {
 			return "/static/" + strings.TrimPrefix(path, "/") + "?v=" + staticVersion
 		},
@@ -168,7 +190,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -460,6 +482,8 @@ func (s *Server) Routes(r chi.Router) {
 	r.Handle("/static/*", http.StripPrefix("/static/", StaticHandler()))
 	r.Get("/uploads/services/{file}", s.ServeServicePhoto)
 	r.Get("/uploads/staff/{file}", s.ServeStaffPhoto)
+	r.Get("/uploads/testimonials/{file}", s.ServeTestimonialPhoto)
+	r.Get("/uploads/avatars/{file}", s.ServeAvatar)
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
@@ -494,6 +518,11 @@ func (s *Server) Routes(r chi.Router) {
 	r.With(middleware.RequireAuth).Get("/bookings/{id}/status", s.BookingStatusPartial)
 	r.With(middleware.RequireAuth).Post("/bookings/{id}/cancel", s.CancelBooking)
 	r.With(middleware.RequireAuth).Post("/bookings/{id}/mock-pay", s.MockPay)
+
+	r.With(middleware.RequireAuth).Get("/testimonials/new", s.TestimonialNewForm)
+	r.With(middleware.RequireAuth).Post("/testimonials/new", s.CreateTestimonial)
+	r.With(middleware.RequireAuth).Get("/account", s.AccountForm)
+	r.With(middleware.RequireAuth).Post("/account", s.UpdateAccount)
 
 	r.Post("/webhooks/midtrans", s.MidtransWebhook)
 
@@ -570,6 +599,10 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/jobs", s.AdminJobs)
 		ar.Post("/jobs", s.AdminCreateJob)
 		ar.Post("/jobs/{id}/toggle", s.AdminToggleJob)
+		ar.Get("/testimonials", s.AdminTestimonials)
+		ar.Post("/testimonials", s.AdminCreateTestimonial)
+		ar.Post("/testimonials/{id}/status", s.AdminTestimonialStatus)
+		ar.Post("/testimonials/{id}/delete", s.AdminDeleteTestimonial)
 		ar.Get("/jobs/{id}/applications", s.AdminJobApplications)
 		ar.Get("/applications/{id}/cv", s.AdminDownloadCV)
 

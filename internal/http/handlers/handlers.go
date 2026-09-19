@@ -43,9 +43,10 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 		preview = preview[:6]
 	}
 	openJobs, _ := s.career.ListJobs(r.Context(), true)
+	testimonials, _ := s.tm.ListApproved(r.Context(), 12)
 	s.render(w, r, "home.html", pageData{
 		"Locations": locs, "PreviewServices": preview,
-		"OpenJobCount": len(openJobs),
+		"OpenJobCount": len(openJobs), "Testimonials": testimonials,
 	})
 }
 

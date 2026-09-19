@@ -1,0 +1,95 @@
+{{define "admin_testimonials.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "a.tm.title"}} — Admin</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack">
+    <nav class="admin-nav"><a href="/admin">{{t .Lang "a.jo.crumb"}}</a></nav>
+    <h1>{{t .Lang "a.tm.title"}}</h1>
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">{{t .Lang "a.tm.add"}}</summary>
+      <form class="stack" method="post" action="/admin/testimonials" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "tm.name"}} <input name="name" required minlength="2" maxlength="80" autocomplete="off"></label>
+          <label>{{t .Lang "tm.age"}} <input type="number" name="age" min="10" max="100" inputmode="numeric"></label>
+          <label>{{t .Lang "tm.rate"}}
+            <select name="rating">
+              <option value="5">★★★★★</option>
+              <option value="4">★★★★☆</option>
+              <option value="3">★★★☆☆</option>
+              <option value="2">★★☆☆☆</option>
+              <option value="1">★☆☆☆☆</option>
+            </select>
+          </label>
+        </div>
+        <label>{{t .Lang "tm.msg"}} <textarea name="message" rows="3" required minlength="10" maxlength="1000"></textarea></label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "tm.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>URL <input name="photo_url" type="url" placeholder="https://…" autocomplete="off"></label>
+        </div>
+        <button class="btn" type="submit">{{t .Lang "a.tm.add"}}</button>
+      </form>
+    </details>
+
+    <div class="panel table-cards">
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead><tr><th>{{t .Lang "tm.photo"}}</th><th>{{t .Lang "tm.name"}}</th><th>{{t .Lang "tm.rate"}}</th><th>{{t .Lang "tm.msg"}}</th><th>{{t .Lang "a.tm.status"}}</th><th></th></tr></thead>
+          <tbody>
+          {{range .Testimonials}}
+            {{$photo := tmPhoto .}}
+            <tr>
+              <td>{{if $photo}}<img src="{{$photo}}" alt="" loading="lazy" style="width:2.5rem; height:2.5rem; border-radius:9999px; object-fit:cover;">{{else}}<span class="tm-avatar" style="width:2.5rem; height:2.5rem; font-size:.9rem;">{{.Initials}}</span>{{end}}</td>
+              <td><strong>{{.Name}}</strong>{{if .Age}}<br><small class="muted">{{.Age}}</small>{{end}}</td>
+              <td><span class="tm-stars" style="font-size:1rem;">{{stars .Rating}}</span></td>
+              <td style="max-width:24rem;">{{.Message}}</td>
+              <td>{{if eq (printf "%s" .Status) "approved"}}<span class="badge confirmed">{{t $.Lang "a.tm.approved"}}</span>{{else if eq (printf "%s" .Status) "hidden"}}<span class="badge cancelled">{{t $.Lang "a.tm.hidden"}}</span>{{else}}<span class="badge no_show">{{t $.Lang "a.tm.pending"}}</span>{{end}}</td>
+              <td>
+                <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
+                  {{if ne (printf "%s" .Status) "approved"}}
+                  <form method="post" action="/admin/testimonials/{{.ID}}/status" style="display:inline">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <input type="hidden" name="status" value="approved">
+                    <button type="submit" class="btn secondary on-light btn-sm">{{t $.Lang "a.tm.approve"}}</button>
+                  </form>
+                  {{end}}
+                  {{if ne (printf "%s" .Status) "hidden"}}
+                  <form method="post" action="/admin/testimonials/{{.ID}}/status" style="display:inline">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <input type="hidden" name="status" value="hidden">
+                    <button type="submit" class="btn secondary on-light btn-sm">{{t $.Lang "a.tm.hide"}}</button>
+                  </form>
+                  {{else}}
+                  <form method="post" action="/admin/testimonials/{{.ID}}/status" style="display:inline">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <input type="hidden" name="status" value="approved">
+                    <button type="submit" class="btn secondary on-light btn-sm">{{t $.Lang "a.tm.show"}}</button>
+                  </form>
+                  {{end}}
+                  <form method="post" action="/admin/testimonials/{{.ID}}/delete" style="display:inline">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm">{{t $.Lang "a.tm.del"}}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="6" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "a.tm.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

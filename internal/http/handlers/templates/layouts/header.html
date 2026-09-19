@@ -31,7 +31,7 @@
       {{if eq (printf "%s" .User.Role) "admin"}}
         <a href="/admin">{{t .Lang "nav.admin"}}</a>
       {{end}}
-      <span class="muted" style="font-size:0.85rem;">{{.User.FullName}} ({{.User.Role}})</span>
+      <a href="/account" class="muted" style="font-size:0.85rem;">{{.User.FullName}} ({{.User.Role}})</a>
       <form method="post" action="/logout" style="display:inline">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <button class="linkish" type="submit">{{t .Lang "nav.logout"}}</button>

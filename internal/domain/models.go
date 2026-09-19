@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 )
@@ -30,6 +32,8 @@ type User struct {
 	BabyDOB      *time.Time
 	MomCondition string
 	MedicalNotes string
+	PhotoURL     string // profile picture link (upload in PhotoPath or URL)
+	PhotoPath    string // local upload under uploads/avatars/
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -404,4 +408,53 @@ type Slot struct {
 	StartAt time.Time
 	EndAt   time.Time
 	StaffID uuid.UUID
+}
+
+// TestimonialStatus gates homepage visibility: only approved rows render.
+// New customer submissions start pending; admins approve, hide, or delete.
+type TestimonialStatus string
+
+const (
+	TestimonialPending  TestimonialStatus = "pending"
+	TestimonialApproved TestimonialStatus = "approved"
+	TestimonialHidden   TestimonialStatus = "hidden"
+)
+
+// Testimonial snapshots reviewer content at submit time: later account
+// edits never rewrite published reviews (same rule as ServiceName).
+type Testimonial struct {
+	ID         uuid.UUID
+	CustomerID *uuid.UUID // NULL for seeded/admin-added entries
+	Name       string
+	Age        int    // 0 = not shown
+	PhotoPath  string // local upload under uploads/testimonials/
+	PhotoURL   string // internet picture link
+	Rating     int    // 1..5
+	Message    string // displayed as-written in both languages
+	Status     TestimonialStatus
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+// Initials renders the avatar fallback (first letters of the first two
+// name words) when a testimonial has no photo.
+func (t Testimonial) Initials() string {
+	words := strings.Fields(t.Name)
+	if len(words) == 0 {
+		return "W"
+	}
+	out := ""
+	for i, w := range words {
+		if i == 2 {
+			break
+		}
+		for _, r := range w {
+			out += string(unicode.ToUpper(r))
+			break
+		}
+	}
+	if out == "" {
+		return "W"
+	}
+	return out
 }
