@@ -120,31 +120,37 @@
       <h2>{{t .Lang "tm.title"}}</h2>
       <p>{{t .Lang "tm.sub"}}</p>
     </section>
-    <section class="panel tm-shell" style="margin-bottom:2rem"
-      {{if .Testimonials}}x-data="{i:0, n:{{len .Testimonials}}, t:null, start(){if(this.t)return; this.t=setInterval(()=>{this.i=(this.i+1)%this.n},5000)}, stop(){clearInterval(this.t); this.t=null}}"
-      x-init="if(!matchMedia('(prefers-reduced-motion: reduce)').matches){start()}" @mouseenter="stop()" @mouseleave="start()"{{end}}>
+    <section class="tm-shell" style="margin-bottom:2rem"
+      {{if .Testimonials}}x-data="{i:0, n:{{len .Testimonials}}, t:null, dragging:false, startX:0, dragX:0,
+        start(){if(this.t)return; this.t=setInterval(()=>{this.i=(this.i+1)%this.n},5000)},
+        stop(){clearInterval(this.t); this.t=null},
+        go(k){this.i=(k+this.n)%this.n},
+        down(e){this.dragging=true; this.startX=e.clientX; this.dragX=0; this.stop(); e.currentTarget.classList.add('grabbing'); e.currentTarget.setPointerCapture(e.pointerId)},
+        move(e){if(!this.dragging)return; this.dragX=e.clientX-this.startX},
+        up(e){if(!this.dragging)return; this.dragging=false; e.currentTarget.classList.remove('grabbing'); const w=e.currentTarget.clientWidth||1; const k=Math.round(-this.dragX/(w*0.15)); this.dragX=0; if(k!==0)this.go(this.i+k); this.start()}}"
+      x-init="if(!matchMedia('(prefers-reduced-motion: reduce)').matches){start()}" @mouseenter="if(!dragging)stop()" @mouseleave="if(!dragging)start()"{{end}}>
       {{if .Testimonials}}
-      <div class="tm-track">
-        {{range $idx, $t := .Testimonials}}
-        {{$photo := tmPhoto $t}}
-        <figure class="tm-card" {{if $idx}}x-cloak{{end}} x-show="i==={{$idx}}" x-transition.opacity.duration.400ms>
-          <div class="tm-stars" role="img" aria-label="{{$t.Rating}}/5">{{stars $t.Rating}}</div>
-          <blockquote>{{ $t.Message }}</blockquote>
-          <figcaption class="tm-who">
-            <span class="tm-avatar" aria-hidden="true">{{if $photo}}<img src="{{$photo}}" alt="" loading="lazy" onerror="this.remove()">{{end}}{{ $t.Initials }}</span>
-            <span class="tm-name">{{ $t.Name }}{{if $t.Age}}, {{ $t.Age }}{{end}}</span>
-          </figcaption>
-        </figure>
-        {{end}}
-      </div>
-      <div class="tm-nav">
-        <button type="button" class="tm-arrow" @click="i=(i-1+n)%n; stop(); start()" aria-label="‹">‹</button>
-        <div class="tm-dots" role="tablist">
+      <div class="tm-viewport" @pointerdown="down($event)" @pointermove="move($event)" @pointerup="up($event)" @pointercancel="up($event)">
+        <div class="tm-track" :style="{transform:'translateX(calc('+(-i*100)+'% + '+dragX+'px))', transition: dragging?'none':'transform .55s cubic-bezier(.22,.8,.3,1)'}">
           {{range $idx, $t := .Testimonials}}
-          <button type="button" role="tab" @click="i={{$idx}}; stop(); start()" :aria-pressed="i==={{$idx}}" aria-label="{{ $t.Name }}"></button>
+          {{$photo := tmPhoto $t}}
+          <figure class="tm-card">
+            <div class="tm-stars" role="img" aria-label="{{$t.Rating}}/5">{{stars $t.Rating}}</div>
+            <blockquote>{{ $t.Message }}</blockquote>
+            <figcaption class="tm-who">
+              <span class="tm-avatar" aria-hidden="true">{{if $photo}}<img src="{{$photo}}" alt="" loading="lazy" draggable="false" onerror="this.remove()">{{end}}{{ $t.Initials }}</span>
+              <span class="tm-name">{{ $t.Name }}{{if $t.Age}}, {{ $t.Age }}{{end}}</span>
+            </figcaption>
+          </figure>
           {{end}}
         </div>
-        <button type="button" class="tm-arrow" @click="i=(i+1)%n; stop(); start()" aria-label="›">›</button>
+      </div>
+      <div class="tm-nav">
+        <div class="tm-dots" role="tablist">
+          {{range $idx, $t := .Testimonials}}
+          <button type="button" role="tab" @click="go({{$idx}}); stop(); start()" :aria-pressed="i==={{$idx}}" aria-label="{{ $t.Name }}"></button>
+          {{end}}
+        </div>
       </div>
       {{else}}
       <p class="muted" style="text-align:center;">{{t .Lang "tm.empty"}}</p>
