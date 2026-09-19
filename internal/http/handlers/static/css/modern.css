@@ -580,8 +580,8 @@ html[data-theme="dark"] code { background: #3a2b41; }
 html[data-theme="dark"] .tm-card blockquote, html:not([data-theme]) .tm-card blockquote { color: inherit; }
 html[data-theme="dark"] .rate-row span { background: var(--card); }
 
-/* Food menu stacked M/L prices: label over price, bold Large */
-.food-prices { display: grid; gap: .35rem; }
+/* Food menu stacked M/L prices: label over price, bold Large, pinned bottom */
+.food-prices { display: grid; gap: .35rem; margin-top: auto; border-top: 1px solid var(--line); padding-top: .6rem; }
 .food-prices .fp-lab { display: block; font-size: .78rem; color: var(--muted); }
 .food-prices .fp-lab.big { font-weight: 800; color: var(--ink); font-size: .85rem; }
 .food-prices .fp-val { display: block; font-weight: 800; font-size: 1.05rem; }

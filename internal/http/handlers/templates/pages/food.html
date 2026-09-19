@@ -34,17 +34,16 @@
             {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
             {{if .Variants}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Variants}}</p>{{end}}
           </div>
-          {{if and .HasM .HasL}}
           <div class="food-prices">
+            {{if and .HasM .HasL}}
             <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val">{{formatIDR .M}}</span></div>
             <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            {{else if .HasL}}
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            {{else}}
+            <div><span class="fp-val solo">{{formatIDR .M}}</span></div>
+            {{end}}
           </div>
-          {{else}}
-          <div class="pill-row">
-            {{if .HasM}}<span class="pill mint">{{formatIDR .M}}</span>{{end}}
-            {{if .HasL}}<span class="pill sun">{{formatIDR .L}}</span>{{end}}
-          </div>
-          {{end}}
         </article>
         {{else}}
         <p class="muted">{{t .Lang "fd.empty"}}</p>
@@ -65,9 +64,15 @@
             {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
             {{if .Variants}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Variants}}</p>{{end}}
           </div>
-          <div class="pill-row">
-            {{if .HasM}}<span class="pill mint">{{formatIDR .M}}</span>{{end}}
-            {{if .HasL}}<span class="pill sun">L {{formatIDR .L}}</span>{{end}}
+          <div class="food-prices">
+            {{if and .HasM .HasL}}
+            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val">{{formatIDR .M}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            {{else if .HasL}}
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            {{else}}
+            <div><span class="fp-val solo">{{formatIDR .M}}</span></div>
+            {{end}}
           </div>
         </article>
         {{else}}
@@ -89,9 +94,15 @@
             {{if .Description}}<p class="muted" style="margin:0;">{{.Description}}</p>{{end}}
             {{if .Variants}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Variants}}</p>{{end}}
           </div>
-          <div class="pill-row">
-            {{if .HasM}}<span class="pill mint">{{formatIDR .M}}</span>{{end}}
-            {{if .HasL}}<span class="pill sun">L {{formatIDR .L}}</span>{{end}}
+          <div class="food-prices">
+            {{if and .HasM .HasL}}
+            <div><span class="fp-lab">{{t $.Lang "fd.med"}}</span><span class="fp-val">{{formatIDR .M}}</span></div>
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            {{else if .HasL}}
+            <div><span class="fp-lab big">{{t $.Lang "fd.lg"}}</span><span class="fp-val">{{formatIDR .L}}</span></div>
+            {{else}}
+            <div><span class="fp-val solo">{{formatIDR .M}}</span></div>
+            {{end}}
           </div>
         </article>
         {{else}}
