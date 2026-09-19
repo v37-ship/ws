@@ -15,7 +15,7 @@
 
       <form method="post" action="/book" id="book-form"
         x-data="{
-          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'{{t .Lang "book.today"}}', time:'', start:'', staff:'', place:'onsite',
+          loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'{{t .Lang "book.today"}}', time:'', start:'', staff:'', place:'{{if eq .Place "homecare"}}homecare{{else}}onsite{{end}}',
           pick(s, st, label){
             if (this.start === s) { this.clearTime(); return; }
             this.start=s; this.staff=st; this.time=label||'';
@@ -114,11 +114,11 @@
           <p class="muted" style="margin:.5rem 0 0; font-size:.85rem;">{{t .Lang "book.place"}}</p>
           <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
             <label class="pill-pick">
-              <input type="radio" name="place" value="onsite" checked @change="place='onsite'">
+              <input type="radio" name="place" value="onsite" {{if ne .Place "homecare"}}checked{{end}} @change="place='onsite'">
               <span>{{t .Lang "book.onsite"}}</span>
             </label>
             <label class="pill-pick">
-              <input type="radio" name="place" value="homecare" @change="place='homecare'">
+              <input type="radio" name="place" value="homecare" {{if eq .Place "homecare"}}checked{{end}} @change="place='homecare'">
               <span>{{t .Lang "book.homecare"}}</span>
             </label>
           </div>

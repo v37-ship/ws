@@ -129,13 +129,23 @@ func (s *Server) BookPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
+	place := string(domain.PlaceOnsite)
+	if r.URL.Query().Get("place") == string(domain.PlaceHomecare) {
+		place = string(domain.PlaceHomecare)
+	}
+	locID := r.URL.Query().Get("location_id")
+	if _, err := uuid.Parse(locID); err != nil && len(locs) == 1 {
+		// Single-branch shop: pre-answer the required location radio.
+		locID = locs[0].ID.String()
+	}
 	data := pageData{
 		"Locations":  locs,
-		"LocationID": r.URL.Query().Get("location_id"),
+		"LocationID": locID,
+		"Place":      place,
 		"Date":       time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
 		"Days":       nextDays(14, i18n.Resolve(r)),
 	}
-	if lid, err := uuid.Parse(r.URL.Query().Get("location_id")); err == nil {
+	if lid, err := uuid.Parse(locID); err == nil {
 		svcs, _ := s.catalog.ListServices(r.Context(), lid, true)
 		data["Services"] = svcs
 	}

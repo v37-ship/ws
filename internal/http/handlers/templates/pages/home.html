@@ -78,6 +78,23 @@
     </section>
 
     <section class="section-head">
+      <h2>{{t .Lang "hc.title"}}</h2>
+      <p>{{t .Lang "hc.sub"}}</p>
+    </section>
+    <section class="grid" style="margin-bottom:2rem">
+      <article class="panel location-tile">
+        <h2>{{t .Lang "hc.title"}}</h2>
+        <p class="muted">{{t .Lang "hc.sub"}}</p>
+        <div class="pill-row">
+          <span class="pill">{{t .Lang "visit.baby"}}</span>
+          <span class="pill mint">{{t .Lang "visit.mom"}}</span>
+          <span class="pill sun">{{t .Lang "hc.home"}}</span>
+        </div>
+        <a class="btn mint" href="/book?place=homecare">{{t .Lang "hc.book"}}</a>
+      </article>
+    </section>
+
+    <section class="section-head">
       <h2>{{t .Lang "visit.title"}}</h2>
       <p>{{t .Lang "visit.sub"}}</p>
     </section>
