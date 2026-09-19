@@ -1,0 +1,106 @@
+{{define "portal_food.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.fd.title"}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "food" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.fd.title"}}</h1>
+      </div>
+    </div>
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">{{t .Lang "p.fd.add"}}</summary>
+      <form class="stack" method="post" action="/portal/food" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.fd.name"}} <input name="name" required autocomplete="off"></label>
+          <label>{{t .Lang "p.fd.cat"}}
+            <select name="category" required>
+              <option value="food">{{t .Lang "fd.food"}}</option>
+              <option value="beverage">{{t .Lang "fd.bev"}}</option>
+            </select>
+          </label>
+          <label>{{t .Lang "p.fd.sort"}} <input type="number" name="sort" value="0" min="0"></label>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.fd.pm"}} <input type="number" name="price_m" min="0" placeholder="25000"></label>
+          <label>{{t .Lang "p.fd.pl"}} <input type="number" name="price_l" min="0" placeholder="32000"></label>
+        </div>
+        <label>{{t .Lang "p.fd.desc"}} <textarea name="description" rows="2"></textarea></label>
+        <label>{{t .Lang "p.fd.var"}} <input name="variants" autocomplete="off" placeholder="coklat, stroberi, mangga"></label>
+        <label style="display:flex; gap:.5rem; align-items:center;"><input type="checkbox" name="pre_order" value="1"> {{t .Lang "p.fd.pre"}}</label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "tm.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>URL <input name="image_url" placeholder="https://…" autocomplete="off"></label>
+        </div>
+        <button class="btn" type="submit">{{t .Lang "p.fd.add"}}</button>
+      </form>
+    </details>
+
+    <div class="panel">
+      <div style="overflow-x:auto;" class="table-cards" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{t .Lang "p.fd.name"}}</th>
+              <th>{{t .Lang "p.fd.cat"}}</th>
+              <th>{{t .Lang "p.fd.pm"}} / {{t .Lang "p.fd.pl"}}</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Items}}
+            <tr>
+              <td>
+                <div><strong>{{.Name}}</strong>{{if .PreOrder}}<sup>*</sup>{{end}}{{if .Variants}}<br><small class="muted">{{.Variants}}</small>{{end}}</div>
+              </td>
+              <td>{{if eq (printf "%s" .Category) "beverage"}}{{t $.Lang "fd.bev"}}{{else}}{{t $.Lang "fd.food"}}{{end}}</td>
+              <td>{{if .HasM}}{{formatIDR .M}}{{else}}—{{end}}<br><small class="muted">{{if .HasL}}{{formatIDR .L}}{{else}}—{{end}}</small></td>
+              <td>
+                {{if .Active}}
+                  <span class="badge confirmed">{{t $.Lang "p.fd.on"}}</span>
+                {{else}}
+                  <span class="badge cancelled">{{t $.Lang "p.fd.off"}}</span>
+                {{end}}
+              </td>
+              <td>
+                <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
+                  <a href="/portal/food/{{.ID}}/edit" class="btn secondary on-light btn-sm">{{t $.Lang "p.fd.edit"}}</a>
+                  <form method="post" action="/portal/food/{{.ID}}/toggle" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm">
+                      {{if .Active}}{{t $.Lang "p.fd.off"}}{{else}}{{t $.Lang "p.fd.on"}}{{end}}
+                    </button>
+                  </form>
+                  <form method="post" action="/portal/food/{{.ID}}/delete" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);">{{t $.Lang "p.fd.del"}}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="5" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.fd.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

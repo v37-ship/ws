@@ -116,6 +116,23 @@
       {{end}}
     </section>
 
+    <section class="section-head">
+      <h2>{{t .Lang "fd.title"}}</h2>
+      <p>{{t .Lang "fd.sub"}}</p>
+    </section>
+    <section class="grid" style="margin-bottom:2rem">
+      <article class="panel location-tile">
+        <h2>{{t .Lang "fd.title"}}</h2>
+        <p class="muted">{{t .Lang "fd.sub"}}</p>
+        <div class="pill-row">
+          <span class="pill">🕒 {{t .Lang "fd.hours"}}</span>
+          <span class="pill mint">{{t .Lang "fd.food"}}</span>
+          <span class="pill sun">{{t .Lang "fd.bev"}}</span>
+        </div>
+        <a class="btn mint" href="/food">{{t .Lang "fd.menu"}}</a>
+      </article>
+    </section>
+
     <section class="section-head" id="testimonials">
       <h2>{{t .Lang "tm.title"}}</h2>
       <p>{{t .Lang "tm.sub"}}</p>

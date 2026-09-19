@@ -458,3 +458,50 @@ func (t Testimonial) Initials() string {
 	}
 	return out
 }
+
+// FoodCategory splits the Bu Nah menu into its two page sections.
+type FoodCategory string
+
+const (
+	FoodCategoryFood     FoodCategory = "food"
+	FoodCategoryBeverage FoodCategory = "beverage"
+)
+
+// FoodItem is one Bu Nah menu row. Names/descriptions display as-written in
+// both languages. Prices are Medium/Large variants (either may be NULL);
+// single-price items (drinks) use PriceM. Variants holds comma-separated
+// sub-options (pudding flavors, snack kinds). PreOrder marks items
+// delivered to homes on the day (jamu, puding, snack).
+type FoodItem struct {
+	ID          uuid.UUID
+	Category    FoodCategory
+	Name        string
+	Description string
+	PriceM      *int64
+	PriceL      *int64
+	Variants    string
+	PreOrder    bool
+	Active      bool
+	ImagePath   string // local upload under uploads/food/
+	ImageURL    string // internet picture link
+	Sort        int
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// HasM/HasL report which price variants exist; M/L return the value or 0.
+// (html/template cannot dereference pointers, hence the helpers.)
+func (f FoodItem) HasM() bool { return f.PriceM != nil }
+func (f FoodItem) HasL() bool { return f.PriceL != nil }
+func (f FoodItem) M() int64 {
+	if f.PriceM == nil {
+		return 0
+	}
+	return *f.PriceM
+}
+func (f FoodItem) L() int64 {
+	if f.PriceL == nil {
+		return 0
+	}
+	return *f.PriceL
+}

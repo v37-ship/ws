@@ -15,7 +15,7 @@ import (
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
 func TestTemplatesParse(t *testing.T) {
-	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil)
+	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -25,20 +25,21 @@ func TestTemplatesParse(t *testing.T) {
 // html/template applies contextual escaping at execution time, so parse-only
 // tests miss errors like stray quotes inside attribute values.
 func TestTemplatesExecute(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
 	pages := []string{
 		"home.html", "book.html", "bookings.html", "login.html", "pay.html",
 		"register.html", "services.html", "testimonial_new.html", "account.html",
+		"food.html",
 		"admin_home.html", "admin_locations.html",
 		"admin_bookings.html", "admin_testimonials.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
 		"portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-		"portal_reports.html",
+		"portal_reports.html", "portal_food.html", "portal_food_edit.html",
 	}
 	for _, name := range pages {
 		data := pageData{
@@ -52,6 +53,8 @@ func TestTemplatesExecute(t *testing.T) {
 		switch name {
 		case "account.html":
 			data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
+		case "portal_food_edit.html":
+			data["Item"] = &domain.FoodItem{Name: "Nasgor Ayam"}
 		case "pay.html", "portal_booking_detail.html":
 			data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
 			data["Refundable"] = int64(0)
@@ -121,21 +124,21 @@ func TestTemplatesExecute(t *testing.T) {
 // TestTemplatesBothLanguages renders key public pages in EN + ID and fails
 // on missing-key leaks (t returns the key itself when absent).
 func TestTemplatesBothLanguages(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
 	for _, lang := range []string{"en", "id"} {
 		for _, name := range []string{
 			"home.html", "services.html", "book.html", "bookings.html", "login.html",
-			"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html",
+			"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html",
 			"admin_home.html", "admin_locations.html", "admin_bookings.html", "admin_testimonials.html",
 			"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 			"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 			"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 			"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-			"portal_service_edit.html", "portal_reports.html",
+			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html",
 		} {
 			data := pageData{
 				"Lang": lang,
@@ -148,6 +151,8 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			switch name {
 			case "account.html":
 				data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
+			case "portal_food_edit.html":
+				data["Item"] = &domain.FoodItem{Name: "Nasgor Ayam"}
 			case "pay.html", "portal_booking_detail.html":
 				data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
 				data["Refundable"] = int64(0)

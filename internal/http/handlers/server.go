@@ -41,6 +41,7 @@ type Server struct {
 	reports    *service.ReportService
 	career     *service.CareerService
 	tm         *service.TestimonialService
+	food       *service.FoodService
 	tpl        *template.Template
 	csrfSecure bool
 }
@@ -55,6 +56,7 @@ func New(
 	reports *service.ReportService,
 	career *service.CareerService,
 	tm *service.TestimonialService,
+	food *service.FoodService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -132,6 +134,9 @@ func New(
 		"tmPhoto": func(t domain.Testimonial) string {
 			return service.ResolveTestimonialPhoto(t)
 		},
+		"foodPhoto": func(f domain.FoodItem) string {
+			return service.ResolveFoodPhoto(f)
+		},
 		"stars": func(rating int) string {
 			if rating < 0 {
 				rating = 0
@@ -190,7 +195,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -484,12 +489,14 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/uploads/staff/{file}", s.ServeStaffPhoto)
 	r.Get("/uploads/testimonials/{file}", s.ServeTestimonialPhoto)
 	r.Get("/uploads/avatars/{file}", s.ServeAvatar)
+	r.Get("/uploads/food/{file}", s.ServeFoodPhoto)
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
 
 	r.Get("/", s.Home)
 	r.Get("/services", s.ServicesPage)
+	r.Get("/food", s.FoodPage)
 	r.Post("/lang", s.SetLanguage)
 	r.Get("/careers", s.CareersPage)
 	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
@@ -570,6 +577,13 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/services/{id}/edit", s.PortalUpdateService)
 		pr.Post("/services/{id}/toggle", s.PortalToggleService)
 		pr.Post("/services/{id}/delete", s.PortalDeleteService)
+
+		pr.Get("/food", s.PortalFood)
+		pr.Post("/food", s.PortalCreateFood)
+		pr.Get("/food/{id}/edit", s.PortalEditFoodForm)
+		pr.Post("/food/{id}/edit", s.PortalUpdateFood)
+		pr.Post("/food/{id}/toggle", s.PortalToggleFood)
+		pr.Post("/food/{id}/delete", s.PortalDeleteFood)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})
 

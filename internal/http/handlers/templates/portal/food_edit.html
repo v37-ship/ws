@@ -1,0 +1,46 @@
+{{define "portal_food_edit.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.fd.edit"}}: {{.Item.Name}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "food" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <h1 class="page-title">{{t .Lang "p.fd.edit"}}: {{.Item.Name}}</h1>
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+    <form class="panel stack" method="post" action="/portal/food/{{.Item.ID}}/edit" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+        <label>{{t .Lang "p.fd.name"}} <input name="name" required autocomplete="off" value="{{.Item.Name}}"></label>
+        <label>{{t .Lang "p.fd.cat"}}
+          <select name="category" required>
+            <option value="food" {{if eq (printf "%s" .Item.Category) "food"}}selected{{end}}>{{t .Lang "fd.food"}}</option>
+            <option value="beverage" {{if eq (printf "%s" .Item.Category) "beverage"}}selected{{end}}>{{t .Lang "fd.bev"}}</option>
+          </select>
+        </label>
+        <label>{{t .Lang "p.fd.sort"}} <input type="number" name="sort" value="{{.Item.Sort}}" min="0"></label>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+        <label>{{t .Lang "p.fd.pm"}} <input type="number" name="price_m" min="0" {{if .Item.HasM}}value="{{.Item.M}}"{{end}}></label>
+        <label>{{t .Lang "p.fd.pl"}} <input type="number" name="price_l" min="0" {{if .Item.HasL}}value="{{.Item.L}}"{{end}}></label>
+      </div>
+      <label>{{t .Lang "p.fd.desc"}} <textarea name="description" rows="2">{{.Item.Description}}</textarea></label>
+      <label>{{t .Lang "p.fd.var"}} <input name="variants" autocomplete="off" value="{{.Item.Variants}}"></label>
+      <label style="display:flex; gap:.5rem; align-items:center;"><input type="checkbox" name="pre_order" value="1" {{if .Item.PreOrder}}checked{{end}}> {{t .Lang "p.fd.pre"}}</label>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+        <label>{{t .Lang "tm.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+        <label>URL <input name="image_url" placeholder="https://…" autocomplete="off" value="{{.Item.ImageURL}}"></label>
+      </div>
+      <button class="btn" type="submit">{{t .Lang "p.fd.edit"}}</button>
+    </form>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}
