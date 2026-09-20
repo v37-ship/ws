@@ -600,3 +600,17 @@ html[data-theme="dark"] .rate-row span { background: var(--card); }
 .food-prices .fp-l { color: #d64545; }
 html[data-theme="dark"] .food-prices .fp-m { color: #8ab8ff; }
 html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
+
+/* Promo total band: distinct highlighted summary in the review step */
+.review > div.promo-total {
+  background: linear-gradient(120deg, rgba(233,30,99,.10), rgba(14,165,160,.10));
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  padding: .6rem .9rem;
+}
+.promo-total dd strong {
+  font-size: 1.35rem;
+  font-family: var(--font-display);
+  color: var(--accent-deep);
+}
+.review .promo-save { color: var(--mint-deep); }
