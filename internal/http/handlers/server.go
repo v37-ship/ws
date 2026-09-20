@@ -42,6 +42,7 @@ type Server struct {
 	career     *service.CareerService
 	tm         *service.TestimonialService
 	food       *service.FoodService
+	promo      *service.PromoService
 	tpl        *template.Template
 	csrfSecure bool
 }
@@ -57,6 +58,7 @@ func New(
 	career *service.CareerService,
 	tm *service.TestimonialService,
 	food *service.FoodService,
+	promo *service.PromoService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -195,7 +197,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, promo: promo,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -516,6 +518,7 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/book/services", s.BookServices)
 	r.Get("/book/staff", s.BookStaff)
 	r.Get("/book/slots", s.BookSlots)
+	r.Get("/book/promo", s.QuotePromo)
 	r.With(middleware.RequireAuth, middleware.RateLimit(bookLimiter, func(req *http.Request) string {
 		return "book:" + req.RemoteAddr
 	})).Post("/book", s.CreateBooking)
@@ -584,6 +587,11 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/food/{id}/edit", s.PortalUpdateFood)
 		pr.Post("/food/{id}/toggle", s.PortalToggleFood)
 		pr.Post("/food/{id}/delete", s.PortalDeleteFood)
+
+		pr.Get("/promos", s.PortalPromos)
+		pr.Post("/promos", s.PortalCreatePromo)
+		pr.Post("/promos/{id}/toggle", s.PortalTogglePromo)
+		pr.Post("/promos/{id}/delete", s.PortalDeletePromo)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})
 

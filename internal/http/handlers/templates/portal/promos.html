@@ -1,0 +1,100 @@
+{{define "portal_promos.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.pr.title"}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "promos" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.pr.title"}}</h1>
+      </div>
+    </div>
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">{{t .Lang "p.pr.add"}}</summary>
+      <form class="stack" method="post" action="/portal/promos">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.pr.code"}} <input name="code" required autocomplete="off" placeholder="SEHAT10" style="text-transform:uppercase;"></label>
+          <label>{{t .Lang "p.pr.kind"}}
+            <select name="kind" required>
+              <option value="percent">{{t .Lang "p.pr.pct"}}</option>
+              <option value="fixed">{{t .Lang "p.pr.fix"}}</option>
+            </select>
+          </label>
+          <label>{{t .Lang "p.pr.val"}} <input type="number" name="value" min="1" required placeholder="10"></label>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.pr.min"}} <input type="number" name="min_spend" min="0" placeholder="0"></label>
+          <label>{{t .Lang "p.pr.uses"}} <input type="number" name="max_uses" min="1" placeholder="∞"></label>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.pr.from"}} <input type="date" name="valid_from"></label>
+          <label>{{t .Lang "p.pr.to"}} <input type="date" name="valid_to"></label>
+        </div>
+        <button class="btn" type="submit">{{t .Lang "p.pr.add"}}</button>
+      </form>
+    </details>
+
+    <div class="panel">
+      <div style="overflow-x:auto;" class="table-cards" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{t .Lang "p.pr.code"}}</th>
+              <th>{{t .Lang "p.pr.kind"}}</th>
+              <th>{{t .Lang "p.pr.min"}}</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Promos}}
+            <tr>
+              <td><strong>{{.Code}}</strong></td>
+              <td>{{if eq (printf "%s" .Kind) "percent"}}{{.Value}}%{{else}}{{formatIDR .Value}}{{end}}</td>
+              <td>{{formatIDR .MinSpend}}{{if .MaxUses}}<br><small class="muted">{{.UsedCount}}/{{.MaxUses}}</small>{{else}}<br><small class="muted">{{.UsedCount}}/∞</small>{{end}}</td>
+              <td>
+                {{if .Active}}
+                  <span class="badge confirmed">{{t $.Lang "p.pr.on"}}</span>
+                {{else}}
+                  <span class="badge cancelled">{{t $.Lang "p.pr.off"}}</span>
+                {{end}}
+              </td>
+              <td>
+                <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
+                  <form method="post" action="/portal/promos/{{.ID}}/toggle" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm">
+                      {{if .Active}}{{t $.Lang "p.pr.off"}}{{else}}{{t $.Lang "p.pr.on"}}{{end}}
+                    </button>
+                  </form>
+                  <form method="post" action="/portal/promos/{{.ID}}/delete" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);">{{t $.Lang "p.pr.del"}}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="6" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.pr.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

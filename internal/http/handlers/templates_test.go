@@ -15,7 +15,7 @@ import (
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
 func TestTemplatesParse(t *testing.T) {
-	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil)
+	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestTemplatesParse(t *testing.T) {
 // html/template applies contextual escaping at execution time, so parse-only
 // tests miss errors like stray quotes inside attribute values.
 func TestTemplatesExecute(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
 		"portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-		"portal_reports.html", "portal_food.html", "portal_food_edit.html",
+		"portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_promos.html",
 	}
 	for _, name := range pages {
 		data := pageData{
@@ -112,6 +112,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"services_partial.html", "staff_partial.html", "slots_partial.html",
 		"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
+		"promo_preview.html",
 	}
 	for _, name := range partials {
 		var buf bytes.Buffer
@@ -124,7 +125,7 @@ func TestTemplatesExecute(t *testing.T) {
 // TestTemplatesBothLanguages renders key public pages in EN + ID and fails
 // on missing-key leaks (t returns the key itself when absent).
 func TestTemplatesBothLanguages(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -138,7 +139,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 			"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 			"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html",
+			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_promos.html",
 		} {
 			data := pageData{
 				"Lang": lang,

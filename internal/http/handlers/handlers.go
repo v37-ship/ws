@@ -304,7 +304,7 @@ func (s *Server) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, _, err := s.book.CreatePending(r.Context(), u.ID, lid, sid, staffID, startAt,
-		r.FormValue("notes"), domain.Place(r.FormValue("place")), r.FormValue("visit_address"))
+		r.FormValue("notes"), domain.Place(r.FormValue("place")), r.FormValue("visit_address"), r.FormValue("promo_code"))
 	if err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			http.Error(w, "That slot was just taken. Pick another time.", http.StatusConflict)
@@ -653,6 +653,7 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 				"CustomerID":      r.FormValue("customer_id"),
 				"PrefillCustomer": s.prefillCustomer(r.Context(), r.FormValue("customer_id")),
 				"LocationID":      r.FormValue("location_id"),
+				"PromoCode":       r.FormValue("promo_code"),
 				"Date":            r.FormValue("date"), "Notes": notes,
 			})
 			return
@@ -662,7 +663,7 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 	b, _, err := s.book.CreateStaffBooking(r.Context(), service.StaffBookingRequest{
 		CustomerID: custID, LocationID: locID, ServiceID: svcID, StaffID: staffID,
 		StartAt: startAt, Notes: notes, Place: place, VisitAddress: visitAddress, Source: source,
-		PaymentMethod: payMethod, PaymentPurpose: payPurpose, ActorID: u.ID,
+		PaymentMethod: payMethod, PaymentPurpose: payPurpose, PromoCode: r.FormValue("promo_code"), ActorID: u.ID,
 	})
 	if err != nil {
 		locs, _ := s.catalog.ListLocations(r.Context(), true)
@@ -671,6 +672,7 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 			"CustomerID":      r.FormValue("customer_id"),
 			"PrefillCustomer": s.prefillCustomer(r.Context(), r.FormValue("customer_id")),
 			"LocationID":      r.FormValue("location_id"),
+			"PromoCode":       r.FormValue("promo_code"),
 			"Date":            r.FormValue("date"), "Notes": notes,
 		})
 		return

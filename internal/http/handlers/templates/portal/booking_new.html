@@ -134,6 +134,10 @@
           <span x-show="method==='cash'">💡 <em>{{t .Lang "p.nb.hcash"}}</em></span>
           <span x-show="method!=='cash'">💡 <em>{{t .Lang "p.nb.hqris"}}</em></span>
         </p>
+
+        <label>{{t .Lang "promo.code"}}
+          <input name="promo_code" autocomplete="off" placeholder="SEHAT10" value="{{.PromoCode}}">
+        </label>
       </fieldset>
 
       <label>{{t .Lang "p.nb.notes"}}
