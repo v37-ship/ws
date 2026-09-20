@@ -33,6 +33,9 @@ func (s *Server) QuotePromo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := r.URL.Query().Get("code")
+	if code == "" {
+		code = r.URL.Query().Get("promo_code") // staff form field name
+	}
 	if strings.TrimSpace(code) == "" {
 		fail("Type a promo code first")
 		return

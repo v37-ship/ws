@@ -692,8 +692,13 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, err := s.book.GetBooking(r.Context(), id)
-	if err != nil {
+	if errors.Is(err, repo.ErrNotFound) {
 		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.log.Error("portal booking detail", "id", id, "err", err)
+		http.Error(w, "Could not load booking", http.StatusInternalServerError)
 		return
 	}
 	staffList, _ := s.catalog.ListStaff(r.Context(), b.LocationID, true)

@@ -136,8 +136,16 @@
         </p>
 
         <label>{{t .Lang "promo.code"}}
-          <input name="promo_code" autocomplete="off" placeholder="SEHAT10" value="{{.PromoCode}}">
+          <span style="display:flex; gap:.4rem;">
+            <input name="promo_code" id="portal-promo-code" autocomplete="off" placeholder="SEHAT10" value="{{.PromoCode}}">
+            <button type="button" class="btn secondary on-light btn-sm"
+              hx-get="/book/promo" hx-target="#portal-promo-box" hx-swap="innerHTML"
+              hx-include="#service_id, #portal-promo-code">{{t .Lang "promo.apply"}}</button>
+          </span>
         </label>
+        <!-- Preview partial also carries a hidden promo_code; this visible
+             input precedes it, so FormValue keeps the staff-typed value. -->
+        <div id="portal-promo-box" aria-live="polite"></div>
       </fieldset>
 
       <label>{{t .Lang "p.nb.notes"}}
