@@ -6,7 +6,11 @@
 .htmx-request.htmx-indicator { opacity: 1; }
 
 /* Native dropdown options don't inherit select colors: pin both themes. */
+/* color-scheme pins the native popup to the page theme (OS dark mode would
+   otherwise render a dark popup on the light page). */
+select { color-scheme: light; }
 option { background: #fff; color: #2a2430; }
+html[data-theme="dark"] select { color-scheme: dark; }
 html[data-theme="dark"] option { background: #2a1f30; color: #f8eff5; }
 
 .spinner {
