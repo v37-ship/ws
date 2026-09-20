@@ -15,22 +15,26 @@ import (
 )
 
 // QuotePromo validates a code against the selected service price and renders
-// the discount preview for the review step. Display-only: the booking
-// creators re-validate on submit.
+// the discount preview for the review step. Always answers 200 with an
+// inline message (never a bare HTTP error) so Apply visibly responds; the
+// booking creators re-validate on submit.
 func (s *Server) QuotePromo(w http.ResponseWriter, r *http.Request) {
+	fail := func(msg string) {
+		s.renderPartial(w, r, "promo_preview.html", pageData{"Error": msg})
+	}
 	svcID, err := uuid.Parse(r.URL.Query().Get("service_id"))
 	if err != nil {
-		http.Error(w, "select a treatment first", http.StatusBadRequest)
+		fail("Select a treatment first")
 		return
 	}
 	svc, err := s.catalog.GetService(r.Context(), svcID)
 	if err != nil {
-		http.Error(w, "unknown treatment", http.StatusBadRequest)
+		fail("Unknown treatment — pick it again")
 		return
 	}
 	code := r.URL.Query().Get("code")
 	if strings.TrimSpace(code) == "" {
-		s.renderPartial(w, r, "promo_preview.html", pageData{})
+		fail("Type a promo code first")
 		return
 	}
 	q, err := s.promo.Quote(r.Context(), code, svc.PriceIDR)

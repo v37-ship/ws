@@ -348,8 +348,13 @@ func (s *Server) PayPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, err := s.book.GetBooking(r.Context(), id)
-	if err != nil {
+	if errors.Is(err, repo.ErrNotFound) {
 		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.log.Error("pay page booking", "id", id, "err", err)
+		http.Error(w, "Could not load booking", http.StatusInternalServerError)
 		return
 	}
 	if b.CustomerID != u.ID && u.Role != domain.RoleAdmin {
