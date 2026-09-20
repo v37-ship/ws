@@ -60,7 +60,7 @@ func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, 
 	var b domain.Booking
 	err := r.pool.QueryRow(ctx, q, id).Scan(
 		&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-		&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress,
+		&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR,
 		&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 		&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 		&b.ServiceName, &b.StaffName, &b.LocationName,

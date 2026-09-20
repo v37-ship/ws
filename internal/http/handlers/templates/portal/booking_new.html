@@ -137,8 +137,9 @@
 
         <label>{{t .Lang "promo.code"}}
           <span style="display:flex; gap:.4rem;">
-            <input name="promo_code" id="portal-promo-code" autocomplete="off" placeholder="SEHAT10" value="{{.PromoCode}}">
-            <button type="button" class="btn secondary on-light btn-sm"
+            <input name="promo_code" id="portal-promo-code" autocomplete="off" placeholder="SEHAT10" value="{{.PromoCode}}"
+              onkeydown="if(event.key==='Enter'){event.preventDefault(); document.getElementById('portal-promo-apply').click();}">
+            <button type="button" id="portal-promo-apply" class="btn secondary on-light btn-sm"
               hx-get="/book/promo" hx-target="#portal-promo-box" hx-swap="innerHTML"
               hx-include="#service_id, #portal-promo-code">{{t .Lang "promo.apply"}}</button>
           </span>
