@@ -487,7 +487,29 @@ func (s *AvailabilityService) SlotsDetailed(ctx context.Context, locationID, ser
 			}
 		}
 	}
+	if staffID == uuid.Nil {
+		slots = dedupeSlots(slots)
+	}
 	return slots, nil
+}
+
+// dedupeSlots collapses identical start times into one row each (the grid
+// shows one button per bidan otherwise when no therapist is picked),
+// preferring a free slot so busy staff never hide an open hour.
+func dedupeSlots(slots []SlotInfo) []SlotInfo {
+	seen := map[time.Time]int{}
+	out := make([]SlotInfo, 0, len(slots))
+	for _, s := range slots {
+		if i, ok := seen[s.Slot.StartAt]; ok {
+			if !out[i].Available && s.Available {
+				out[i] = s
+			}
+			continue
+		}
+		seen[s.Slot.StartAt] = len(out)
+		out = append(out, s)
+	}
+	return out
 }
 
 func parseHM(s string) time.Duration {

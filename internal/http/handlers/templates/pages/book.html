@@ -89,9 +89,8 @@
 
         <ol class="steps" aria-label="{{t .Lang "book.prog"}}">
           <li :class="{'done': svcLabel, 'active': !svcLabel}"><span>1</span> {{t .Lang "book.step1"}}</li>
-          <li :class="{'done': dayLabel && staffLabel, 'active': svcLabel && !(dayLabel && staffLabel)}"><span>2</span> {{t .Lang "book.step2"}}</li>
-          <li :class="{'done': time, 'active': (dayLabel && staffLabel) && !time}"><span>3</span> {{t .Lang "book.step3"}}</li>
-          <li :class="{'active': time}"><span>4</span> {{t .Lang "book.step4"}}</li>
+          <li :class="{'done': time, 'active': svcLabel && !time}"><span>2</span> {{t .Lang "book.step2"}}</li>
+          <li :class="{'active': time}"><span>3</span> {{t .Lang "book.step3"}}</li>
         </ol>
 
         <div class="panel stack wiz-step">
