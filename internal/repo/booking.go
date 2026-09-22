@@ -48,7 +48,7 @@ func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, 
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
 		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -82,7 +82,7 @@ func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) 
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
 		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -101,7 +101,7 @@ func (r *BookingRepo) ListUpcoming(ctx context.Context, limit int) ([]domain.Boo
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
 		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -131,7 +131,7 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 	sb.WriteString(`SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
 		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -168,7 +168,7 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 	}
 	if f.Search != "" {
 		like := "%" + strings.ToLower(f.Search) + "%"
-		sb.WriteString(fmt.Sprintf(" AND (lower(u.full_name) LIKE $%d OR u.phone LIKE $%d OR lower(u.email) LIKE $%d OR lower(u.baby_name) LIKE $%d)", idx, idx, idx, idx))
+		sb.WriteString(fmt.Sprintf(" AND (lower(u.full_name) LIKE $%d OR u.phone LIKE $%d OR lower(u.email) LIKE $%d OR lower(u.baby_name) LIKE $%d OR lower(b.guest_name) LIKE $%d OR b.guest_phone LIKE $%d)", idx, idx, idx, idx, idx, idx))
 		args = append(args, like)
 		idx++
 	}

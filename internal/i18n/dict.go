@@ -597,6 +597,7 @@ var dict = map[string]map[string]string{
 		"p.q.wa":     "Send WhatsApp",
 		"p.br.ed":    "Edit / Status",
 		"p.br.mt":    "No bookings found matching filters.",
+		"p.bk.guest": "Guest",
 		// ---- Phase 2: reports ----
 		"r.nav":          "📈 Reports",
 		"r.title":        "Revenue report",
@@ -1383,6 +1384,7 @@ var dict = map[string]map[string]string{
 		"p.q.wa":     "Kirim WhatsApp",
 		"p.br.ed":    "Ubah / Status",
 		"p.br.mt":    "Tidak ada booking yang cocok dengan filter.",
+		"p.bk.guest": "Tamu",
 		// ---- Phase 2: reports ----
 		"r.nav":          "📈 Laporan",
 		"r.title":        "Laporan pendapatan",
