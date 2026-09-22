@@ -129,11 +129,11 @@ function __wanggaDrawerClose() { try { return window.__wanggaDrawer.close(); } c
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") { try { window.__wanggaDrawer.close(); } catch (err) {} }
 });
-/* Homepage hero: expand toward fullscreen at top / on upward scroll,
-   compact on downward scroll; gentle photo parallax. Skipped entirely
-   under prefers-reduced-motion. Only runs where #hero exists.
-   Polls for #hero instead of waiting DOMContentLoaded: deferred/CDN
-   scripts can hold that event back on slow networks, starving the init. */
+/* Homepage hero: default is the compact look with text overlaid.
+   Scrolling UP on purpose (back toward the top after scrolling down)
+   expands to a fullscreen image-only moment; scrolling DOWN returns to
+   default. The armed flag distinguishes fresh loads (stay compact) from
+   returns to the top (expand). Skipped under prefers-reduced-motion. */
 function __wanggaHeroInit() {
   try {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -142,14 +142,15 @@ function __wanggaHeroInit() {
     hero.setAttribute("data-hero-init", "1");
     var photos = hero.querySelectorAll(".hero-photo");
     var lastY = window.scrollY || 0;
+    var armed = lastY > 120;
     var ticking = false;
     var paint = function () {
       ticking = false;
       var y = window.scrollY || 0;
-      var goingUp = y < lastY;
+      if (y > 120) armed = true;
+      if (y < lastY && armed && y < 400) hero.classList.add("hero-big");
+      else if (y > lastY) hero.classList.remove("hero-big");
       lastY = y;
-      if (y <= 40 || goingUp) hero.classList.add("hero-big");
-      else hero.classList.remove("hero-big");
       var shift = Math.min(y * 0.12, 120);
       for (var k = 0; k < photos.length; k++) {
         photos[k].style.transform = "translateY(" + shift + "px) scale(1.08)";
@@ -158,7 +159,6 @@ function __wanggaHeroInit() {
     var onScroll = function () {
       if (!ticking) { ticking = true; requestAnimationFrame(paint); }
     };
-    hero.classList.add("hero-big");
     window.addEventListener("scroll", onScroll, { passive: true });
     paint();
   } catch (e) {}
