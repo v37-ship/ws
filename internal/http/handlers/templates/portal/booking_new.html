@@ -134,6 +134,19 @@
           <span x-show="method==='cash'">💡 <em>{{t .Lang "p.nb.hcash"}}</em></span>
           <span x-show="method!=='cash'">💡 <em>{{t .Lang "p.nb.hqris"}}</em></span>
         </p>
+
+        <label>{{t .Lang "promo.code"}}
+          <span style="display:flex; gap:.4rem;">
+            <input name="promo_code" id="portal-promo-code" autocomplete="off" placeholder="SEHAT10" value="{{.PromoCode}}"
+              onkeydown="if(event.key==='Enter'){event.preventDefault(); document.getElementById('portal-promo-apply').click();}">
+            <button type="button" id="portal-promo-apply" class="btn secondary on-light btn-sm"
+              hx-get="/book/promo" hx-target="#portal-promo-box" hx-swap="innerHTML"
+              hx-include="#service_id, #portal-promo-code">{{t .Lang "promo.apply"}}</button>
+          </span>
+        </label>
+        <!-- Preview partial also carries a hidden promo_code; this visible
+             input precedes it, so FormValue keeps the staff-typed value. -->
+        <div id="portal-promo-box" aria-live="polite"></div>
       </fieldset>
 
       <label>{{t .Lang "p.nb.notes"}}

@@ -43,7 +43,7 @@
           <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">📍 {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · 🏠 {{.Booking.VisitAddress}}{{end}}</small></dd></div>
           <div><dt>{{t .Lang "p.det.staff"}}</dt><dd>{{.Booking.StaffName}}</dd></div>
           <div><dt>{{t .Lang "book.when"}}</dt><dd><small>{{slotLabel .Lang .Booking.StartAt}} - {{formatTime .Booking.EndAt "15:04"}} WIB</small></dd></div>
-          <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}<br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}{{if gt .Booking.DiscountIDR 0}}<br><small class="muted" style="font-weight:400;">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</small>{{end}}<br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
           {{if .Booking.Notes}}
           <div><dt>{{t .Lang "p.det.notes"}}</dt><dd><small>{{.Booking.Notes}}</small></dd></div>
           {{end}}

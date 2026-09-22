@@ -157,8 +157,19 @@
             <div><dt>{{t .Lang "book.therapist"}}</dt><dd x-text="staffLabel || '{{t .Lang "book.first"}}'"></dd></div>
             <div><dt>{{t .Lang "book.when"}}</dt><dd><span x-text="dayLabel"></span> · <span x-text="time"></span></dd></div>
             <div><dt>{{t .Lang "book.price"}}</dt><dd x-text="svcSub || '—'"></dd></div>
+            <div><dt>{{t .Lang "promo.code"}}</dt><dd>
+              <span style="display:flex; gap:.4rem; justify-content:flex-end;">
+                <input name="code" id="promo-code" autocomplete="off" placeholder="SEHAT10" style="max-width:10rem;"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault(); document.getElementById('promo-apply').click();}">
+                <button type="button" id="promo-apply" class="btn secondary on-light btn-sm"
+                  hx-get="/book/promo" hx-target="#promo-box" hx-swap="innerHTML"
+                  hx-include="input[name='service_id']:checked, #promo-code" hx-indicator="#promo-ind">{{t .Lang "promo.apply"}}</button>
+              </span>
+            </dd></div>
             <div><dt>{{t .Lang "book.place"}}</dt><dd x-text="place==='homecare' ? '{{t .Lang "book.homecare"}}' : '{{t .Lang "book.onsite"}}'"></dd></div>
           </dl>
+          <span id="promo-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span></span>
+          <div id="promo-box" aria-live="polite"></div>
           <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
           <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
           <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}} <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" :required="place==='homecare'"></textarea></label>

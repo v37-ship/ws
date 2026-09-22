@@ -246,6 +246,8 @@ type Booking struct {
 	Status        BookingStatus
 	PriceIDR      int64
 	BookingFeeIDR int64
+	PromoCode     string // applied promo code snapshot ('' = none)
+	DiscountIDR   int64  // discount snapshot; net charged = PriceIDR - DiscountIDR
 	HoldExpiresAt *time.Time
 	Notes         string
 	Place         Place  // 'onsite' (at branch) or 'homecare' (customer address)
@@ -515,4 +517,36 @@ type HeroBanner struct {
 	Active    bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// PromoKind selects percent-off (1-100) or fixed-IDR-off discounts.
+type PromoKind string
+
+const (
+	PromoPercent PromoKind = "percent"
+	PromoFixed   PromoKind = "fixed"
+)
+
+// PromoCode is a reusable discount code. MaxUses NULL means unlimited.
+type PromoCode struct {
+	ID        uuid.UUID
+	Code      string
+	Kind      PromoKind
+	Value     int
+	MinSpend  int64
+	MaxUses   *int
+	UsedCount int
+	Active    bool
+	ValidFrom *time.Time
+	ValidTo   *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Net returns the chargeable amount after the snapshot discount.
+func (b Booking) Net() int64 {
+	if net := b.PriceIDR - b.DiscountIDR; net > 0 {
+		return net
+	}
+	return 0
 }

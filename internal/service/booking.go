@@ -23,6 +23,7 @@ type BookingService struct {
 	payments *repo.PaymentRepo
 	catalog  *repo.CatalogRepo
 	users    *repo.UserRepo
+	promos   *repo.PromoRepo
 	avail    *AvailabilityService
 	midtrans *payment.Client
 	mailer   *email.Sender
@@ -36,6 +37,7 @@ func NewBookingService(
 	payments *repo.PaymentRepo,
 	catalog *repo.CatalogRepo,
 	users *repo.UserRepo,
+	promos *repo.PromoRepo,
 	avail *AvailabilityService,
 	midtrans *payment.Client,
 	mailer *email.Sender,
@@ -44,12 +46,12 @@ func NewBookingService(
 	log *slog.Logger,
 ) *BookingService {
 	return &BookingService{
-		bookings: bookings, payments: payments, catalog: catalog, users: users,
+		bookings: bookings, payments: payments, catalog: catalog, users: users, promos: promos,
 		avail: avail, midtrans: midtrans, mailer: mailer, holdTTL: holdTTL, baseURL: baseURL, log: log,
 	}
 }
 
-func (s *BookingService) CreatePending(ctx context.Context, customerID, locationID, serviceID, staffID uuid.UUID, startAt time.Time, notes string, place domain.Place, visitAddress string) (*domain.Booking, *domain.Payment, error) {
+func (s *BookingService) CreatePending(ctx context.Context, customerID, locationID, serviceID, staffID uuid.UUID, startAt time.Time, notes string, place domain.Place, visitAddress string, promoCode string) (*domain.Booking, *domain.Payment, error) {
 	svc, err := s.catalog.ServiceByID(ctx, serviceID)
 	if err != nil {
 		return nil, nil, err
@@ -75,6 +77,10 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 	if !customer.IsActive || customer.Role != domain.RoleCustomer {
 		return nil, nil, fmt.Errorf("%w: customer account is deactivated", ErrValidation)
 	}
+	quote, err := QuotePromo(ctx, s.promos, promoCode, svc.PriceIDR)
+	if err != nil {
+		return nil, nil, err
+	}
 	endAt := startAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	holdExp := time.Now().Add(s.holdTTL)
 	b := &domain.Booking{
@@ -86,6 +92,8 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		EndAt:         endAt.UTC(),
 		Status:        domain.BookingPendingPayment,
 		PriceIDR:      svc.PriceIDR,
+		PromoCode:     quote.Code,
+		DiscountIDR:   quote.Discount,
 		HoldExpiresAt: &holdExp,
 		Notes:         strings.TrimSpace(notes),
 		Place:         place,
@@ -98,22 +106,33 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		}
 		return nil, nil, err
 	}
+	redeemed := false
+	if quote.Code != "" {
+		if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
+			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+			return nil, nil, fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
+		}
+		redeemed = true
+	}
 	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
 	charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
 		OrderID:      orderID,
-		AmountIDR:    b.PriceIDR,
+		AmountIDR:    b.Net(),
 		CustomerName: customer.FullName,
 		Email:        customer.Email,
 		ItemName:     svc.Name,
 	})
 	if err != nil {
+		if redeemed {
+			_ = s.promos.Unredeem(ctx, quote.Code)
+		}
 		_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
 		return nil, nil, fmt.Errorf("qris charge: %w", err)
 	}
 	p := &domain.Payment{
 		BookingID:       b.ID,
 		OrderID:         orderID,
-		AmountIDR:       b.PriceIDR,
+		AmountIDR:       b.Net(),
 		Status:          domain.PaymentPending,
 		PaymentMethod:   domain.PaymentMethodQRIS,
 		PaymentPurpose:  domain.PaymentPurposeFull,
@@ -162,6 +181,7 @@ type StaffBookingRequest struct {
 	Source         string                // 'walkin', 'whatsapp', 'phone'
 	PaymentMethod  domain.PaymentMethod  // 'qris' or 'cash'
 	PaymentPurpose domain.PaymentPurpose // 'service' or 'booking_fee' or 'full'
+	PromoCode      string                // optional promo code (validated server-side)
 	ActorID        uuid.UUID
 }
 
@@ -208,6 +228,10 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	}
 
 	endAt := req.StartAt.Add(time.Duration(svc.DurationMin) * time.Minute)
+	quote, err := QuotePromo(ctx, s.promos, req.PromoCode, svc.PriceIDR)
+	if err != nil {
+		return nil, nil, err
+	}
 	b := &domain.Booking{
 		CustomerID:   req.CustomerID,
 		LocationID:   req.LocationID,
@@ -216,6 +240,8 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 		StartAt:      req.StartAt.UTC(),
 		EndAt:        endAt.UTC(),
 		PriceIDR:     svc.PriceIDR,
+		PromoCode:    quote.Code,
+		DiscountIDR:  quote.Discount,
 		Notes:        strings.TrimSpace(req.Notes),
 		Place:        place,
 		VisitAddress: visitAddress,
@@ -237,10 +263,16 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 			}
 			return nil, nil, err
 		}
+		if quote.Code != "" {
+			if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
+				_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+				return nil, nil, fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
+			}
+		}
 		p = &domain.Payment{
 			BookingID:      b.ID,
 			OrderID:        orderID,
-			AmountIDR:      svc.PriceIDR,
+			AmountIDR:      b.Net(),
 			Status:         domain.PaymentPaid,
 			PaymentMethod:  domain.PaymentMethodCash,
 			PaymentPurpose: req.PaymentPurpose,
@@ -260,21 +292,32 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 			}
 			return nil, nil, err
 		}
+		redeemed := false
+		if quote.Code != "" {
+			if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
+				_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+				return nil, nil, fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
+			}
+			redeemed = true
+		}
 		charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
 			OrderID:      orderID,
-			AmountIDR:    b.PriceIDR,
+			AmountIDR:    b.Net(),
 			CustomerName: customer.FullName,
 			Email:        customer.Email,
 			ItemName:     svc.Name,
 		})
 		if err != nil {
+			if redeemed {
+				_ = s.promos.Unredeem(ctx, quote.Code)
+			}
 			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
 			return nil, nil, fmt.Errorf("qris charge: %w", err)
 		}
 		p = &domain.Payment{
 			BookingID:       b.ID,
 			OrderID:         orderID,
-			AmountIDR:       b.PriceIDR,
+			AmountIDR:       b.Net(),
 			Status:          domain.PaymentPending,
 			PaymentMethod:   domain.PaymentMethodQRIS,
 			PaymentPurpose:  req.PaymentPurpose,

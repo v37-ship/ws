@@ -43,13 +43,26 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - `app.css?v=<hash>` fingerprints builds; compare hashes to check what a
   deployment actually serves.
 
+## HTMX + handler gotchas (learned the hard way)
+
+- HTMX preview/quote endpoints must **always answer 200 with inline errors**:
+  the app's HTMX config (`[45].. → swap:false`) silently swallows 4xx/5xx,
+  making buttons look dead (precedent: promo Apply).
+- `hx-include` submits elements under their **`name` attribute**: the input
+  name must equal the query param the endpoint reads (`promo_try` vs `code`
+  cost a full debug cycle). Accept both names server-side when two forms
+  share an endpoint.
+- Honest status codes on fetch handlers: `ErrNotFound` → 404, anything else
+  → log + 500. Blanket `err → NotFound` turned transient blips into ghost
+  "missing booking" reports (precedent: `PayPage`, `PortalBookingDetail`).
+
 ## Deploy topology
 
 - The Cloudflare Tunnel serves **this machine's** `:8088`, so local deploy =
   public deploy. Verify with `curl https://wangga.biz.id/` (compare
   `app.css?v=` or content markers against localhost).
-- No separate prod-machine step. Local and prod DBs are separate; data-only
-  backfills stay uncommitted.
+- Single stack, single DB — no separate prod machine or prod database.
+  Throwaway SQL ops (test codes, seed cleanups) still stay uncommitted.
 
 ## Domain decisions (do not "simplify" these)
 
@@ -79,6 +92,14 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   under `uploads/avatars/`); header user chip links there. Review uploads go
   under `uploads/testimonials/`, served by traversal-safe handlers mirroring
   `ServeServicePhoto`.
+- Promo codes: uppercase unique codes, percent/fixed, min spend, optional
+  validity window and use cap. Bookings snapshot `promo_code` +
+  `discount_idr` (history untouched, like `ServiceName`); payments and the
+  Midtrans charge use the net amount. Usage is consumed atomically
+  (`TryRedeem`, rolled back if charging fails). Codes are immutable —
+  delete and recreate, never edit; never seed live codes. Manager lives in
+  the portal (`/portal/promos`, CS + admin). Key prefixes: `promo.*`
+  (wizard), `p.pr.*` (manager), `p.nav.promo`.
 
 ## Git
 

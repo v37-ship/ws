@@ -19,10 +19,10 @@
         <h2 style="margin:0;">{{t .Lang "myb.cancelled"}}</h2>
         <p class="muted" style="margin:0;">{{$c.ServiceName}} · {{slotLabel $.Lang $c.StartAt}} · {{$c.LocationName}}</p>
         {{if eq (printf "%s" $c.PaymentStatus) "paid"}}
-        <p style="margin:0;">{{t $.Lang "myb.paid_pre"}} <strong>{{formatIDR $c.PriceIDR}}</strong>. {{t $.Lang "myb.paid_post"}}</p>
+        <p style="margin:0;">{{t $.Lang "myb.paid_pre"}} <strong>{{formatIDR $c.Net}}</strong>. {{t $.Lang "myb.paid_post"}}</p>
         <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
           <a class="btn" target="_blank" rel="noopener"
-            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (slotLabel $.Lang $c.StartAt) (formatIDR $c.PriceIDR))}}">{{t $.Lang "myb.refund"}}</a>
+            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (slotLabel $.Lang $c.StartAt) (formatIDR $c.Net))}}">{{t $.Lang "myb.refund"}}</a>
           <a class="btn secondary on-light" href="/book">{{t $.Lang "myb.again"}}</a>
         </div>
         {{else}}
@@ -45,7 +45,7 @@
         </div>
         <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
           {{if eq (printf "%s" .Status) "pending_payment"}}
-            <a class="btn" href="/bookings/{{.ID}}/pay">{{t $.Lang "myb.pay"}} {{formatIDR .PriceIDR}}</a>
+            <a class="btn" href="/bookings/{{.ID}}/pay">{{t $.Lang "myb.pay"}} {{formatIDR .Net}}</a>
           {{end}}
           {{if or (eq (printf "%s" .Status) "confirmed") (eq (printf "%s" .Status) "pending_payment")}}
             <button class="btn secondary on-light btn-sm" type="button" @click="open=true">{{t $.Lang "myb.cancel"}}</button>
@@ -59,7 +59,7 @@
               <div><dt>{{t $.Lang "myb.treatment"}}</dt><dd>{{.ServiceName}}</dd></div>
               <div><dt>{{t $.Lang "myb.when"}}</dt><dd>{{slotLabel $.Lang .StartAt}}</dd></div>
               <div><dt>{{t $.Lang "myb.loc"}}</dt><dd>{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}}{{if .VisitAddress}} — 🏠 {{.VisitAddress}}{{end}}</dd></div>
-              <div><dt>{{t $.Lang "myb.price"}}</dt><dd>{{formatIDR .PriceIDR}}</dd></div>
+              <div><dt>{{t $.Lang "myb.price"}}</dt><dd>{{formatIDR .PriceIDR}}{{if gt .DiscountIDR 0}}<br><small class="muted">{{t $.Lang "promo.disc"}} ({{.PromoCode}}): −{{formatIDR .DiscountIDR}}</small>{{end}}</dd></div>
             </dl>
             {{if eq (printf "%s" .PaymentStatus) "paid"}}
             <p class="muted" style="font-size:.9rem;">{{t $.Lang "myb.paid_note"}}</p>

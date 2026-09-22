@@ -47,6 +47,7 @@ func main() {
 	catalogRepo := repo.NewCatalogRepo(pool)
 	bookings := repo.NewBookingRepo(pool)
 	payments := repo.NewPaymentRepo(pool)
+	promos := repo.NewPromoRepo(pool)
 	careers := repo.NewCareerRepo(pool)
 	testimonials := repo.NewTestimonialRepo(pool)
 	foods := repo.NewFoodRepo(pool)
@@ -57,12 +58,13 @@ func main() {
 	availSvc := service.NewAvailabilityService(catalogRepo)
 	mailer := email.NewAuthenticatedSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom, cfg.SMTPUser, cfg.SMTPPass)
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
-	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
+	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
 	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
 	careerSvc := service.NewCareerService(careers)
 	tmSvc := service.NewTestimonialService(testimonials)
 	foodSvc := service.NewFoodService(foods)
 	heroSvc := service.NewHeroService(heroes)
+	promoSvc := service.NewPromoService(promos)
 
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
 		log.Error("upload dir", "err", err)
@@ -86,7 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, promoSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)
