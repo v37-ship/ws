@@ -56,7 +56,9 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 		}
 		acc.sessions++
 		acc.gross += ln.AmountIDR
-		acc.customers[ln.CustomerID] = struct{}{}
+		if ln.CustomerID != nil {
+			acc.customers[*ln.CustomerID] = struct{}{}
+		}
 		svc := acc.services[ln.ServiceName]
 		if svc == nil {
 			svc = &domain.StaffServiceRow{Name: ln.ServiceName}

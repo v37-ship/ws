@@ -38,6 +38,9 @@
         <h2>{{t .Lang "p.det.info"}}</h2>
         <dl class="review">
           <div><dt>{{t .Lang "p.det.cust"}}</dt><dd>{{.Booking.CustomerName}}<br><small class="muted" style="font-weight:400;">📞 {{.Booking.CustomerPhone}}<br>✉️ {{.Booking.CustomerEmail}}</small></dd></div>
+          {{if not .Booking.CustomerID}}
+          <div><dt>{{t .Lang "p.det.guest"}}</dt><dd>{{.Booking.GuestName}}<br><small class="muted" style="font-weight:400;">📞 {{.Booking.GuestPhone}}{{if .Booking.GuestEmail}}<br>✉️ {{.Booking.GuestEmail}}{{end}}</small><br><a class="btn secondary on-light btn-sm" target="_blank" rel="noopener" href="{{waLink .Booking.GuestPhone (printf "Halo %s! Link pembayaran booking Wangga Anda: %s" .Booking.GuestName .GuestLink)}}">💬 {{t .Lang "p.det.walink"}}</a></dd></div>
+          {{end}}
           <div><dt>👶 {{t .Lang "p.det.baby"}}</dt><dd>{{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em class="muted">{{t .Lang "p.det.none"}}</em>{{end}}</dd></div>
           <div><dt>🤰 {{t .Lang "p.det.momc"}}</dt><dd><small>{{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}{{t .Lang "p.det.std"}}{{end}}</small></dd></div>
           <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">📍 {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · 🏠 {{.Booking.VisitAddress}}{{end}}</small></dd></div>

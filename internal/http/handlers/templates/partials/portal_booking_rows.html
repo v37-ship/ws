@@ -6,7 +6,7 @@
     <small class="muted">{{formatTime .EndAt "15:04"}} ({{.LocationName}}){{if eq (printf "%s" .Place) "homecare"}} 🏠{{end}}</small>
   </td>
   <td>
-    <strong>{{.CustomerName}}</strong><br>
+    <strong>{{.CustomerName}}</strong>{{if not .CustomerID}} <span class="badge no_show">{{t $.Lang "p.bk.guest"}}</span>{{end}}<br>
     <small>{{.CustomerPhone}}</small>
     {{if .CustomerPhone}}
       <br>

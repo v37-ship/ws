@@ -26,7 +26,7 @@ const jakartaMonth = `date_trunc('month', %s AT TIME ZONE 'Asia/Jakarta') = $1::
 // MonthlyLines returns paid payments in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportLine, error) {
 	q := fmt.Sprintf(`SELECT p.id, p.booking_id, p.amount_idr, p.payment_method, p.payment_purpose, p.paid_at,
-		b.start_at, b.customer_id, COALESCE(u.full_name,''), b.service_id, COALESCE(sv.name,''),
+		b.start_at, b.customer_id, COALESCE(NULLIF(b.guest_name,''), u.full_name,''), b.service_id, COALESCE(sv.name,''),
 		b.staff_id, COALESCE(st.name,''),
 		COALESCE(l.name,''), l.id, b.status
 		FROM payments p

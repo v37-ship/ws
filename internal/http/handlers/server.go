@@ -526,15 +526,15 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/book/staff", s.BookStaff)
 	r.Get("/book/slots", s.BookSlots)
 	r.Get("/book/promo", s.QuotePromo)
-	r.With(middleware.RequireAuth, middleware.RateLimit(bookLimiter, func(req *http.Request) string {
+	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
 		return "book:" + req.RemoteAddr
 	})).Post("/book", s.CreateBooking)
 
 	r.With(middleware.RequireAuth).Get("/bookings", s.MyBookings)
-	r.With(middleware.RequireAuth).Get("/bookings/{id}/pay", s.PayPage)
-	r.With(middleware.RequireAuth).Get("/bookings/{id}/status", s.BookingStatusPartial)
-	r.With(middleware.RequireAuth).Post("/bookings/{id}/cancel", s.CancelBooking)
-	r.With(middleware.RequireAuth).Post("/bookings/{id}/mock-pay", s.MockPay)
+	r.Get("/bookings/{id}/pay", s.PayPage)
+	r.Get("/bookings/{id}/status", s.BookingStatusPartial)
+	r.Post("/bookings/{id}/cancel", s.CancelBooking)
+	r.Post("/bookings/{id}/mock-pay", s.MockPay)
 
 	r.With(middleware.RequireAuth).Get("/testimonials/new", s.TestimonialNewForm)
 	r.With(middleware.RequireAuth).Post("/testimonials/new", s.CreateTestimonial)

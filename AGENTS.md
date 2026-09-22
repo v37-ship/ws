@@ -100,6 +100,13 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   delete and recreate, never edit; never seed live codes. Manager lives in
   the portal (`/portal/promos`, CS + admin). Key prefixes: `promo.*`
   (wizard), `p.pr.*` (manager), `p.nav.promo`.
+- Guest checkout: bookings may have NULL `customer_id` with identity in
+  `guest_name/phone/email` + `access_token` (unique, revocable). Guests use
+  the same URLs plus `?t=` (pay, status poller, cancel); anon submit shows
+  guest fields in the wizard. `Booking.OwnedBy`/`TokenOK`/`IsGuest`
+  centralize the checks; reports skip nil customers. History stays
+  account-only (`ListMine` untouched); claim-account linking is a deferred
+  phase 2. Key prefixes: `guest.*`, `book.guest`, `p.det.guest/walink`.
 
 ## Git
 

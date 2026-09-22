@@ -31,22 +31,24 @@ func (r *BookingRepo) Create(ctx context.Context, b *domain.Booking) error {
 	const q = `INSERT INTO bookings (
 		id, customer_id, location_id, service_id, staff_id, start_at, end_at, status,
 		price_idr, booking_fee_idr, hold_expires_at, notes, source, created_by_id, updated_by_id,
-		place, visit_address, promo_code, discount_idr
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+		place, visit_address, promo_code, discount_idr,
+		guest_name, guest_phone, guest_email, access_token
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 	RETURNING created_at, updated_at`
 	return r.pool.QueryRow(ctx, q,
 		b.ID, b.CustomerID, b.LocationID, b.ServiceID, b.StaffID,
 		b.StartAt, b.EndAt, b.Status, b.PriceIDR, b.BookingFeeIDR,
 		b.HoldExpiresAt, b.Notes, b.Source, b.CreatedByID, b.UpdatedByID,
 		b.Place, b.VisitAddress, b.PromoCode, b.DiscountIDR,
+		b.GuestName, b.GuestPhone, b.GuestEmail, b.AccessToken,
 	).Scan(&b.CreatedAt, &b.UpdatedAt)
 }
 
 func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, error) {
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -60,7 +62,7 @@ func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, 
 	var b domain.Booking
 	err := r.pool.QueryRow(ctx, q, id).Scan(
 		&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-		&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR,
+		&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
 		&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 		&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 		&b.ServiceName, &b.StaffName, &b.LocationName,
@@ -78,9 +80,9 @@ func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, 
 
 func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]domain.Booking, error) {
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -97,9 +99,9 @@ func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) 
 
 func (r *BookingRepo) ListUpcoming(ctx context.Context, limit int) ([]domain.Booking, error) {
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -127,9 +129,9 @@ type FilterParams struct {
 func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domain.Booking, error) {
 	var sb strings.Builder
 	sb.WriteString(`SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(u.full_name,''), COALESCE(u.phone,''), COALESCE(u.email,''),
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
@@ -166,7 +168,7 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 	}
 	if f.Search != "" {
 		like := "%" + strings.ToLower(f.Search) + "%"
-		sb.WriteString(fmt.Sprintf(" AND (lower(u.full_name) LIKE $%d OR u.phone LIKE $%d OR lower(u.email) LIKE $%d OR lower(u.baby_name) LIKE $%d)", idx, idx, idx, idx))
+		sb.WriteString(fmt.Sprintf(" AND (lower(u.full_name) LIKE $%d OR u.phone LIKE $%d OR lower(u.email) LIKE $%d OR lower(u.baby_name) LIKE $%d OR lower(b.guest_name) LIKE $%d OR b.guest_phone LIKE $%d)", idx, idx, idx, idx, idx, idx))
 		args = append(args, like)
 		idx++
 	}
@@ -188,7 +190,7 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 		var b domain.Booking
 		if err := rows.Scan(
 			&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR,
+			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
 			&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 			&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 			&b.ServiceName, &b.StaffName, &b.LocationName,
@@ -213,7 +215,7 @@ func (r *BookingRepo) scanList(ctx context.Context, q string, arg any) ([]domain
 		var b domain.Booking
 		if err := rows.Scan(
 			&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR,
+			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
 			&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 			&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 			&b.ServiceName, &b.StaffName, &b.LocationName,

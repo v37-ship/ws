@@ -26,11 +26,18 @@
         <div style="font-size:1.6rem; font-weight:800;">{{formatIDR .Booking.Net}}</div>
         {{if gt .Booking.DiscountIDR 0}}<div class="muted">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</div>{{end}}
         <div id="pay-status" style="width:100%;"
-          hx-get="/bookings/{{.Booking.ID}}/status"
+          hx-get="/bookings/{{.Booking.ID}}/status{{if .Token}}?t={{.Token}}{{end}}"
           hx-trigger="every 3s"
           hx-swap="innerHTML">
           {{template "pay_status.html" .}}
         </div>
+        {{if not .Booking.CustomerID}}
+        <div class="panel stack" style="background:var(--bg-2);">
+          <strong>{{t .Lang "guest.save"}}</strong>
+          <code id="guest-link" style="word-break:break-all;">{{.PayLink}}</code>
+          <div><button type="button" class="btn secondary on-light btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('guest-link').textContent)">{{t .Lang "guest.copy"}}</button></div>
+        </div>
+        {{end}}
         {{if eq (printf "%s" .Booking.Status) "pending_payment"}}
         <div class="qr-box stack" style="align-items:center;">
           <strong>{{t .Lang "pay.scan"}}</strong>
@@ -42,12 +49,18 @@
             <p class="muted">Order {{.Payment.OrderID}}</p>
           {{end}}
           {{if .MockMode}}
-            <form method="post" action="/bookings/{{.Booking.ID}}/mock-pay">
+            <form method="post" action="/bookings/{{.Booking.ID}}/mock-pay{{if .Token}}?t={{.Token}}{{end}}">
               <input type="hidden" name="csrf" value="{{.CSRF}}">
               <button class="btn" type="submit">{{t .Lang "pay.dev"}}</button>
             </form>
           {{end}}
         </div>
+        {{end}}
+        {{if not .Booking.CustomerID}}
+        <form method="post" action="/bookings/{{.Booking.ID}}/cancel{{if .Token}}?t={{.Token}}{{end}}" style="margin-top:.75rem;">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button class="btn secondary on-light" type="submit" onclick="return confirm('{{t .Lang "guest.cancel"}}?')">{{t .Lang "guest.cancel"}}</button>
+        </form>
         {{end}}
         <a class="muted" href="/bookings">{{t .Lang "pay.back"}}</a>
       </div>
