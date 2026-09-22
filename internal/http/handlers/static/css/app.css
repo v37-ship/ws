@@ -137,7 +137,7 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
   padding: 3.5rem 0 3rem;
   display: grid;
   gap: 0.85rem;
-  animation: heroRise 0.9s cubic-bezier(.2,.8,.2,1) both;
+  animation: heroRise 0.9s cubic-bezier(.2,.8,.2,1) backwards;
 }
 @keyframes heroRise {
   from { opacity: 0; transform: translateY(24px); }

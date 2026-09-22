@@ -599,10 +599,14 @@ html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
   background: rgba(255,255,255,.45); cursor: pointer; padding: 0;
 }
 .hero-dots button[aria-pressed="true"] { background: #fff; }
-.hero-bleed.hero-big .hero-inner { position: absolute; left: 0; right: 0; bottom: 3rem; opacity: 0; transform: translateY(48px) scale(.98); pointer-events: none; }
+.hero-fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .6s cubic-bezier(.22,.8,.3,1), opacity .5s ease; min-height: 0; }
+.hero-fold > .hero-inner { overflow: hidden; min-height: 0; }
+.hero-bleed.hero-big .hero-fold { grid-template-rows: 0fr; opacity: 0; }
+.hero-bleed.hero-big .hero-inner { transform: translateY(48px); }
 .hero-inner { transition: transform .6s cubic-bezier(.22,.8,.3,1), opacity .5s ease; }
 @media (prefers-reduced-motion: reduce) {
-  .hero-bleed, .hero-inner { transition: none !important; }
+  .hero-bleed, .hero-inner, .hero-fold { transition: none !important; }
   .hero-bleed.hero-big { min-height: min(78vh, 640px); }
+  .hero-bleed.hero-big .hero-fold { grid-template-rows: 1fr; opacity: 1; }
   .hero-bleed.hero-big .hero-inner { transform: none; }
 }
