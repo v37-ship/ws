@@ -504,3 +504,15 @@ func (f FoodItem) L() int64 {
 	}
 	return *f.PriceL
 }
+
+// HeroBanner is one homepage hero slideshow photo. Zero rows keep the
+// built-in default; one active banner renders statically.
+type HeroBanner struct {
+	ID        uuid.UUID
+	ImagePath string // local upload under uploads/hero/
+	ImageURL  string // internet picture link
+	Sort      int
+	Active    bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}

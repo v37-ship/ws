@@ -42,6 +42,7 @@ type Server struct {
 	career     *service.CareerService
 	tm         *service.TestimonialService
 	food       *service.FoodService
+	hero       *service.HeroService
 	tpl        *template.Template
 	csrfSecure bool
 }
@@ -57,6 +58,7 @@ func New(
 	career *service.CareerService,
 	tm *service.TestimonialService,
 	food *service.FoodService,
+	hero *service.HeroService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -90,6 +92,7 @@ func New(
 		},
 		"csrf": func() string { return "" }, // overridden per render
 		"eq":   func(a, b any) bool { return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b) },
+		"add":  func(a, b int) int { return a + b },
 		"hasUUID": func(list []string, id string) bool {
 			for _, x := range list {
 				if x == id {
@@ -136,6 +139,9 @@ func New(
 		},
 		"foodPhoto": func(f domain.FoodItem) string {
 			return service.ResolveFoodPhoto(f)
+		},
+		"heroPhoto": func(h domain.HeroBanner) string {
+			return service.ResolveHeroPhoto(h)
 		},
 		"stars": func(rating int) string {
 			if rating < 0 {
@@ -195,7 +201,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -490,6 +496,7 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/uploads/testimonials/{file}", s.ServeTestimonialPhoto)
 	r.Get("/uploads/avatars/{file}", s.ServeAvatar)
 	r.Get("/uploads/food/{file}", s.ServeFoodPhoto)
+	r.Get("/uploads/hero/{file}", s.ServeHeroPhoto)
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
@@ -584,6 +591,12 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/food/{id}/edit", s.PortalUpdateFood)
 		pr.Post("/food/{id}/toggle", s.PortalToggleFood)
 		pr.Post("/food/{id}/delete", s.PortalDeleteFood)
+
+		pr.Get("/site", s.PortalSite)
+		pr.Post("/site", s.PortalCreateBanner)
+		pr.Post("/site/{id}/sort", s.PortalBannerSort)
+		pr.Post("/site/{id}/toggle", s.PortalToggleBanner)
+		pr.Post("/site/{id}/delete", s.PortalDeleteBanner)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})
 

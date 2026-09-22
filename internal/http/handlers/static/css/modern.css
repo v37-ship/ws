@@ -591,3 +591,18 @@ html[data-theme="dark"] .rate-row span { background: var(--card); }
 .food-prices .fp-l { color: #d64545; }
 html[data-theme="dark"] .food-prices .fp-m { color: #8ab8ff; }
 html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
+
+/* Hero slideshow dots + scroll-expand polish */
+.hero-dots { display: flex; gap: .45rem; margin-top: .25rem; }
+.hero-dots button {
+  width: .65rem; height: .65rem; border-radius: 9999px; border: 0;
+  background: rgba(255,255,255,.45); cursor: pointer; padding: 0;
+}
+.hero-dots button[aria-pressed="true"] { background: #fff; }
+.hero-bleed.hero-big .hero-inner { transform: scale(1.04); }
+.hero-inner { transition: transform .6s cubic-bezier(.22,.8,.3,1); }
+@media (prefers-reduced-motion: reduce) {
+  .hero-bleed, .hero-inner { transition: none !important; }
+  .hero-bleed.hero-big { min-height: min(78vh, 640px); }
+  .hero-bleed.hero-big .hero-inner { transform: none; }
+}

@@ -129,6 +129,37 @@ function __wanggaDrawerClose() { try { return window.__wanggaDrawer.close(); } c
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") { try { window.__wanggaDrawer.close(); } catch (err) {} }
 });
+/* Homepage hero: expand toward fullscreen at top / on upward scroll,
+   compact on downward scroll; gentle photo parallax. Skipped entirely
+   under prefers-reduced-motion. Only runs where #hero exists. */
+(function () {
+  try {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var hero = document.getElementById("hero");
+    if (!hero) return;
+    var photos = hero.querySelectorAll(".hero-photo");
+    var lastY = window.scrollY || 0;
+    var ticking = false;
+    var paint = function () {
+      ticking = false;
+      var y = window.scrollY || 0;
+      var goingUp = y < lastY;
+      lastY = y;
+      if (y <= 40 || goingUp) hero.classList.add("hero-big");
+      else hero.classList.remove("hero-big");
+      var shift = Math.min(y * 0.12, 120);
+      for (var k = 0; k < photos.length; k++) {
+        photos[k].style.transform = "translateY(" + shift + "px) scale(1.08)";
+      }
+    };
+    var onScroll = function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(paint); }
+    };
+    hero.classList.add("hero-big");
+    window.addEventListener("scroll", onScroll, { passive: true });
+    paint();
+  } catch (e) {}
+})();
 </script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">

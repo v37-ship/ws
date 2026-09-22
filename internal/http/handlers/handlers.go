@@ -44,9 +44,11 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 	}
 	openJobs, _ := s.career.ListJobs(r.Context(), true)
 	testimonials, _ := s.tm.ListApproved(r.Context(), 12)
+	banners, _ := s.hero.ListActive(r.Context())
 	s.render(w, r, "home.html", pageData{
 		"Locations": locs, "PreviewServices": preview,
 		"OpenJobCount": len(openJobs), "Testimonials": testimonials,
+		"HeroBanners": banners,
 	})
 }
 

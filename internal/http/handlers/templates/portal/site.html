@@ -1,0 +1,93 @@
+{{define "portal_site.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.hb.title"}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "site" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.hb.title"}}</h1>
+      </div>
+    </div>
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">{{t .Lang "p.hb.add"}}</summary>
+      <form class="stack" method="post" action="/portal/site" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.hb.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>URL <input name="image_url" placeholder="https://…" autocomplete="off"></label>
+        </div>
+        <button class="btn" type="submit">{{t .Lang "p.hb.add"}}</button>
+      </form>
+    </details>
+
+    <div class="panel">
+      <div style="overflow-x:auto;" class="table-cards" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{t .Lang "p.hb.photo"}}</th>
+              <th>{{t .Lang "p.hb.sort"}}</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Banners}}
+            {{$photo := heroPhoto .}}
+            <tr>
+              <td>
+                {{if $photo}}<img src="{{$photo}}" alt="" loading="lazy" style="width:4.5rem; height:2.8rem; border-radius:.6rem; object-fit:cover; background:var(--bg-2);">{{else}}<span class="muted">-</span>{{end}}
+              </td>
+              <td>
+                <form method="post" action="/portal/site/{{.ID}}/sort" style="display:inline-flex; gap:.3rem; align-items:center;">
+                  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                  <input type="number" name="sort" value="{{.Sort}}" min="0" style="width:4.5rem;">
+                  <button type="submit" class="btn secondary on-light btn-sm">OK</button>
+                </form>
+              </td>
+              <td>
+                {{if .Active}}
+                  <span class="badge confirmed">{{t $.Lang "p.hb.on"}}</span>
+                {{else}}
+                  <span class="badge cancelled">{{t $.Lang "p.hb.off"}}</span>
+                {{end}}
+              </td>
+              <td>
+                <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
+                  <form method="post" action="/portal/site/{{.ID}}/toggle" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm">
+                      {{if .Active}}{{t $.Lang "p.hb.off"}}{{else}}{{t $.Lang "p.hb.on"}}{{end}}
+                    </button>
+                  </form>
+                  <form method="post" action="/portal/site/{{.ID}}/delete" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);">{{t $.Lang "p.hb.del"}}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="4" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.hb.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}
