@@ -237,7 +237,11 @@ const (
 
 type Booking struct {
 	ID            uuid.UUID
-	CustomerID    uuid.UUID
+	CustomerID    *uuid.UUID // nil = guest booking (identity in Guest* fields)
+	GuestName     string
+	GuestPhone    string
+	GuestEmail    string
+	AccessToken   *string // guest management token, nil = none/revoked
 	LocationID    uuid.UUID
 	ServiceID     uuid.UUID
 	StaffID       uuid.UUID
@@ -339,7 +343,7 @@ type ReportLine struct {
 	Purpose       PaymentPurpose
 	PaidAt        time.Time
 	StartAt       time.Time
-	CustomerID    uuid.UUID
+	CustomerID    *uuid.UUID // nil = guest booking (skipped in unique counts)
 	CustomerName  string
 	ServiceID     uuid.UUID
 	ServiceName   string
@@ -537,4 +541,44 @@ func (b Booking) Net() int64 {
 		return net
 	}
 	return 0
+}
+
+// IsGuest reports whether the booking belongs to no account.
+func (b Booking) IsGuest() bool { return b.CustomerID == nil }
+
+// OwnedBy reports whether the user owns an account booking.
+func (b Booking) OwnedBy(id uuid.UUID) bool {
+	return b.CustomerID != nil && *b.CustomerID == id
+}
+
+// TokenOK verifies a guest management token in constant time.
+func (b Booking) TokenOK(t string) bool {
+	if b.AccessToken == nil || t == "" {
+		return false
+	}
+	a, c := *b.AccessToken, t
+	if len(a) != len(c) {
+		return false
+	}
+	n := 0
+	for i := range a {
+		n |= int(a[i]) ^ int(c[i])
+	}
+	return n == 0
+}
+
+// TokenParam returns the token for link building ("" when none).
+func (b Booking) TokenParam() string {
+	if b.AccessToken == nil {
+		return ""
+	}
+	return *b.AccessToken
+}
+
+// GuestContactName prefers the guest name, falling back to account data.
+func (b Booking) GuestContactName() string {
+	if b.GuestName != "" {
+		return b.GuestName
+	}
+	return b.CustomerName
 }

@@ -30,10 +30,10 @@ func TestBuildStaffRowsSessionsUniqueServices(t *testing.T) {
 	cust1 := uuid.New()
 	cust2 := uuid.New()
 	lines := []domain.ReportLine{
-		{StaffID: staffA, StaffName: "Bidan Ayu", CustomerID: cust1, ServiceName: "Baby Massage", AmountIDR: 100000},
-		{StaffID: staffA, StaffName: "Bidan Ayu", CustomerID: cust1, ServiceName: "Baby Massage", AmountIDR: 100000},
-		{StaffID: staffA, StaffName: "Bidan Ayu", CustomerID: cust2, ServiceName: "Mom Massage", AmountIDR: 200000},
-		{StaffID: staffB, StaffName: "Terapis Rina", CustomerID: cust2, ServiceName: "Facial", AmountIDR: 150000},
+		{StaffID: staffA, StaffName: "Bidan Ayu", CustomerID: &cust1, ServiceName: "Baby Massage", AmountIDR: 100000},
+		{StaffID: staffA, StaffName: "Bidan Ayu", CustomerID: &cust1, ServiceName: "Baby Massage", AmountIDR: 100000},
+		{StaffID: staffA, StaffName: "Bidan Ayu", CustomerID: &cust2, ServiceName: "Mom Massage", AmountIDR: 200000},
+		{StaffID: staffB, StaffName: "Terapis Rina", CustomerID: &cust2, ServiceName: "Facial", AmountIDR: 150000},
 	}
 	refunds := []domain.ReportRefund{
 		{Refund: domain.Refund{AmountIDR: 50000}, StaffID: staffA, StaffName: "Bidan Ayu"},
@@ -49,7 +49,9 @@ func TestBuildStaffRowsSessionsUniqueServices(t *testing.T) {
 		}
 		a.sessions++
 		a.gross += ln.AmountIDR
-		a.customers[ln.CustomerID] = struct{}{}
+		if ln.CustomerID != nil {
+			a.customers[*ln.CustomerID] = struct{}{}
+		}
 		s := a.services[ln.ServiceName]
 		if s == nil {
 			s = &domain.StaffServiceRow{Name: ln.ServiceName}

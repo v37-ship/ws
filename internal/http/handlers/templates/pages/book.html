@@ -177,6 +177,15 @@
           {{if .User}}
             <button class="btn big" type="submit" :disabled="!time">{{t .Lang "book.continue"}}</button>
           {{else}}
+            <fieldset class="stack" style="border:1px solid var(--line); border-radius:.9rem; padding:.75rem 1rem;">
+              <legend style="font-weight:700; padding:0 .5rem;">{{t .Lang "book.guest"}}</legend>
+              <label>{{t .Lang "guest.name"}} <input name="guest_name" required minlength="2" maxlength="80" autocomplete="name"></label>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:.75rem;">
+                <label>{{t .Lang "guest.phone"}} <input name="guest_phone" required inputmode="tel" autocomplete="tel" placeholder="08xx…"></label>
+                <label>{{t .Lang "guest.email"}} <input type="email" name="guest_email" autocomplete="email"></label>
+              </div>
+            </fieldset>
+            <button class="btn big" type="submit" :disabled="!time">{{t .Lang "book.continue"}}</button>
             <p class="muted">{{t .Lang "book.login_pre"}} <a href="/login?next=/book">{{t .Lang "book.login_link"}}</a> {{t .Lang "book.login_post"}}</p>
           {{end}}
         </div>

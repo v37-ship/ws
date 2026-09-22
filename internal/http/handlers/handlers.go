@@ -303,8 +303,38 @@ func (s *Server) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Please select location, service, and a time slot", http.StatusBadRequest)
 		return
 	}
+	place := domain.Place(r.FormValue("place"))
+	visitAddress := r.FormValue("visit_address")
+	promoCode := r.FormValue("promo_code")
+	if u == nil {
+		b, _, err := s.book.CreateGuestPending(r.Context(), service.GuestBookingRequest{
+			LocationID: lid, ServiceID: sid, StaffID: staffID, StartAt: startAt,
+			Notes: r.FormValue("notes"), Place: place, VisitAddress: visitAddress,
+			PromoCode: promoCode, Name: r.FormValue("guest_name"),
+			Phone: r.FormValue("guest_phone"), Email: r.FormValue("guest_email"),
+		})
+		if err != nil {
+			if errors.Is(err, service.ErrConflict) {
+				http.Error(w, "That slot was just taken. Pick another time.", http.StatusConflict)
+				return
+			}
+			if errors.Is(err, service.ErrValidation) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			s.log.Error("create guest booking", "err", err)
+			http.Error(w, "Could not create booking", http.StatusInternalServerError)
+			return
+		}
+		token := ""
+		if b.AccessToken != nil {
+			token = *b.AccessToken
+		}
+		http.Redirect(w, r, "/bookings/"+b.ID.String()+"/pay?t="+token, http.StatusSeeOther)
+		return
+	}
 	b, _, err := s.book.CreatePending(r.Context(), u.ID, lid, sid, staffID, startAt,
-		r.FormValue("notes"), domain.Place(r.FormValue("place")), r.FormValue("visit_address"), r.FormValue("promo_code"))
+		r.FormValue("notes"), place, visitAddress, promoCode)
 	if err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			http.Error(w, "That slot was just taken. Pick another time.", http.StatusConflict)
@@ -332,7 +362,7 @@ func (s *Server) MyBookings(w http.ResponseWriter, r *http.Request) {
 	if cid := r.URL.Query().Get("cancelled"); cid != "" {
 		if cid, err := uuid.Parse(cid); err == nil {
 			if b, err := s.book.GetBooking(r.Context(), cid); err == nil &&
-				(b.CustomerID == u.ID || u.Role == domain.RoleAdmin) {
+				(b.OwnedBy(u.ID) || u.Role == domain.RoleAdmin) {
 				data["CancelledBooking"] = b
 			}
 		}
@@ -341,30 +371,25 @@ func (s *Server) MyBookings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) PayPage(w http.ResponseWriter, r *http.Request) {
-	u := middleware.UserFrom(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	b, err := s.book.GetBooking(r.Context(), id)
-	if errors.Is(err, repo.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		s.log.Error("pay page booking", "id", id, "err", err)
-		http.Error(w, "Could not load booking", http.StatusInternalServerError)
-		return
-	}
-	if b.CustomerID != u.ID && u.Role != domain.RoleAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	b, token, ok := s.bookingAccess(w, r, id)
+	if !ok {
 		return
 	}
 	p, _ := s.book.GetPaymentForBooking(r.Context(), id)
+	payLink := ""
+	if token != "" {
+		payLink = s.cfg.BaseURL + "/bookings/" + id.String() + "/pay?t=" + token
+	}
 	data := pageData{
 		"Booking":  b,
 		"Payment":  p,
+		"Token":    token,
+		"PayLink":  payLink,
 		"MockMode": s.cfg.MidtransServer == "",
 	}
 	if p != nil && strings.HasPrefix(p.QRString, "http") {
@@ -376,15 +401,13 @@ func (s *Server) PayPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) BookingStatusPartial(w http.ResponseWriter, r *http.Request) {
-	u := middleware.UserFrom(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	b, err := s.book.GetBooking(r.Context(), id)
-	if err != nil || (b.CustomerID != u.ID && u.Role != domain.RoleAdmin) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	b, _, ok := s.bookingAccess(w, r, id)
+	if !ok {
 		return
 	}
 	s.renderPartial(w, r, "pay_status.html", pageData{"Booking": b})
@@ -402,8 +425,24 @@ func (s *Server) CancelBooking(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.book.Cancel(r.Context(), id, u.ID, u.Role.IsStaff(), r.FormValue("reason")); err != nil {
-		http.Redirect(w, r, "/bookings?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+	b, token, ok := s.bookingAccess(w, r, id)
+	if !ok {
+		return
+	}
+	var actorID *uuid.UUID
+	if u != nil && !b.IsGuest() {
+		actorID = &u.ID
+	}
+	if err := s.book.Cancel(r.Context(), id, actorID, u != nil && u.Role.IsStaff(), r.FormValue("reason")); err != nil {
+		if b.IsGuest() {
+			http.Redirect(w, r, "/bookings/"+id.String()+"/pay?t="+token+"&error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/bookings?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		}
+		return
+	}
+	if b.IsGuest() {
+		http.Redirect(w, r, "/bookings/"+id.String()+"/pay?t="+token, http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, "/bookings?cancelled="+id.String(), http.StatusSeeOther)
@@ -421,11 +460,23 @@ func (s *Server) MockPay(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.book.ConfirmMockPayment(r.Context(), id, u.ID); err != nil {
+	b, token, ok := s.bookingAccess(w, r, id)
+	if !ok {
+		return
+	}
+	var actorID *uuid.UUID
+	if u != nil && !b.IsGuest() {
+		actorID = &u.ID
+	}
+	if err := s.book.ConfirmMockPayment(r.Context(), id, actorID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/bookings/"+id.String()+"/pay", http.StatusSeeOther)
+	dest := "/bookings/" + id.String() + "/pay"
+	if token != "" {
+		dest += "?t=" + token
+	}
+	http.Redirect(w, r, dest, http.StatusSeeOther)
 }
 
 func (s *Server) MidtransWebhook(w http.ResponseWriter, r *http.Request) {
@@ -723,6 +774,7 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		"Refunds":       payRefunds,
 		"RefundedTotal": refundedTotal,
 		"Refundable":    refundable,
+		"GuestLink":     s.cfg.BaseURL + "/bookings/" + b.ID.String() + "/pay?t=" + b.TokenParam(),
 		"Success":       r.URL.Query().Get("success"),
 		"Error":         r.URL.Query().Get("error"),
 	})

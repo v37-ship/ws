@@ -82,3 +82,55 @@ func TestNormalizePlace(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateGuest(t *testing.T) {
+	name, phone, email, err := ValidateGuest("Sari", "0821-1347-294", "sari@example.com")
+	if err != nil {
+		t.Fatalf("valid guest = %v", err)
+	}
+	if name != "Sari" || phone != "08211347294" || email != "sari@example.com" {
+		t.Errorf("normalized = %q %q %q", name, phone, email)
+	}
+	for _, tc := range []struct {
+		name, phone, email string
+	}{
+		{"A", "08211347294", ""},
+		{"Sari", "123", ""},
+		{"Sari", "08211347294", "not-an-email"},
+	} {
+		if _, _, _, err := ValidateGuest(tc.name, tc.phone, tc.email); err == nil {
+			t.Errorf("%v: expected error", tc)
+		}
+	}
+	if _, _, _, err := ValidateGuest("Sari", "08211347294", ""); err != nil {
+		t.Errorf("email optional = %v", err)
+	}
+}
+
+func TestBookingTokenOK(t *testing.T) {
+	tok, err := NewAccessToken()
+	if err != nil {
+		t.Fatalf("token gen = %v", err)
+	}
+	b := domain.Booking{AccessToken: &tok}
+	if !b.TokenOK(tok) {
+		t.Errorf("valid token rejected")
+	}
+	if b.TokenOK(tok+"x") || b.TokenOK("") {
+		t.Errorf("bad token accepted")
+	}
+	if (domain.Booking{}).TokenOK(tok) {
+		t.Errorf("nil token accepted")
+	}
+}
+
+func TestBookingOwnedBy(t *testing.T) {
+	id := uuid.New()
+	b := domain.Booking{CustomerID: &id}
+	if !b.OwnedBy(id) || b.OwnedBy(uuid.New()) {
+		t.Errorf("ownership mismatch")
+	}
+	if (domain.Booking{}).OwnedBy(id) {
+		t.Errorf("guest owned by account")
+	}
+}

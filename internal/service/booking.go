@@ -2,12 +2,16 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/email"
@@ -84,7 +88,7 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 	endAt := startAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	holdExp := time.Now().Add(s.holdTTL)
 	b := &domain.Booking{
-		CustomerID:    customerID,
+		CustomerID:    &customerID,
 		LocationID:    locationID,
 		ServiceID:     serviceID,
 		StaffID:       staffID,
@@ -233,7 +237,7 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 		return nil, nil, err
 	}
 	b := &domain.Booking{
-		CustomerID:   req.CustomerID,
+		CustomerID:   &req.CustomerID,
 		LocationID:   req.LocationID,
 		ServiceID:    req.ServiceID,
 		StaffID:      req.StaffID,
@@ -354,13 +358,24 @@ func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, 
 	}
 
 	if newStatus == domain.BookingCancelled {
-		customer, err := s.users.ByID(ctx, b.CustomerID)
-		if err == nil {
-			_ = s.mailer.Send(customer.Email, "Wangga booking cancelled",
-				fmt.Sprintf("Your Wangga booking for %s on %s was cancelled. Note: %s", b.ServiceName, b.StartAt.Format(time.RFC1123), note))
+		if email, name := s.bookingRecipient(ctx, b); email != "" {
+			_ = s.mailer.Send(email, "Wangga booking cancelled",
+				fmt.Sprintf("Hi %s, your Wangga booking for %s on %s was cancelled. Note: %s", name, b.ServiceName, b.StartAt.Format(time.RFC1123), note))
 		}
 	}
 	return nil
+}
+
+// bookingRecipient resolves where booking mail goes: the account email, or
+// the guest address when present. Empty email means do not send.
+func (s *BookingService) bookingRecipient(ctx context.Context, b *domain.Booking) (string, string) {
+	if b.CustomerID != nil {
+		if customer, err := s.users.ByID(ctx, *b.CustomerID); err == nil {
+			return customer.Email, customer.FullName
+		}
+		return "", ""
+	}
+	return b.GuestEmail, b.GuestContactName()
 }
 
 func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid.UUID, startAt time.Time, actorID *uuid.UUID, note string) error {
@@ -394,11 +409,10 @@ func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid
 		return err
 	}
 
-	customer, err := s.users.ByID(ctx, b.CustomerID)
-	if err == nil {
-		_ = s.mailer.Send(customer.Email, "Wangga booking rescheduled",
-			fmt.Sprintf("Your Wangga booking for %s has been rescheduled to %s. Note: %s",
-				b.ServiceName, startAt.Format(time.RFC1123), note))
+	if email, name := s.bookingRecipient(ctx, b); email != "" {
+		_ = s.mailer.Send(email, "Wangga booking rescheduled",
+			fmt.Sprintf("Hi %s, your Wangga booking for %s has been rescheduled to %s. Note: %s",
+				name, b.ServiceName, startAt.Format(time.RFC1123), note))
 	}
 	return nil
 }
@@ -492,12 +506,18 @@ func (s *BookingService) ListAdmin(ctx context.Context) ([]domain.Booking, error
 	return s.bookings.ListUpcoming(ctx, 100)
 }
 
-func (s *BookingService) Cancel(ctx context.Context, bookingID, actorID uuid.UUID, isStaff bool, reason string) error {
+func (s *BookingService) Cancel(ctx context.Context, bookingID uuid.UUID, actorID *uuid.UUID, isStaff bool, reason string) error {
 	b, err := s.bookings.ByID(ctx, bookingID)
 	if err != nil {
 		return err
 	}
-	if !isStaff && b.CustomerID != actorID {
+	// Guests arrive pre-authorized (nil actor after token check); accounts
+	// must own the booking.
+	if actorID == nil {
+		if !b.IsGuest() {
+			return ErrForbidden
+		}
+	} else if !isStaff && !b.OwnedBy(*actorID) {
 		return ErrForbidden
 	}
 	if b.Status != domain.BookingConfirmed && b.Status != domain.BookingPendingPayment {
@@ -507,7 +527,7 @@ func (s *BookingService) Cancel(ctx context.Context, bookingID, actorID uuid.UUI
 	if strings.TrimSpace(reason) != "" {
 		note += ": " + strings.TrimSpace(reason)
 	}
-	return s.UpdateStatus(ctx, bookingID, domain.BookingCancelled, &actorID, note)
+	return s.UpdateStatus(ctx, bookingID, domain.BookingCancelled, actorID, note)
 }
 
 func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []byte) error {
@@ -540,11 +560,14 @@ func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []b
 		if err != nil {
 			return err
 		}
-		customer, err := s.users.ByID(ctx, b.CustomerID)
-		if err == nil {
-			body := fmt.Sprintf("Booking confirmed at Wangga Spa Baby, Mom, & Woman.\n\nService: %s\nLocation: %s\nTherapist: %s\nWhen: %s\nAmount: Rp %d\n\nManage: %s/bookings\n",
-				b.ServiceName, b.LocationName, b.StaffName, b.StartAt.Format(time.RFC1123), b.PriceIDR, s.baseURL)
-			if err := s.mailer.Send(customer.Email, "Wangga booking confirmed", body); err != nil {
+		manage := s.baseURL + "/bookings"
+		if b.IsGuest() && b.AccessToken != nil {
+			manage = fmt.Sprintf("%s/bookings/%s/pay?t=%s", s.baseURL, b.ID.String(), *b.AccessToken)
+		}
+		if email, name := s.bookingRecipient(ctx, b); email != "" {
+			body := fmt.Sprintf("Hi %s, booking confirmed at Wangga Spa Baby, Mom, & Woman.\n\nService: %s\nLocation: %s\nTherapist: %s\nWhen: %s\nAmount: Rp %d\n\nManage: %s\n",
+				name, b.ServiceName, b.LocationName, b.StaffName, b.StartAt.Format(time.RFC1123), b.Net(), manage)
+			if err := s.mailer.Send(email, "Wangga booking confirmed", body); err != nil {
 				s.log.Warn("email send failed", "err", err)
 			}
 		}
@@ -562,17 +585,24 @@ func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []b
 	return nil
 }
 
-func (s *BookingService) ConfirmMockPayment(ctx context.Context, bookingID uuid.UUID, actorID uuid.UUID) error {
+func (s *BookingService) ConfirmMockPayment(ctx context.Context, bookingID uuid.UUID, actorID *uuid.UUID) error {
 	b, err := s.bookings.ByID(ctx, bookingID)
 	if err != nil {
 		return err
 	}
-	actor, err := s.users.ByID(ctx, actorID)
-	if err != nil {
-		return err
-	}
-	if b.CustomerID != actorID && !actor.Role.IsStaff() {
-		return ErrForbidden
+	// Guests arrive pre-authorized (nil actor after token check).
+	if actorID == nil {
+		if !b.IsGuest() {
+			return ErrForbidden
+		}
+	} else {
+		actor, err := s.users.ByID(ctx, *actorID)
+		if err != nil {
+			return err
+		}
+		if !b.OwnedBy(*actorID) && !actor.Role.IsStaff() {
+			return ErrForbidden
+		}
 	}
 	p, err := s.payments.ByBookingID(ctx, bookingID)
 	if err != nil {
@@ -596,4 +626,162 @@ func isExclusionViolation(err error) bool {
 		return pgErr.Code == "23P01"
 	}
 	return false
+}
+
+// NewAccessToken mints an unguessable guest management token.
+func NewAccessToken() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+// ValidateGuest checks guest identity input. Error strings stay English.
+func ValidateGuest(name, phone, email string) (string, string, string, error) {
+	name = strings.TrimSpace(name)
+	if n := utf8.RuneCountInString(name); n < 2 || n > 80 {
+		return "", "", "", fmt.Errorf("%w: name must be 2-80 characters", ErrValidation)
+	}
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, phone)
+	if len(digits) < 9 || len(digits) > 15 {
+		return "", "", "", fmt.Errorf("%w: enter a valid phone number", ErrValidation)
+	}
+	email = strings.TrimSpace(email)
+	if email != "" {
+		if _, err := mail.ParseAddress(email); err != nil {
+			return "", "", "", fmt.Errorf("%w: enter a valid email address", ErrValidation)
+		}
+	}
+	return name, digits, email, nil
+}
+
+// GuestBookingRequest carries guest identity for account-less bookings.
+type GuestBookingRequest struct {
+	LocationID   uuid.UUID
+	ServiceID    uuid.UUID
+	StaffID      uuid.UUID
+	StartAt      time.Time
+	Notes        string
+	Place        domain.Place
+	VisitAddress string
+	PromoCode    string
+	Name         string
+	Phone        string
+	Email        string
+}
+
+// CreateGuestPending books without an account: identity snapshots onto the
+// row and a management token grants pay/cancel access.
+func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookingRequest) (*domain.Booking, *domain.Payment, error) {
+	name, phone, email, err := ValidateGuest(req.Name, req.Phone, req.Email)
+	if err != nil {
+		return nil, nil, err
+	}
+	svc, err := s.catalog.ServiceByID(ctx, req.ServiceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if svc.LocationID != req.LocationID {
+		return nil, nil, fmt.Errorf("%w: service/location mismatch", ErrValidation)
+	}
+	place, visitAddress, err := normalizePlace(req.Place, req.VisitAddress)
+	if err != nil {
+		return nil, nil, err
+	}
+	st, err := s.catalog.StaffByID(ctx, req.StaffID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if st.LocationID != req.LocationID {
+		return nil, nil, fmt.Errorf("%w: staff/location mismatch", ErrValidation)
+	}
+	quote, err := QuotePromo(ctx, s.promos, req.PromoCode, svc.PriceIDR)
+	if err != nil {
+		return nil, nil, err
+	}
+	token, err := NewAccessToken()
+	if err != nil {
+		return nil, nil, err
+	}
+	endAt := req.StartAt.Add(time.Duration(svc.DurationMin) * time.Minute)
+	holdExp := time.Now().Add(s.holdTTL)
+	b := &domain.Booking{
+		LocationID:    req.LocationID,
+		ServiceID:     req.ServiceID,
+		StaffID:       req.StaffID,
+		StartAt:       req.StartAt.UTC(),
+		EndAt:         endAt.UTC(),
+		Status:        domain.BookingPendingPayment,
+		PriceIDR:      svc.PriceIDR,
+		PromoCode:     quote.Code,
+		DiscountIDR:   quote.Discount,
+		GuestName:     name,
+		GuestPhone:    phone,
+		GuestEmail:    email,
+		AccessToken:   &token,
+		HoldExpiresAt: &holdExp,
+		Notes:         strings.TrimSpace(req.Notes),
+		Place:         place,
+		VisitAddress:  visitAddress,
+		Source:        "web",
+	}
+	if err := s.bookings.Create(ctx, b); err != nil {
+		if isExclusionViolation(err) {
+			return nil, nil, ErrConflict
+		}
+		return nil, nil, err
+	}
+	redeemed := false
+	if quote.Code != "" {
+		if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
+			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+			return nil, nil, fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
+		}
+		redeemed = true
+	}
+	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
+	charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
+		OrderID:      orderID,
+		AmountIDR:    b.Net(),
+		CustomerName: name,
+		Email:        email,
+		ItemName:     svc.Name,
+	})
+	if err != nil {
+		if redeemed {
+			_ = s.promos.Unredeem(ctx, quote.Code)
+		}
+		_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+		return nil, nil, fmt.Errorf("qris charge: %w", err)
+	}
+	p := &domain.Payment{
+		BookingID:       b.ID,
+		OrderID:         orderID,
+		AmountIDR:       b.Net(),
+		Status:          domain.PaymentPending,
+		PaymentMethod:   domain.PaymentMethodQRIS,
+		PaymentPurpose:  domain.PaymentPurposeFull,
+		QRString:        charge.QRString,
+		MidtransTransID: charge.TransactionID,
+	}
+	if err := s.payments.Create(ctx, p); err != nil {
+		return nil, nil, err
+	}
+	_ = s.bookings.LogActivity(ctx, b.ID, nil, "Guest booking created online (QRIS pending)", req.Notes)
+	if email != "" {
+		_ = s.mailer.Send(email, "Wangga booking received",
+			fmt.Sprintf("Thanks %s! Your Wangga booking for %s is pending payment of Rp %d.\n\nManage: %s/bookings/%s/pay?t=%s\n",
+				name, svc.Name, b.Net(), s.baseURL, b.ID.String(), token))
+	}
+	full, _ := s.bookings.ByID(ctx, b.ID)
+	if full != nil {
+		b = full
+	}
+	return b, p, nil
 }
