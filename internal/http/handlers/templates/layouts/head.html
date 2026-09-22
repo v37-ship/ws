@@ -131,8 +131,9 @@ document.addEventListener("keydown", function (e) {
 });
 /* Homepage hero: expand toward fullscreen at top / on upward scroll,
    compact on downward scroll; gentle photo parallax. Skipped entirely
-   under prefers-reduced-motion. Only runs where #hero exists. */
-(function () {
+   under prefers-reduced-motion. Only runs where #hero exists. Runs on
+   DOMContentLoaded: the head script parses before <body> exists. */
+document.addEventListener("DOMContentLoaded", function () {
   try {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     var hero = document.getElementById("hero");
@@ -159,7 +160,7 @@ document.addEventListener("keydown", function (e) {
     window.addEventListener("scroll", onScroll, { passive: true });
     paint();
   } catch (e) {}
-})();
+});
 </script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">

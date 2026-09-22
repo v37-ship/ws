@@ -112,7 +112,7 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
   margin-bottom: 2rem;
   transition: min-height .6s cubic-bezier(.22,.8,.3,1);
 }
-.hero-bleed.hero-big { min-height: min(92svh, 860px); }
+.hero-bleed.hero-big { min-height: min(92vh, 860px); min-height: min(92svh, 860px); }
 .hero-photo {
   position: absolute;
   inset: 0;
