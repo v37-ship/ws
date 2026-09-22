@@ -125,7 +125,9 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   background:
+    linear-gradient(120deg, rgba(255, 77, 141, 0.55), rgba(32, 197, 181, 0.35) 55%, rgba(255, 176, 32, 0.3)),
     radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.22), transparent 40%),
     linear-gradient(180deg, rgba(42, 36, 48, 0.15) 0%, rgba(42, 36, 48, 0.55) 100%);
 }

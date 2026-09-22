@@ -315,7 +315,9 @@ html[data-theme="dark"] .site-header {
   border-bottom-color: var(--line);
 }
 html[data-theme="dark"] .hero-bleed::before {
+  z-index: 1;
   background:
+    linear-gradient(120deg, rgba(255, 77, 141, 0.45), rgba(32, 197, 181, 0.28) 55%, rgba(255, 176, 32, 0.22)),
     radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.10), transparent 40%),
     linear-gradient(180deg, rgba(20, 10, 22, 0.35) 0%, rgba(20, 10, 22, 0.72) 100%);
 }
@@ -427,7 +429,9 @@ html[data-theme="dark"] code { background: #3a2b41; }
     border-bottom-color: var(--line);
   }
   html:not([data-theme]) .hero-bleed::before {
+    z-index: 1;
     background:
+      linear-gradient(120deg, rgba(255, 77, 141, 0.45), rgba(32, 197, 181, 0.28) 55%, rgba(255, 176, 32, 0.22)),
       radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.10), transparent 40%),
       linear-gradient(180deg, rgba(20, 10, 22, 0.35) 0%, rgba(20, 10, 22, 0.72) 100%);
   }
