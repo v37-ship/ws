@@ -581,7 +581,7 @@ html[data-theme="dark"] code { background: #3a2b41; }
 }
 .tm-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .tm-name { font-weight: 800; }
-.tm-nav { display: flex; align-items: center; justify-content: center; gap: .75rem; margin-top: .75rem; }
+.tm-nav { display: flex; align-items: center; justify-content: center; gap: .75rem; margin: .75rem 0 1.25rem; }
 .tm-dots { display: flex; gap: .4rem; }
 .tm-dots button {
   width: .65rem; height: .65rem; border-radius: 9999px; border: 0;
