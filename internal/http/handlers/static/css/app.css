@@ -110,7 +110,7 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
     linear-gradient(120deg, rgba(255, 77, 141, 0.55), rgba(32, 197, 181, 0.35) 55%, rgba(255, 176, 32, 0.3));
   color: white;
   margin-bottom: 2rem;
-  transition: min-height .6s cubic-bezier(.22,.8,.3,1);
+  transition: min-height 1.4s cubic-bezier(.22,.8,.3,1);
 }
 .hero-bleed.hero-big { min-height: min(92vh, 860px); min-height: min(92svh, 860px); }
 .hero-photo {
