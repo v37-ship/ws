@@ -364,7 +364,8 @@ html[data-theme="dark"] .btn.mint {
   border-color: transparent;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
 }
-html[data-theme="dark"] .btn.secondary {
+html[data-theme="dark"] .btn.secondary,
+html[data-theme="dark"] .btn.secondary.on-light {
   background: #4a3653;
   background-image: none;
   color: var(--ink);
@@ -474,7 +475,8 @@ html[data-theme="dark"] code { background: #3a2b41; }
     border-color: transparent;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   }
-  html:not([data-theme]) .btn.secondary {
+  html:not([data-theme]) .btn.secondary,
+  html:not([data-theme]) .btn.secondary.on-light {
     background: #4a3653;
     background-image: none;
     color: #f8eff5;
