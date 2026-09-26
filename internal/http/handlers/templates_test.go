@@ -47,7 +47,7 @@ func TestTemplatesExecute(t *testing.T) {
 			"Contact": pageData{
 				"WhatsApp": "62800", "Email": "a@b.c",
 				"Address": "addr", "Hours": "hours", "Maps": "https://maps.example/",
-				"Instagram": "https://instagram.example/",
+				"Instagram": "https://instagram.example/", "TikTok": "https://tiktok.example/", "Facebook": "https://facebook.example/",
 			},
 		}
 		switch name {
@@ -150,7 +150,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				"Contact": pageData{
 					"WhatsApp": "62800", "Email": "a@b.c",
 					"Address": "addr", "Hours": "hours", "Maps": "https://maps.example/",
-					"Instagram": "https://instagram.example/",
+					"Instagram": "https://instagram.example/", "TikTok": "https://tiktok.example/", "Facebook": "https://facebook.example/",
 				},
 			}
 			switch name {
@@ -326,7 +326,7 @@ func TestNoEmojiIcons(t *testing.T) {
 				"Contact": pageData{
 					"WhatsApp": "62800", "Email": "a@b.c",
 					"Address": "addr", "Hours": "hours", "Maps": "https://maps.example/",
-					"Instagram": "https://instagram.example/",
+					"Instagram": "https://instagram.example/", "TikTok": "https://tiktok.example/", "Facebook": "https://facebook.example/",
 				},
 			}
 			switch name {

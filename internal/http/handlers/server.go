@@ -250,6 +250,8 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 		"Hours":     s.cfg.ContactHours,
 		"Maps":      s.cfg.ContactMapsURL,
 		"Instagram": s.cfg.ContactIG,
+		"TikTok":    s.cfg.ContactTikTok,
+		"Facebook":  s.cfg.ContactFB,
 	}
 	// Umami tracker config; head.html renders the snippet only when both set.
 	data["Analytics"] = pageData{

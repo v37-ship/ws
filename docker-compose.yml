@@ -70,6 +70,8 @@ services:
       CONTACT_HOURS: "Setiap Hari 11:00-21:00 WIB"
       CONTACT_MAPS_URL: "https://maps.app.goo.gl/s2qKbkLZicYDUeFB7"
       CONTACT_INSTAGRAM: "https://www.instagram.com/wanggababymomwoman/"
+      CONTACT_TIKTOK: "https://www.tiktok.com/@wanggababymomwomenspa"
+      CONTACT_FACEBOOK: "https://facebook.com/p/Wangga-Spa-61594094265276"
       ANALYTICS_URL: "${ANALYTICS_URL:-}"
       ANALYTICS_SITE_ID: "${ANALYTICS_SITE_ID:-}"
     ports:

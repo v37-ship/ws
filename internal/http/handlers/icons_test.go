@@ -13,7 +13,7 @@ func TestIconNames(t *testing.T) {
 		"plus", "hospital", "grid", "calendar", "users", "user",
 		"user-plus", "sparkles", "utensils", "image", "images", "ticket", "crown",
 		"shield", "chart", "cash", "qris", "chat", "pin", "phone",
-		"mail", "clock", "instagram", "home", "building", "briefcase",
+		"mail", "clock", "instagram", "tiktok", "facebook", "home", "building", "briefcase",
 		"play", "check-circle", "alert", "x-circle", "printer",
 		"download", "key", "info", "smile", "heart",
 	}
