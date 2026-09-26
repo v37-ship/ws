@@ -6,7 +6,7 @@
     data-id="{{.ID}}" data-label="{{.FullName}} ({{.Phone}})"
     @click="pickCustomer($el.dataset.id, $el.dataset.label)">
     <span class="pick-name">{{.FullName}}</span>
-    <span class="pill-row"><span class="pill">{{.Phone}}</span>{{if .BabyName}}<span class="pill mint">👶 {{.BabyName}}</span>{{end}}</span>
+    <span class="pill-row"><span class="pill">{{.Phone}}</span>{{if .BabyName}}<span class="pill mint">{{icon "smile"}} {{.BabyName}}</span>{{end}}</span>
   </button>
   {{else}}
   <p class="muted">{{t .Lang "p.nb.nomatch"}}</p>

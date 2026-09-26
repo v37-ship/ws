@@ -58,7 +58,7 @@
                 {{end}}
               </td>
               <td>
-                {{if .BabyName}}👶 <strong>{{.BabyName}}</strong>{{else}}<span class="muted">-</span>{{end}}
+                {{if .BabyName}}{{icon "smile"}} <strong>{{.BabyName}}</strong>{{else}}<span class="muted">-</span>{{end}}
               </td>
               <td>
                 {{if .MomCondition}}{{.MomCondition}}{{else}}<span class="muted">{{t $.Lang "p.cu.std"}}</span>{{end}}

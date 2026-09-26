@@ -6,7 +6,7 @@
       hx-include="input[name='location_id']:checked, input[name='service_id']:checked, #date" hx-indicator="#slot-ind"
       @click="onReclick($el,'staff')"
       @change="onPick($el,'staff')">
-    <span class="avatar" aria-hidden="true">✨</span>
+    <span class="avatar" aria-hidden="true">{{icon "sparkles"}}</span>
     <span class="pick-name">{{t .Lang "book.first"}}</span>
     <span class="pick-desc">{{t .Lang "book.fastest"}}</span>
     <span class="pick-check" aria-hidden="true">✓</span>
@@ -21,7 +21,7 @@
     {{if staffPhoto .}}
     <img src="{{staffPhoto .}}" alt="" loading="lazy" style="width:3rem; height:3rem; border-radius:9999px; object-fit:cover; background:var(--bg-2);">
     {{else}}
-    <span class="avatar" aria-hidden="true">👩‍⚕️</span>
+    <span class="avatar" aria-hidden="true">{{icon "user"}}</span>
     {{end}}
     <span class="pick-name">{{.Name}}</span>
     {{if .Bio}}<span class="pick-desc">{{.Bio}}</span>{{end}}

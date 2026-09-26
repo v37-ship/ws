@@ -29,7 +29,8 @@ cookie), `User`, `CSRF` (cookie-based, session-independent), `Request`,
 `toast()` (`HX-Trigger`), `redirectHTMX()` (`HX-Redirect` vs 303),
 `requireCSRF()`, `requirePortalAdmin()` (admin-only actions inside shared
 portal routes), `ensureCSRF()` / session cookie setters.
-Template funcs: `t` (i18n), `slotLabel`/`dateLong`, `formatIDR`/`formatTime`,
+Template funcs: `t` (i18n), `icon` (inline SVG set, `icons.go`),
+`slotLabel`/`dateLong`, `formatIDR`/`formatTime`,
 `servicePhoto`/`staffPhoto`/`tmPhoto`/`foodPhoto`/`heroPhoto`/`serviceImg`,
 `stars`, `waLink`/`waURL`/`waInquire`, `navParts`, `eq`/`add`/`hasUUID`/
 `dict`/`csrf`, `static` (fingerprinted `?v=` URLs).

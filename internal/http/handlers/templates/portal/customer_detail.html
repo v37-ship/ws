@@ -21,7 +21,7 @@
       <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
         <a href="/portal/bookings/new?customer_id={{.Customer.ID}}" class="btn">{{t .Lang "p.cd.book"}}</a>
         {{if .Customer.Phone}}
-          <a href="https://wa.me/{{.Customer.Phone}}" target="_blank" class="btn-wa">{{t .Lang "p.cd.wa"}}</a>
+          <a href="https://wa.me/{{.Customer.Phone}}" target="_blank" class="btn-wa">{{icon "chat"}} {{t .Lang "p.cd.wa"}}</a>
         {{end}}
         <a href="/portal/customers/{{.Customer.ID}}/edit" class="btn secondary on-light">{{t .Lang "p.cd.edit"}}</a>
         {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
@@ -43,17 +43,17 @@
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
         <div>
           <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.ct"}}</span>
-          <div>📞 {{.Customer.Phone}}</div>
-          <div>✉️ {{.Customer.Email}}</div>
+          <div>{{icon "phone"}} {{.Customer.Phone}}</div>
+          <div>{{icon "mail"}} {{.Customer.Email}}</div>
         </div>
         <div>
           <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.bi"}}</span>
-          <div>👶 <strong>{{if .Customer.BabyName}}{{.Customer.BabyName}}{{else}}<em>{{t .Lang "p.cd.none"}}</em>{{end}}</strong></div>
+          <div>{{icon "smile"}} <strong>{{if .Customer.BabyName}}{{.Customer.BabyName}}{{else}}<em>{{t .Lang "p.cd.none"}}</em>{{end}}</strong></div>
           {{if .Customer.BabyDOB}}<div>DOB: {{dateLong .Lang .Customer.BabyDOB}}</div>{{end}}
         </div>
         <div>
           <span class="muted" style="font-size:0.85rem; text-transform:uppercase;">{{t .Lang "p.cd.mc"}}</span>
-          <div>🤰 {{if .Customer.MomCondition}}{{.Customer.MomCondition}}{{else}}{{t .Lang "p.cd.std"}}{{end}}</div>
+          <div>{{icon "heart"}} {{if .Customer.MomCondition}}{{.Customer.MomCondition}}{{else}}{{t .Lang "p.cd.std"}}{{end}}</div>
         </div>
       </div>
       {{if .Customer.MedicalNotes}}
@@ -82,7 +82,7 @@
           <tr>
             <td><strong>{{slotLabel $.Lang .StartAt}}</strong></td>
             <td>{{.ServiceName}}</td>
-            <td>👩‍⚕️ {{.StaffName}}</td>
+            <td>{{icon "user"}} {{.StaffName}}</td>
             <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
             <td>{{formatIDR .PriceIDR}}</td>
             <td>

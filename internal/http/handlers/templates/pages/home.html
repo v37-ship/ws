@@ -105,7 +105,7 @@
         <div class="pill-row">
           <span class="pill">{{t .Lang "visit.baby"}}</span>
           <span class="pill mint">{{t .Lang "visit.mom"}}</span>
-          <span class="pill sun">{{t .Lang "hc.home"}}</span>
+          <span class="pill sun">{{icon "home"}} {{t .Lang "hc.home"}}</span>
         </div>
         <a class="btn mint" href="/book?place=homecare">{{t .Lang "hc.book"}}</a>
       </article>
@@ -120,7 +120,7 @@
       <article class="panel location-tile">
         <h2>{{.Name}}</h2>
         <p class="muted">{{.Address}}, {{.City}}</p>
-        <p><a href="{{$.Contact.Maps}}" target="_blank" rel="noopener">{{t $.Lang "visit.maps"}}</a></p>
+        <p><a href="{{$.Contact.Maps}}" target="_blank" rel="noopener">{{icon "pin"}} {{t $.Lang "visit.maps"}}</a></p>
         <div class="pill-row">
           <span class="pill">{{t $.Lang "visit.baby"}}</span>
           <span class="pill mint">{{t $.Lang "visit.mom"}}</span>
@@ -142,7 +142,7 @@
         <h2>{{t .Lang "fd.title"}}</h2>
         <p class="muted">{{t .Lang "fd.sub"}}</p>
         <div class="pill-row">
-          <span class="pill">🕒 {{t .Lang "fd.hours"}}</span>
+          <span class="pill">{{icon "clock"}} {{t .Lang "fd.hours"}}</span>
           <span class="pill mint">{{t .Lang "fd.food"}}</span>
           <span class="pill sun">{{t .Lang "fd.bev"}}</span>
           <span class="pill">{{t .Lang "fd.snacks"}}</span>
@@ -201,7 +201,7 @@
 
     {{if .OpenJobCount}}
     <section class="panel stack" style="margin-top:1.5rem; text-align:center; align-items:center;">
-      <p style="margin:0;">{{t .Lang "hire.prefix"}} {{.OpenJobCount}} {{if ne .OpenJobCount 1}}{{t .Lang "hire.suffixn"}}{{else}}{{t .Lang "hire.suffix1"}}{{end}}</p>
+      <p style="margin:0;">{{icon "briefcase"}} {{t .Lang "hire.prefix"}} {{.OpenJobCount}} {{if ne .OpenJobCount 1}}{{t .Lang "hire.suffixn"}}{{else}}{{t .Lang "hire.suffix1"}}{{end}}</p>
       <a class="btn secondary" href="/careers">{{t .Lang "hire.cta"}}</a>
     </section>
     {{end}}

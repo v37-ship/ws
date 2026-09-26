@@ -16,9 +16,9 @@
 
     <section class="panel stack">
       <h2 style="margin:0;">{{t .Lang "fd.how"}}</h2>
-      <p class="muted" style="margin:0;">🕒 {{t .Lang "fd.hours"}} · 📍 {{t .Lang "fd.addr"}}</p>
+      <p class="muted" style="margin:0;">{{icon "clock"}} {{t .Lang "fd.hours"}} · {{icon "pin"}} {{t .Lang "fd.addr"}}</p>
       <p class="muted" style="margin:0;">{{t .Lang "fd.delivery"}}</p>
-      <p style="margin:0;"><a class="btn mint" href="{{waLink "628211347293" "Halo Bu Nah! Saya ingin memesan makanan."}}" target="_blank" rel="noopener">💬 {{t .Lang "fd.order"}} ({{t .Lang "fd.wa"}})</a></p>
+      <p style="margin:0;"><a class="btn mint" href="{{waLink "628211347293" "Halo Bu Nah! Saya ingin memesan makanan."}}" target="_blank" rel="noopener">{{icon "chat"}} {{t .Lang "fd.order"}} ({{t .Lang "fd.wa"}})</a></p>
     </section>
 
     <section class="stack">

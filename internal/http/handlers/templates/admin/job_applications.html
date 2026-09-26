@@ -26,7 +26,7 @@
               <td><small>{{if .Message}}{{.Message}}{{else}}<span class="muted">-</span>{{end}}</small></td>
               <td>
                 {{if .CVFilename}}
-                  <a class="btn secondary on-light btn-sm" href="/admin/applications/{{.ID}}/cv" download="{{.CVOriginalName}}">⬇ {{.CVOriginalName}}</a>
+                  <a class="btn secondary on-light btn-sm" href="/admin/applications/{{.ID}}/cv" download="{{.CVOriginalName}}">{{icon "download"}} {{.CVOriginalName}}</a>
                 {{else}}
                   <span class="muted">-</span>
                 {{end}}

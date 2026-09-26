@@ -71,7 +71,7 @@
                   {{if staffPhoto .}}
                   <img src="{{staffPhoto .}}" alt="" loading="lazy" style="width:2.6rem; height:2.6rem; border-radius:9999px; object-fit:cover; background:var(--bg-2); flex:none;">
                   {{else}}
-                  <span class="avatar" aria-hidden="true" style="width:2.6rem; height:2.6rem; font-size:1.3rem;">👩‍⚕️</span>
+                  <span class="avatar" aria-hidden="true" style="width:2.6rem; height:2.6rem; font-size:1.3rem;">{{icon "user"}}</span>
                   {{end}}
                   <div><strong>{{.Name}}</strong><br>
                   <small class="muted">{{.Bio}}</small></div>
@@ -156,7 +156,7 @@
           <tbody>
           {{range .TimeOffs}}
             <tr>
-              <td>👩‍⚕️ <strong>{{.StaffName}}</strong></td>
+              <td>{{icon "user"}} <strong>{{.StaffName}}</strong></td>
               <td>{{slotLabel $.Lang .StartAt}} WIB</td>
               <td>{{slotLabel $.Lang .EndAt}} WIB</td>
               <td>{{.Reason}}</td>

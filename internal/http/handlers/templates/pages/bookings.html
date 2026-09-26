@@ -22,7 +22,7 @@
         <p style="margin:0;">{{t $.Lang "myb.paid_pre"}} <strong>{{formatIDR $c.Net}}</strong>. {{t $.Lang "myb.paid_post"}}</p>
         <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
           <a class="btn" target="_blank" rel="noopener"
-            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (slotLabel $.Lang $c.StartAt) (formatIDR $c.Net))}}">{{t $.Lang "myb.refund"}}</a>
+            href="{{waLink $.Contact.WhatsApp (printf "Halo Wangga Spa! Saya ingin mengajukan refund untuk booking %s (%s, %s, %s)." $c.ID $c.ServiceName (slotLabel $.Lang $c.StartAt) (formatIDR $c.Net))}}">{{icon "chat"}} {{t $.Lang "myb.refund"}}</a>
           <a class="btn secondary on-light" href="/book">{{t $.Lang "myb.again"}}</a>
         </div>
         {{else}}
@@ -38,8 +38,8 @@
           <div>
             <strong>{{.ServiceName}}</strong>
             <div class="muted" style="font-size:.85rem;">{{slotLabel $.Lang .StartAt}} — {{formatTime .EndAt "15:04"}}</div>
-            <div class="muted" style="font-size:.85rem;">{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}} · 👩‍⚕️ {{.StaffName}}</div>
-            {{if .VisitAddress}}<div class="muted" style="font-size:.85rem;">🏠 {{.VisitAddress}}</div>{{end}}
+            <div class="muted" style="font-size:.85rem;">{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}} · {{icon "user"}} {{.StaffName}}</div>
+            {{if .VisitAddress}}<div class="muted" style="font-size:.85rem;">{{icon "home"}} {{.VisitAddress}}</div>{{end}}
           </div>
           <span class="badge {{.Status}}">{{.Status.Display}}</span>
         </div>
@@ -58,7 +58,7 @@
             <dl class="review">
               <div><dt>{{t $.Lang "myb.treatment"}}</dt><dd>{{.ServiceName}}</dd></div>
               <div><dt>{{t $.Lang "myb.when"}}</dt><dd>{{slotLabel $.Lang .StartAt}}</dd></div>
-              <div><dt>{{t $.Lang "myb.loc"}}</dt><dd>{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}}{{if .VisitAddress}} — 🏠 {{.VisitAddress}}{{end}}</dd></div>
+              <div><dt>{{t $.Lang "myb.loc"}}</dt><dd>{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}}{{if .VisitAddress}} — {{icon "home"}} {{.VisitAddress}}{{end}}</dd></div>
               <div><dt>{{t $.Lang "myb.price"}}</dt><dd>{{formatIDR .PriceIDR}}{{if gt .DiscountIDR 0}}<br><small class="muted">{{t $.Lang "promo.disc"}} ({{.PromoCode}}): −{{formatIDR .DiscountIDR}}</small>{{end}}</dd></div>
             </dl>
             {{if eq (printf "%s" .PaymentStatus) "paid"}}

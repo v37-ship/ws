@@ -21,7 +21,7 @@
         <div>
           <strong>{{.Booking.ServiceName}}</strong> {{t .Lang "pay.with"}} {{.Booking.StaffName}}
           <div class="muted">{{slotLabel .Lang .Booking.StartAt}} · {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} · {{t .Lang "book.badge_home"}}{{end}}</div>
-          {{if .Booking.VisitAddress}}<div class="muted">🏠 {{.Booking.VisitAddress}}</div>{{end}}
+          {{if .Booking.VisitAddress}}<div class="muted">{{icon "home"}} {{.Booking.VisitAddress}}</div>{{end}}
         </div>
         <div style="font-size:1.6rem; font-weight:800;">{{formatIDR .Booking.Net}}</div>
         {{if gt .Booking.DiscountIDR 0}}<div class="muted">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</div>{{end}}

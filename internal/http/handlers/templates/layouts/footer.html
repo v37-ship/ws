@@ -8,12 +8,12 @@
     </div>
     <div>
       <h3>{{t .Lang "footer.contact"}}</h3>
-      <p><a href="{{.Contact.Maps}}" target="_blank" rel="noopener">📍 {{.Contact.Address}}</a></p>
-      <p>🕒 {{.Contact.Hours}}</p>
+      <p><a href="{{.Contact.Maps}}" target="_blank" rel="noopener">{{icon "pin"}} {{.Contact.Address}}</a></p>
+      <p>{{icon "clock"}} {{.Contact.Hours}}</p>
       <p>
-        <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin bertanya."}}" target="_blank" rel="noopener">💬 WhatsApp</a><br>
-        <a href="mailto:{{.Contact.Email}}">✉️ {{.Contact.Email}}</a><br>
-        <a href="{{.Contact.Instagram}}" target="_blank" rel="noopener">📸 Instagram</a>
+        <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Saya ingin bertanya."}}" target="_blank" rel="noopener">{{icon "chat"}} WhatsApp</a><br>
+        <a href="mailto:{{.Contact.Email}}">{{icon "mail"}} {{.Contact.Email}}</a><br>
+        <a href="{{.Contact.Instagram}}" target="_blank" rel="noopener">{{icon "instagram"}} Instagram</a>
       </p>
     </div>
     <div>

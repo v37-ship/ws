@@ -22,8 +22,8 @@
     <a href="/services">{{t .Lang "nav.services"}}</a>
     {{if .User}}
       {{if .User.Role.IsStaff}}
-        <a href="/portal/bookings/new" style="font-weight:800;">{{t .Lang "nav.newbooking"}}</a>
-        <a href="/portal" style="color:var(--accent-deep); font-weight:800;">{{t .Lang "nav.portal"}}</a>
+        <a href="/portal/bookings/new" style="font-weight:800;">{{icon "plus"}} {{t .Lang "nav.newbooking"}}</a>
+        <a href="/portal" style="color:var(--accent-deep); font-weight:800;">{{icon "hospital"}} {{t .Lang "nav.portal"}}</a>
       {{else}}
         <a href="/book">{{t .Lang "nav.book"}}</a>
         <a href="/bookings">{{t .Lang "nav.mybookings"}}</a>

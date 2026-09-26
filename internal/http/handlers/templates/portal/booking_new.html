@@ -74,11 +74,11 @@
           <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
             <label class="pill-pick">
               <input type="radio" name="place" value="onsite" checked @change="place='onsite'">
-              <span>{{t .Lang "book.onsite"}}</span>
+              <span>{{icon "building"}} {{t .Lang "book.onsite"}}</span>
             </label>
             <label class="pill-pick">
               <input type="radio" name="place" value="homecare" @change="place='homecare'">
-              <span>{{t .Lang "book.homecare"}}</span>
+              <span>{{icon "home"}} {{t .Lang "book.homecare"}}</span>
             </label>
           </div>
         </div>
@@ -131,8 +131,8 @@
         </div>
 
         <p class="muted" style="font-size:0.85rem; margin:0;">
-          <span x-show="method==='cash'">💡 <em>{{t .Lang "p.nb.hcash"}}</em></span>
-          <span x-show="method!=='cash'">💡 <em>{{t .Lang "p.nb.hqris"}}</em></span>
+          <span x-show="method==='cash'">{{icon "info"}} <em>{{t .Lang "p.nb.hcash"}}</em></span>
+          <span x-show="method!=='cash'">{{icon "info"}} <em>{{t .Lang "p.nb.hqris"}}</em></span>
         </p>
 
         <label>{{t .Lang "promo.code"}}

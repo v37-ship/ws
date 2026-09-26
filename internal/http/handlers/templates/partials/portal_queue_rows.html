@@ -7,16 +7,16 @@
     {{if .CustomerPhone}}
       {{$loc := .LocationName}}{{if eq (printf "%s" .Place) "homecare"}}{{$loc = printf "%s · 🏠 %s" .LocationName .VisitAddress}}{{end}}
       <a href="{{waURL .CustomerPhone .CustomerName .ServiceName .StaffName (formatTime .StartAt "15:04") $loc}}" target="_blank" class="btn-wa btn-sm" title="{{t $.Lang "p.q.wa"}}">
-        💬 WhatsApp
+        {{icon "chat"}} WhatsApp
       </a>
     {{end}}
   </td>
   <td>
-    {{if .BabyName}}👶 {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
+    {{if .BabyName}}{{icon "smile"}} {{.BabyName}}{{else}}<span class="muted">-</span>{{end}}
     {{if .MomCondition}}<br><small class="muted">{{t $.Lang "p.q.mom"}} {{.MomCondition}}</small>{{end}}
   </td>
   <td>{{.ServiceName}}</td>
-  <td>👩‍⚕️ {{.StaffName}}{{if eq (printf "%s" .Place) "homecare"}} 🏠{{end}}</td>
+  <td>{{icon "user"}} {{.StaffName}}{{if eq (printf "%s" .Place) "homecare"}} {{icon "home"}}{{end}}</td>
   <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
   <td>
     <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>

@@ -28,7 +28,7 @@
           {{if staffPhoto .Staff}}
           <img src="{{staffPhoto .Staff}}" alt="Current picture" style="width:5rem; height:5rem; border-radius:9999px; object-fit:cover; background:#fff;">
           {{else}}
-          <span class="avatar" aria-hidden="true" style="width:5rem; height:5rem; font-size:2.2rem;">👩‍⚕️</span>
+          <span class="avatar" aria-hidden="true" style="width:5rem; height:5rem; font-size:2.2rem;">{{icon "user"}}</span>
           {{end}}
           <div style="flex:1; min-width:220px;" class="stack">
             <label>{{t .Lang "p.sf.rep"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>

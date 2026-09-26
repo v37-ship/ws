@@ -11,15 +11,15 @@
   <main>
     <h1 class="page-title">{{t .Lang "a.home.title"}}</h1>
     <nav class="admin-nav" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-      <a class="btn" href="/portal">{{t .Lang "a.home.portal"}}</a>
-      <a class="btn secondary on-light" href="/admin/cs">{{t .Lang "a.home.cs"}}</a>
+      <a class="btn" href="/portal">{{icon "hospital"}} {{t .Lang "a.home.portal"}}</a>
+      <a class="btn secondary on-light" href="/admin/cs">{{icon "crown"}} {{t .Lang "a.home.cs"}}</a>
       <a class="btn secondary on-light" href="/admin/locations">{{t .Lang "a.home.loc"}}</a>
       <a class="btn secondary on-light" href="/portal/services">{{t .Lang "a.home.svc"}}</a>
       <a class="btn secondary on-light" href="/portal/schedule">{{t .Lang "a.home.team"}}</a>
       <a class="btn secondary on-light" href="/admin/jobs">{{t .Lang "a.home.jobs"}}</a>
       <a class="btn secondary on-light" href="/admin/testimonials">{{t .Lang "a.home.tm"}}</a>
       <a class="btn secondary on-light" href="/admin/bookings">{{t .Lang "a.home.leg"}}</a>
-      <a class="btn secondary on-light" href="/admin/password">{{t .Lang "a.home.pw"}}</a>
+      <a class="btn secondary on-light" href="/admin/password">{{icon "key"}} {{t .Lang "a.home.pw"}}</a>
     </nav>
     <p class="muted">{{t .Lang "a.home.sub"}}</p>
   </main>

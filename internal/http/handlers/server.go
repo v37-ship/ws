@@ -168,6 +168,9 @@ func New(
 		"t": func(lang any, key string) string {
 			return i18n.T(fmt.Sprintf("%v", lang), key)
 		},
+		"icon": func(name string) template.HTML {
+			return Icon(fmt.Sprintf("%v", name))
+		},
 		"staffPhoto": func(st domain.Staff) string {
 			return service.ResolveStaffPhoto(st)
 		},

@@ -96,6 +96,12 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   chars); `static` appends `?v=<hash>` and versioned URLs serve
   `Cache-Control: public, max-age=31536000, immutable`. Compare hashes to
   check what a deployment actually serves.
+- UI icons are inline SVG via `{{icon "name"}}` (`icons.go`, Lucide-style
+  stroke, `currentColor`); never emoji in UI chrome — `TestNoEmojiIcons`
+  fails otherwise (it scans every page/partial in both languages, ignoring
+  scripts and link targets). Exempt: text glyphs (★☆✓✕☰), the JS theme map,
+  and WhatsApp message content. Icon markup lives in templates, never in
+  dict values.
 
 ## Uploads
 

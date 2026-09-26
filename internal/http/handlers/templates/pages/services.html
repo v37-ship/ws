@@ -39,11 +39,11 @@
               <span class="pill">{{t $.Lang "svc.paused"}}</span>
             {{end}}
           </div>
-          <p class="muted" style="margin:0; font-size:.8rem;">🕒 {{index $.Hours .ID.String}}</p>
+          <p class="muted" style="margin:0; font-size:.8rem;">{{icon "clock"}} {{index $.Hours .ID.String}}</p>
           {{if .Active}}
           <a class="btn mint" href="/book?location_id={{.LocationID}}">{{t $.Lang "svc.book"}}</a>
           {{else}}
-          <a class="btn secondary" href="{{waInquire (.DisplayName $.Lang) $loc.Location.Name}}" target="_blank" rel="noopener">{{t $.Lang "svc.contact"}}</a>
+          <a class="btn secondary" href="{{waInquire (.DisplayName $.Lang) $loc.Location.Name}}" target="_blank" rel="noopener">{{icon "chat"}} {{t $.Lang "svc.contact"}}</a>
           {{end}}
         </article>
         {{else}}

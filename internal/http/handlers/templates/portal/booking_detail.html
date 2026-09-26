@@ -23,7 +23,7 @@
         {{if .Booking.CustomerPhone}}
           {{$loc := .Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}}{{$loc = printf "%s · 🏠 %s" .Booking.LocationName .Booking.VisitAddress}}{{end}}
           <a href="{{waURL .Booking.CustomerPhone .Booking.CustomerName .Booking.ServiceName .Booking.StaffName (slotLabel .Lang .Booking.StartAt) $loc}}" target="_blank" class="btn-wa">
-            {{t .Lang "p.det.wa"}}
+            {{icon "chat"}} {{t .Lang "p.det.wa"}}
           </a>
         {{end}}
       </div>
@@ -37,13 +37,13 @@
       <div class="panel">
         <h2>{{t .Lang "p.det.info"}}</h2>
         <dl class="review">
-          <div><dt>{{t .Lang "p.det.cust"}}</dt><dd>{{.Booking.CustomerName}}<br><small class="muted" style="font-weight:400;">📞 {{.Booking.CustomerPhone}}<br>✉️ {{.Booking.CustomerEmail}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.cust"}}</dt><dd>{{.Booking.CustomerName}}<br><small class="muted" style="font-weight:400;">{{icon "phone"}} {{.Booking.CustomerPhone}}<br>{{icon "mail"}} {{.Booking.CustomerEmail}}</small></dd></div>
           {{if not .Booking.CustomerID}}
-          <div><dt>{{t .Lang "p.det.guest"}}</dt><dd>{{.Booking.GuestName}}<br><small class="muted" style="font-weight:400;">📞 {{.Booking.GuestPhone}}{{if .Booking.GuestEmail}}<br>✉️ {{.Booking.GuestEmail}}{{end}}</small><br><a class="btn secondary on-light btn-sm" target="_blank" rel="noopener" href="{{waLink .Booking.GuestPhone (printf "Halo %s! Link pembayaran booking Wangga Anda: %s" .Booking.GuestName .GuestLink)}}">💬 {{t .Lang "p.det.walink"}}</a></dd></div>
+          <div><dt>{{t .Lang "p.det.guest"}}</dt><dd>{{.Booking.GuestName}}<br><small class="muted" style="font-weight:400;">{{icon "phone"}} {{.Booking.GuestPhone}}{{if .Booking.GuestEmail}}<br>{{icon "mail"}} {{.Booking.GuestEmail}}{{end}}</small><br><a class="btn secondary on-light btn-sm" target="_blank" rel="noopener" href="{{waLink .Booking.GuestPhone (printf "Halo %s! Link pembayaran booking Wangga Anda: %s" .Booking.GuestName .GuestLink)}}">{{icon "chat"}} {{t .Lang "p.det.walink"}}</a></dd></div>
           {{end}}
-          <div><dt>👶 {{t .Lang "p.det.baby"}}</dt><dd>{{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em class="muted">{{t .Lang "p.det.none"}}</em>{{end}}</dd></div>
-          <div><dt>🤰 {{t .Lang "p.det.momc"}}</dt><dd><small>{{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}{{t .Lang "p.det.std"}}{{end}}</small></dd></div>
-          <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">🏠 Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">📍 {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · 🏠 {{.Booking.VisitAddress}}{{end}}</small></dd></div>
+          <div><dt>{{icon "smile"}} {{t .Lang "p.det.baby"}}</dt><dd>{{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em class="muted">{{t .Lang "p.det.none"}}</em>{{end}}</dd></div>
+          <div><dt>{{icon "heart"}} {{t .Lang "p.det.momc"}}</dt><dd><small>{{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}{{t .Lang "p.det.std"}}{{end}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">{{icon "home"}} Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">{{icon "pin"}} {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · {{icon "home"}} {{.Booking.VisitAddress}}{{end}}</small></dd></div>
           <div><dt>{{t .Lang "p.det.staff"}}</dt><dd>{{.Booking.StaffName}}</dd></div>
           <div><dt>{{t .Lang "book.when"}}</dt><dd><small>{{slotLabel .Lang .Booking.StartAt}} - {{formatTime .Booking.EndAt "15:04"}} WIB</small></dd></div>
           <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}{{if gt .Booking.DiscountIDR 0}}<br><small class="muted" style="font-weight:400;">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</small>{{end}}<br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
@@ -69,28 +69,28 @@
             <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
               {{if eq (printf "%s" .Booking.Status) "confirmed"}}
                 <button type="submit" name="status" value="checked_in" class="btn" style="background:#0284c7;" hx-disabled-elt="this">
-                  {{t .Lang "p.det.ci"}}
+                  {{icon "pin"}} {{t .Lang "p.det.ci"}}
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "checked_in")}}
                 <button type="submit" name="status" value="in_service" class="btn" style="background:#d97706;" hx-disabled-elt="this">
-                  {{t .Lang "p.det.sta"}}
+                  {{icon "play"}} {{t .Lang "p.det.sta"}}
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "in_service") (eq (printf "%s" .Booking.Status) "checked_in")}}
                 <button type="submit" name="status" value="completed" class="btn" style="background:#16a34a;" hx-disabled-elt="this">
-                  {{t .Lang "p.det.fin"}}
+                  {{icon "check-circle"}} {{t .Lang "p.det.fin"}}
                 </button>
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "pending_payment")}}
                 <button type="submit" name="status" value="no_show" class="btn secondary on-light" hx-confirm="{{t .Lang "p.det.cfn"}}" hx-disabled-elt="this">
-                  {{t .Lang "p.det.nos"}}
+                  {{icon "alert"}} {{t .Lang "p.det.nos"}}
                 </button>
                 <button type="submit" name="status" value="cancelled" class="btn secondary on-light" style="color:var(--danger);" hx-confirm="{{t .Lang "p.det.cfc"}}" hx-disabled-elt="this">
-                  {{t .Lang "p.det.cx"}}
+                  {{icon "x-circle"}} {{t .Lang "p.det.cx"}}
                 </button>
               {{end}}
             </div>
@@ -207,11 +207,11 @@
               <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
                 <label class="pill-pick">
                   <input type="radio" name="place" value="onsite" {{if eq (printf "%s" .Booking.Place) "onsite"}}checked{{end}}>
-                  <span>{{t .Lang "book.onsite"}}</span>
+                  <span>{{icon "building"}} {{t .Lang "book.onsite"}}</span>
                 </label>
                 <label class="pill-pick">
                   <input type="radio" name="place" value="homecare" {{if eq (printf "%s" .Booking.Place) "homecare"}}checked{{end}}>
-                  <span>{{t .Lang "book.homecare"}}</span>
+                  <span>{{icon "home"}} {{t .Lang "book.homecare"}}</span>
                 </label>
               </div>
             </div>
