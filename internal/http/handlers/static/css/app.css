@@ -109,12 +109,12 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
   margin-left: -50vw;
   margin-right: -50vw;
   width: 100vw;
-  min-height: min(78vh, 640px);
+  min-height: min(54vh, 460px);
   display: grid;
   align-items: end;
   overflow: hidden;
   background:
-    linear-gradient(120deg, rgba(255, 77, 141, 0.55), rgba(32, 197, 181, 0.35) 55%, rgba(255, 176, 32, 0.3));
+    linear-gradient(135deg, #405030 0%, #2a3a28 60%, #1e2b1e 100%);
   color: white;
   margin-bottom: 2rem;
   transition: min-height 1.4s cubic-bezier(.22,.8,.3,1);
@@ -135,9 +135,9 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
   z-index: 1;
   transition: opacity 1.4s ease;
   background:
-    linear-gradient(120deg, rgba(255, 77, 141, 0.55), rgba(32, 197, 181, 0.35) 55%, rgba(255, 176, 32, 0.3)),
-    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.22), transparent 40%),
-    linear-gradient(180deg, rgba(42, 36, 48, 0.15) 0%, rgba(42, 36, 48, 0.55) 100%);
+    radial-gradient(circle at 85% 12%, rgba(240, 164, 64, 0.30), transparent 46%),
+    radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(26, 38, 26, 0.28) 0%, rgba(26, 38, 26, 0.74) 100%);
 }
 .hero-bleed.hero-big::before { opacity: 0; }
 .hero-inner {
@@ -186,8 +186,8 @@ main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 1.5rem 0 
   transition: opacity 1.4s ease;
 }
 .hero-bleed.hero-big .blob { opacity: 0; }
-.blob-a { width: 180px; height: 180px; background: #ffd6e7; top: 12%; right: 8%; animation-delay: -2s; }
-.blob-b { width: 120px; height: 120px; background: #b8f3ec; bottom: 18%; left: 6%; animation-delay: -4s; }
+.blob-a { width: 180px; height: 180px; background: #f0a040; top: 12%; right: 8%; animation-delay: -2s; }
+.blob-b { width: 120px; height: 120px; background: #dce8d4; bottom: 18%; left: 6%; animation-delay: -4s; }
 @keyframes floaty {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-14px) scale(1.04); }
@@ -509,7 +509,7 @@ input:focus, select:focus, textarea:focus {
 
 @media (max-width: 640px) {
   .site-header { align-items: flex-start; flex-direction: column; }
-  .hero-bleed { min-height: 70vh; }
+  .hero-bleed { min-height: 52vh; }
   .portal-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: thin; }
   .portal-tab { white-space: nowrap; flex: none; }
 }

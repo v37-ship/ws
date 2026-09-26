@@ -130,10 +130,10 @@ document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") { try { window.__wanggaDrawer.close(); } catch (err) {} }
 });
 /* Homepage hero: default is the compact look with text overlaid.
-   An explicit UPWARD gesture near the top (wheel up, touch pull-down,
-   or upward scroll) expands the fullscreen image-only moment; any
-   downward motion returns to default. Gesture listeners (not scroll
-   position alone) catch at-top pulls where scrollY cannot change.
+   An explicit UPWARD gesture at the very top (wheel up or touch pull-down
+   with scrollY at 0) — or the "View photo" button — expands the fullscreen
+   image-only moment; any downward motion collapses it. Scrolling never
+   expands on its own, so reading the top of the page can't trigger it.
    Skipped entirely under prefers-reduced-motion. */
 function __wanggaHeroInit() {
   try {
@@ -144,17 +144,36 @@ function __wanggaHeroInit() {
     var photos = hero.querySelectorAll(".hero-photo");
     var lastY = window.scrollY || 0;
     var ticking = false;
-    var expand = function () { hero.classList.add("hero-big"); };
-    var collapse = function () { hero.classList.remove("hero-big"); };
+    var syncBtn = function () {
+      try {
+        var btn = hero.querySelector(".hero-view");
+        if (!btn) return;
+        var big = hero.classList.contains("hero-big");
+        btn.setAttribute("aria-expanded", big ? "true" : "false");
+        var label = btn.querySelector("span");
+        var show = btn.getAttribute("data-show"), hide = btn.getAttribute("data-hide");
+        if (label && (show || hide)) label.textContent = big ? (hide || show) : show;
+      } catch (err) {}
+    };
+    var expand = function () { hero.classList.add("hero-big"); syncBtn(); };
+    var collapse = function () { hero.classList.remove("hero-big"); syncBtn(); };
+    window.__wanggaHeroToggle = function (btn) {
+      try {
+        if (hero.classList.contains("hero-big")) collapse();
+        else expand();
+      } catch (err) {}
+      return false;
+    };
     var paint = function () {
       ticking = false;
       var y = window.scrollY || 0;
       if (y > lastY) collapse();
-      else if (y < lastY && y < 400) expand();
       lastY = y;
-      var shift = Math.min(y * 0.12, 120);
+      // Parallax drift, clamped to the photo overscan so the image never
+      // detaches from the hero edges (scale 1.25 covers +-~80px).
+      var shift = Math.min(y * 0.12, 80);
       for (var k = 0; k < photos.length; k++) {
-        photos[k].style.transform = "translateY(" + shift + "px) scale(1.08)";
+        photos[k].style.transform = "translateY(" + shift + "px) scale(1.25)";
       }
     };
     var onScroll = function () {
@@ -163,7 +182,7 @@ function __wanggaHeroInit() {
     var onWheel = function (e) {
       try {
         var y = window.scrollY || 0;
-        if (e.deltaY < 0 && y < 400) expand();
+        if (e.deltaY < 0 && y === 0) expand();
         else if (e.deltaY > 0) collapse();
       } catch (err) {}
     };
@@ -178,7 +197,7 @@ function __wanggaHeroInit() {
         if (!e.touches || !e.touches.length || touchY === null) return;
         var dy = e.touches[0].clientY - touchY;
         var y = window.scrollY || 0;
-        if (dy > 24 && y < 400) expand();
+        if (dy > 24 && y === 0) expand();
         else if (dy < -24) collapse();
         touchY = e.touches[0].clientY;
       } catch (err) {}
@@ -204,6 +223,11 @@ try {
     } catch (e) { clearInterval(__heroPoll); }
   }, 120);
 } catch (e) {}
+/* Fallback when hero init is skipped (reduced motion, or no hero on page):
+   the View-photo button degrades to a no-op instead of throwing. */
+if (typeof window.__wanggaHeroToggle !== "function") {
+  window.__wanggaHeroToggle = function () { return false; };
+}
 </script>
 <meta name="htmx-config" content='{"responseHandling": [{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">

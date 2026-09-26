@@ -608,12 +608,29 @@ html[data-theme="dark"] .food-prices .fp-m { color: #8ab8ff; }
 html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
 
 /* Hero slideshow dots + scroll-expand polish */
-.hero-dots { display: flex; gap: .45rem; margin-top: .25rem; }
+.hero-dots { display: flex; gap: .45rem; margin-top: .25rem; align-items: center; }
 .hero-dots button {
   width: .65rem; height: .65rem; border-radius: 9999px; border: 0;
   background: rgba(255,255,255,.45); cursor: pointer; padding: 0;
+  background-clip: content-box; position: relative;
+}
+/* 44px touch target via invisible hit area */
+.hero-dots button::after {
+  content: ""; position: absolute; inset: -.7rem;
 }
 .hero-dots button[aria-pressed="true"] { background: #fff; }
+.hero-dots button:focus-visible { outline: 2px solid #f0a040; outline-offset: 2px; }
+/* Explicit fullscreen-photo toggle (gesture alternative). */
+.hero-view {
+  display: inline-flex; align-items: center; gap: .4rem;
+  background: transparent; border: 1px solid rgba(255,255,255,.55); color: #fff;
+  border-radius: 999px; padding: .35rem .9rem; font-size: .8rem; font-weight: 700;
+  cursor: pointer; margin-top: .5rem; align-self: flex-start;
+}
+.hero-view:hover { background: rgba(255,255,255,.14); }
+.hero-view:focus-visible { outline: 2px solid #f0a040; outline-offset: 2px; }
+/* Blobs decorate the no-photo fallback only; real photos stay clean. */
+.hero-bleed:not(.hero-plain) .blob { display: none; }
 .hero-fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 1.4s cubic-bezier(.22,.8,.3,1); min-height: 0; }
 .hero-fold > .hero-inner { overflow: hidden; min-height: 0; }
 .hero-bleed.hero-big .hero-fold { grid-template-rows: 0fr; }
@@ -621,7 +638,7 @@ html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
 .hero-inner { transition: transform 1.4s cubic-bezier(.22,.8,.3,1); }
 @media (prefers-reduced-motion: reduce) {
   .hero-bleed, .hero-inner, .hero-fold { transition: none !important; }
-  .hero-bleed.hero-big { min-height: min(78vh, 640px); }
+  .hero-bleed.hero-big { min-height: min(54vh, 460px); }
   .hero-bleed.hero-big .hero-fold { grid-template-rows: 1fr; }
   .hero-bleed.hero-big .hero-inner { transform: none; }
 }

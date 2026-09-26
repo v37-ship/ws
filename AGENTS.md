@@ -201,9 +201,13 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   `p.nav.food`.
 - Hero banners: `hero_banners` table; 0 rows = built-in fallback image,
   1 active = static, 2+ = crossfade slideshow with dots. Portal manager
-  (upload/link, sort, show/hide). Fullscreen-on-scroll-up is gesture-driven;
-  the default view stays compact with text overlaid, and grade overlays
-  apply in the default view only. Key prefixes: `p.nav.site`, `p.hb.*`.
+  (upload/link, sort, show/hide). Default view is compact (54vh) with text
+  overlaid on a brand-green grade (deep `#405030` + ochre `#f0a040` accent);
+  decorative blobs render on the no-photo fallback only. Fullscreen moment
+  expands only on an at-top upward gesture (`scrollY === 0`) or the
+  View-photo toggle (`hero.view`/`hero.hide`) — scrolling never expands on
+  its own. Parallax drift is clamped to the photo overscan (scale 1.25).
+  Key prefixes: `p.nav.site`, `p.hb.*`.
 - Booking wizard: first-available collapses identical hours to one button
   (free slot preferred); slot labels are time-only because the review row
   already carries the date.

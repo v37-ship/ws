@@ -8,7 +8,7 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
-  <section class="hero-bleed" id="hero"
+  <section class="hero-bleed{{if not .HeroBanners}} hero-plain{{end}}" id="hero"
     {{if gt (len .HeroBanners) 1}}x-data="{i:0, n:{{len .HeroBanners}}, t:null, start(){if(this.t)return; this.t=setInterval(()=>{this.i=(this.i+1)%this.n},6000)}, stop(){clearInterval(this.t); this.t=null}}"
     x-init="if(!matchMedia('(prefers-reduced-motion: reduce)').matches){start()}" @mouseenter="stop()" @mouseleave="start()"{{end}}>
     {{$photos := .HeroBanners}}
@@ -41,6 +41,7 @@
         {{end}}
       </div>
       {{end}}
+      <div><button type="button" class="hero-view" onclick="return __wanggaHeroToggle(this)" data-show="{{t .Lang "hero.view"}}" data-hide="{{t .Lang "hero.hide"}}" aria-expanded="false">{{icon "image"}} <span>{{t .Lang "hero.view"}}</span></button></div>
     </div></div>
   </section>
   <main>
