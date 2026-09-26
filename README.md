@@ -1,6 +1,8 @@
 # Wangga Spa Baby, Mom, & Woman
 
-Go + HTMX booking app for **Wangga Spa Baby, Mom, & Woman** — PostgreSQL, Docker Compose, Midtrans QRIS, Frontdesk Staff Portal, and Role-Based Access (Customer, CS, Admin).
+Go + HTMX booking app for **Wangga Spa Baby, Mom, & Woman** — PostgreSQL, Docker Compose, Midtrans QRIS, guest checkout, promo codes, Frontdesk Staff Portal, and Role-Based Access (Customer, CS, Admin).
+
+For contributors: `AGENTS.md` holds the operating rules, `Context.md` the architecture reference. Verify with `./scripts/ci-local.sh` (`make ci`) before pushing.
 
 ## Quick start
 
@@ -109,6 +111,7 @@ cp .env.example .env
 | `CONTACT_*` | Copy as-is (same business info everywhere). |
 | `MIDTRANS_*` | Sandbox keys for testing, production keys for live. Empty = "Simulate successful payment" button. |
 | `ANALYTICS_*` | Leave empty for now — set after the Umami first-run in step D. |
+| `SESSION_TTL` / `BOOKING_HOLD_TTL` | Session lifetime (default `168h` = 7 days) and unpaid-booking hold (default `15m`). Defaults are sane — change only with a reason. |
 
 **3. Know what first boot does** (so "is it working?" has a concrete answer): Goose migrations run → admin auto-created → demo catalog seeded (location "Wangga Kayu Putih" + services "Baby Spa Soft" and "Mom Recovery Massage"). Success = you can log in as admin and see that catalog in `/portal/services`.
 
@@ -187,14 +190,27 @@ cp .env.example .env
 make run
 ```
 
+## Verify before pushing
+
+Mirror of CI (`.github/workflows/ci.yml`):
+
+```bash
+./scripts/ci-local.sh   # or: make ci (gofmt check, go vet, go test -race, go build, docker build, compose config)
+make smoke              # healthz + readyz against localhost:8088
+```
+
+Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemplatesParse`, `TestTemplatesExecute`, `TestTemplatesBothLanguages` (every page in EN+ID), `TestDictParity` (every key in both languages).
+
 ## User Roles & Capabilities
 
 ### 1. Customer (Mom / Parents)
-- Self-registration & login.
-- Book spa appointments (select location, service, therapist/bidan, date, and slot).
+- Self-registration & login, or **guest checkout** (no account needed — name/phone + email, booking managed via a `?t=` token link for pay, status, and cancel).
+- Book spa appointments (select location, onsite/homecare, service, therapist/bidan, date, and slot).
+- Apply **promo codes** in the wizard (percent or fixed IDR off, validated live; the Midtrans charge uses the net amount).
 - Pay booking fees or full services via Midtrans QRIS.
-- View booking history and status.
+- View booking history and status (account bookings only).
 - Cancel with reconfirmation: unpaid bookings cancel free; paid bookings show a WhatsApp refund button with the booking reference prefilled (reason is logged for CS).
+- Self-service profile at `/account` (name + avatar upload/link) and testimonial submission (published after admin approval).
 
 ### 2. Customer Service (CS / Frontdesk) — `/portal`
 - **Live Clinic Dashboard**: Real-time queue (`Confirmed`, `Checked-in`, `In-service`, `Completed`, `No-show`).
@@ -210,19 +226,21 @@ make run
 - **Service Catalog**: Add/edit services with price, duration, per-day opening hours, and photo (upload or internet link — gallery, wizard, and homepage follow automatically). Booking slots respect the intersection of service hours and therapist hours.
 - **Team**: Add/edit therapists (profile, bio, service capabilities, profile photo upload or link, weekly hours), pause/activate, guarded removal (blocked with guidance when booking history exists), and time-off blockouts — all from the portal Team page.
 - **Reports** (`/portal/reports`): Monthly revenue (gross / refunds / net, QRIS-vs-cash, by service/staff) with month + location filters, print stylesheet, and CSV export. Record refunds from booking detail (validated: never more than paid-minus-refunded); refunds deduct in the month recorded (cash basis).
+- **Promo codes, hero banners, food menu**: Full CRUD at `/portal/promos`, `/portal/site` (homepage slideshow photos), and `/portal/food`. Promo codes are immutable — delete and recreate, never edit.
 
 ### 3. Admin — `/admin`
 - Everything CS can do.
 - **CS Staff Management** (`/admin/cs`): Create CS staff accounts, toggle active/deactivate (instantly revoking sessions), and reset CS passwords.
 - **Job Openings** (`/admin/jobs`): Post vacancies for the public Careers page, close/reopen them, review applications, and download CVs.
-- **Customer Password Reset** (`/admin/customers/{id}/reset-password`).
-- **Master Catalog & Locations**: Manage branch locations, business hours, and base service pricing.
+- **Testimonials** (`/admin/testimonials`): Approve, hide, or delete customer reviews (only approved renders on the homepage).
+- **Customer Password Reset** (`/admin/customers/{id}/reset-password`), plus own password change (`/admin/password`, revokes own sessions).
+- **Master Catalog & Locations**: Manage branch locations, business hours, and base service pricing. (`/admin/services` and `/admin/staff` redirect to their `/portal` pages — no duplicate admin UI.)
 
 ## Careers
 
 - Public page `/careers` lists open positions with an apply form (name, phone, email, message, CV upload up to 5 MB: PDF/DOC/JPG/PNG).
 - CVs are stored in `UPLOAD_DIR` (`./uploads` locally, persisted via compose volume) and downloadable by admins only.
-- Configure site contact info shown in the footer via `CONTACT_PHONE/WHATSAPP/EMAIL/ADDRESS/HOURS/MAPS_URL/INSTAGRAM`.
+- Configure site contact info shown in the footer via `CONTACT_WHATSAPP/EMAIL/ADDRESS/HOURS/MAPS_URL/INSTAGRAM`.
 
 ## Language (EN/ID)
 
@@ -232,16 +250,17 @@ make run
 
 - Go 1.26 + Chi + `html/template` (embedded) + HTMX 2.0.4 + Alpine.js + Tailwind
 - Shared head partial (`layouts/head.html`): Tailwind browser, Alpine CDN, `modern.css` (indicators/toasts/skeletons), `app.js` (toast via `HX-Trigger`, slot-picker fallback)
+- PostgreSQL 16 via pgx + Goose migrations (`internal/db/migrations` — single source of truth)
 - HTMX helpers (`internal/http/htmx`): `IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`, `Retarget`, `Reswap`; `renderAuto` serves fragments for `HX-Request`
-- PostgreSQL 16 + native session storage (no Redis required)
-- Embedded migrations via Goose (`internal/db/migrations` — single source of truth)
+- Native Postgres session storage (no Redis required); single app replica
 - Midtrans QRIS + webhook (`/webhooks/midtrans`)
 - SMTP email delivery (Mailpit in Compose)
 
 ## HTMX endpoints (fragments)
 
 - `GET /book/services|staff|slots` → `services/staff/slots` partials (wizard cascade, `hx-indicator`, `aria-live`)
-- `GET /bookings/{id}/status` → pay status poll (`every 3s`)
+- `GET /book/promo` → promo quote partial (always HTTP 200, inline errors)
+- `GET /bookings/{id}/status` → pay status poll (`every 3s`, `?t=` token for guests)
 - `GET /portal/queue` → live queue rows (`every 30s` on `/portal`)
 - `GET /portal/bookings` → rows partial when `HX-Request` (debounced live search + `hx-push-url`)
 - `POST /portal/bookings/{id}/status` → `hx-post` + `hx-confirm` + `hx-disabled-elt`; returns `HX-Trigger: toast` + `HX-Refresh` (no full form post)

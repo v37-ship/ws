@@ -5,11 +5,26 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 
 ## Layout
 
-- `cmd/server` — entrypoint.
-- `internal/config`, `internal/db/migrations` (Goose, single source of truth),
-  `internal/domain` (models), `internal/repo` (SQL), `internal/service`
-  (business logic), `internal/i18n` (EN+ID maps), `internal/http/handlers`
-  (routes + `templates/` + `static/`), `internal/email`, `internal/payment`.
+- `cmd/server` — entrypoint: `config.Load` → Goose migrate → repos →
+  services → `EnsureAdmin` + `SeedDemo`/`SeedTestimonials`/`SeedFood` →
+  `handlers.New` (parses templates) → chi router + middleware → `Routes()`.
+  A 1-minute ticker expires booking holds and deletes expired sessions.
+- `internal/config` (env defaults: `SESSION_TTL=168h`, `BOOKING_HOLD_TTL=15m`),
+  `internal/auth` (bcrypt, CSRF token), `internal/db/migrations` (Goose
+  001–017, single source of truth), `internal/domain` (models + helpers
+  `OwnedBy`/`TokenOK`/`IsGuest`/`Net`/`DisplayName`), `internal/repo` (raw
+  SQL via pgx: user/session/catalog/booking/payment/promo/career/
+  testimonial/food/hero/report), `internal/service` (Auth, Catalog,
+  Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
+  validation), `internal/i18n` (EN+ID maps, ~795 keys each), `internal/email`
+  (SMTP sender), `internal/payment` (Midtrans QRIS client).
+- `internal/http/handlers` — `Routes()` + `render`/`renderPartial`/`renderAuto`
+  + `templates/` (54 files: layouts 3, pages 11, partials 12, admin 9,
+  portal 19) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
+  `app.css`/`modern.css`, `svc-*.svg`).
+- `internal/http/htmx` (`IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`,
+  `Retarget`, `Reswap`), `internal/http/middleware` (`LoadUser`,
+  `RequireAuth`/`RequireStaff`/`RequireAdmin`, `RateLimit`).
 - `docker/` (Caddyfile, postgres-init), `scripts/`, `uploads/` (gitignored
   runtime data), `.github/workflows/ci.yml`.
 
@@ -17,19 +32,56 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 
 - Verify like CI before pushing: `./scripts/ci-local.sh`
   (gofmt check, `go vet`, `go test -race -count=1`, `go build`, docker build,
-  compose config). `make ci` runs the same script.
-- Ship: `./scripts/deploy-local.sh` (rebuilds, waits for health, smoke-tests).
+  compose config). `make ci` runs the same script. `make test`/`vet`/`fmt`
+  run the Go steps individually.
+- Ship: `./scripts/deploy-local.sh` (rebuilds, `mkdir uploads` + chown to
+  `65534:65534` for the `nobody` app user, restarts app, waits ~3 min for
+  health, smoke-tests). `APP_URL` overrides the target (default
+  `http://localhost:8088`).
 - Local Go run: `docker compose up -d postgres mailpit && make run`.
 - Smoke: `make smoke` (healthz + readyz).
 - Ports: app **8088**→8080, caddy proxy **8089**→80, mailpit UI **8025** /
   SMTP **1025**, umami **8030**, postgres **5432**.
+- Env TTLs: `BOOKING_HOLD_TTL=15m` (unpaid hold), `SESSION_TTL=168h` (7 days).
+  Compose bakes env at container creation — follow `.env` edits with
+  `docker compose up -d app`.
+
+## Auth, sessions, rate limits
+
+- Roles `customer`/`cs`/`admin`; `IsStaff()` = cs/admin. Session cookie is
+  HttpOnly SameSite=Lax with `SESSION_TTL`; CSRF cookie is separate (24h,
+  non-HttpOnly, Secure only when `APP_ENV=production`). `requireCSRF` guards
+  all mutating POSTs; guest POSTs work because CSRF is session-independent.
+- `LoadUser` runs on every request. `RequireAuth` redirects to
+  `/login?next=...`; `RequireStaff`/`RequireAdmin` return 403 for the wrong
+  role. `requirePortalAdmin()` enforces admin-only corrections inside the
+  shared `/portal` routes (all portal routes admit CS too).
+- Rate limits per IP: login/register 20/min, book/apply 30/min → HTTP 429.
+- Single app replica only (native Postgres sessions, no Redis).
+
+## Payments & mail
+
+- Midtrans QRIS is charged at booking creation over the **net** amount
+  (`PriceIDR - DiscountIDR`). Empty `MIDTRANS_SERVER_KEY` = mock mode
+  (`MOCK-QRIS|order=...` + Simulate-payment button); `MockPay` is blocked
+  when keys are set. Webhook `POST /webhooks/midtrans`; signature check is
+  `sha512(order+status+gross+key)`, skipped in mock mode.
+- Cash rule (service + DB CHECK constraint): cash is services-only at the
+  counter, never for booking fees. Staff cash bookings confirm immediately.
+- Mail via `email.Sender`: no `SMTP_USER` = plain unauthenticated SMTP
+  (Mailpit `localhost:1025`); with user/pass = PLAIN over STARTTLS (Gmail
+  `smtp.gmail.com:587` App Password). From `halo@wangga.biz.id`; inbound via
+  Cloudflare Email Routing to Gmail.
 
 ## i18n — hard rules
 
 - Every key must exist in **both** EN and ID maps (`TestDictParity` fails
   otherwise). Prefer value-only edits; keep keys **≤12 chars**.
-- Default language is **ID**. Resolution: `?lang=` > `wangga-lang` cookie >
-  Accept-Language. `T()` falls back EN → key.
+- Default language is **ID**. Resolution: `?lang=` > `wangga-lang` cookie
+  (1 year) > Accept-Language (EN only when ID is absent) > ID. `T()` falls
+  back EN → key. `normalize` treats `id*`/`in*` as ID, `en*` as EN.
+- Helpers: `WeekdayShort` (`p.dw.0-6`), `MonthShort` (`r.ms.01-12`),
+  `SlotLabel`, `DateLong` (`p.day.*`, `r.m.*`). All render in WIB.
 - Brand name stays identical in both languages. Error strings (`.Error`)
   stay English. User-facing copy is translated.
 
@@ -40,8 +92,21 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - `TestTemplatesBothLanguages` renders every page in both languages: copy
   changes can break its assertions — update them (e.g. the slogan change
   updated the `home.html` hero assertions).
-- `app.css?v=<hash>` fingerprints builds; compare hashes to check what a
-  deployment actually serves.
+- `staticVersion` is a sha256 of **all** embedded static assets (12 hex
+  chars); `static` appends `?v=<hash>` and versioned URLs serve
+  `Cache-Control: public, max-age=31536000, immutable`. Compare hashes to
+  check what a deployment actually serves.
+
+## Uploads
+
+- `UPLOAD_DIR` is `./uploads` locally → `/app/uploads` volume. Served by
+  traversal-safe `serveUploadDir` (`path.Base`) at
+  `/uploads/services|staff|testimonials|avatars|food|hero/{file}`; career
+  CVs sit at the uploads root, downloadable by admin only.
+- Photos ≤2 MB JPG/PNG/WebP (`ValidatePhotoName`, uuid storage name);
+  picture links must be `http(s)` image URLs (`ValidateImageURL`). CVs ≤5 MB
+  PDF/DOC/JPG/PNG (`ValidateCVName`, `MaxCVBytes`). Multipart forms parse
+  10 MB (`ParseMultipartForm(10 << 20)`).
 
 ## HTMX + handler gotchas (learned the hard way)
 
@@ -50,19 +115,48 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   making buttons look dead (precedent: promo Apply).
 - `hx-include` submits elements under their **`name` attribute**: the input
   name must equal the query param the endpoint reads (`promo_try` vs `code`
-  cost a full debug cycle). Accept both names server-side when two forms
+  cost a full debug cycle; customer picker `name="q"` is asserted by
+  `TestTemplatesExecute`). Accept both names server-side when two forms
   share an endpoint.
+- `renderAuto` serves a fragment for `HX-Request` and a full page otherwise
+  (filter/search endpoints). Toasts go over `HX-Trigger: {"toast": ...}`
+  (consumed by `app.js`); redirects use `HX-Redirect`, refreshes
+  `HX-Refresh` — never a full form post from HTMX buttons.
 - Honest status codes on fetch handlers: `ErrNotFound` → 404, anything else
   → log + 500. Blanket `err → NotFound` turned transient blips into ghost
   "missing booking" reports (precedent: `PayPage`, `PortalBookingDetail`).
+
+## Booking lifecycle
+
+- Statuses: `pending_payment`/`confirmed`/`checked_in`/`in_service`/
+  `completed`/`cancelled`/`expired`/`no_show`. Staff no-double-book is a
+  Postgres EXCLUDE gist over the four active statuses. Unpaid holds expire
+  after `BOOKING_HOLD_TTL` via the 1-minute ticker.
+- Cancel: unpaid cancels free; paid shows a WhatsApp refund button with the
+  reference prefilled (reason logged for CS). Reschedule rejects past times
+  and overlaps. `CorrectDetails` is admin-only, logs old→new, flags
+  `priceBelowPaid`.
+- Refunds are validated (never more than paid-minus-refunded) and recorded
+  from booking detail; `VoidRefund` is an admin correction that keeps the
+  row (`voided_at` excludes it from totals). See cash-basis rule below.
+- Slots respect service-hours ∩ therapist-hours with a 10-min prep buffer
+  on a 15-min grid, minus `staff_time_off` blockouts. `Source` is
+  `web`/`walkin`/`whatsapp`/`phone`; `booking_fee_idr` is stored per booking.
 
 ## Deploy topology
 
 - The Cloudflare Tunnel serves **this machine's** `:8088`, so local deploy =
   public deploy. Verify with `curl https://wangga.biz.id/` (compare
   `app.css?v=` or content markers against localhost).
-- Single stack, single DB — no separate prod machine or prod database.
-  Throwaway SQL ops (test codes, seed cleanups) still stay uncommitted.
+- Single stack, single DB, single app replica — no separate prod machine or
+  prod database. Throwaway SQL ops (test codes, seed cleanups) still stay
+  uncommitted.
+- Docker: multi-stage build, image `HEALTHCHECK` on `/healthz`, non-root
+  `nobody`. Caddy (`:8089`) is a local reverse-proxy sidecar only.
+  Mailpit/Umami are localhost-only, never on the public tunnel (Umami's
+  public tracker hostname is gated separately).
+- `GET /healthz` (compose/docker healthcheck) + `GET /readyz`. All compose
+  services use `restart: unless-stopped`.
 
 ## Domain decisions (do not "simplify" these)
 
@@ -122,6 +216,16 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   centralize the checks; reports skip nil customers. History stays
   account-only (`ListMine` untouched); claim-account linking is a deferred
   phase 2. Key prefixes: `guest.*`, `book.guest`, `p.det.guest/walink`.
+- Portal (`/portal`, CS + admin) owns the daily operation: dashboard/queue,
+  bookings (incl. walk-in create), customers (phone-first, baby/mom/medical
+  fields, toggle-active, guarded delete), team/schedule (staff CRUD, weekly
+  hours, time-off blockouts, guarded removal when history exists), services
+  (catalog + hours + photo + toggle), food, site banners, promos, reports +
+  CSV. Admin (`/admin`) owns cross-cutting setup: locations, CS accounts
+  (create, toggle-active revoking sessions, password reset), jobs +
+  applications (+CV download), testimonials, customer password reset, own
+  password change. `/admin/services` → `/portal/services` and
+  `/admin/staff` → `/portal/schedule` are redirects, not pages.
 
 ## Git
 
