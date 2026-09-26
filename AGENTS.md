@@ -68,7 +68,8 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 
 - Homecare is `Booking.Place` (`onsite`/`homecare`), never a second Location.
   `VisitAddress` is required for homecare. `?place=homecare` pre-checks the
-  wizard's Homecare radio (homepage Homecare card links there).
+  wizard's Homecare radio (homepage Homecare card links there). Key prefix:
+  `hc.*`.
 - Contact/social links follow the `CONTACT_*` pattern: env default in
   `config.go` → `Contact` map in `render()` → footer template; document in
   `.env.example`, `docker-compose.yml`, `README.md` (precedent:
@@ -92,6 +93,20 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   under `uploads/avatars/`); header user chip links there. Review uploads go
   under `uploads/testimonials/`, served by traversal-safe handlers mirroring
   `ServeServicePhoto`.
+- Bu Nah food: `food_items` in food/beverage/snack categories, nullable M/L
+  prices (at least one), optional variants list, names display as-is (no
+  `name_id`). Portal CRUD for CS + admin. Ordering is onsite / WhatsApp /
+  free Kayu Putih delivery — never online payment. The real menu lives in
+  `SeedFood`. Key prefixes: `fd.*` (page), `p.fd.*` (manager),
+  `p.nav.food`.
+- Hero banners: `hero_banners` table; 0 rows = built-in fallback image,
+  1 active = static, 2+ = crossfade slideshow with dots. Portal manager
+  (upload/link, sort, show/hide). Fullscreen-on-scroll-up is gesture-driven;
+  the default view stays compact with text overlaid, and grade overlays
+  apply in the default view only. Key prefixes: `p.nav.site`, `p.hb.*`.
+- Booking wizard: first-available collapses identical hours to one button
+  (free slot preferred); slot labels are time-only because the review row
+  already carries the date.
 - Promo codes: uppercase unique codes, percent/fixed, min spend, optional
   validity window and use cap. Bookings snapshot `promo_code` +
   `discount_idr` (history untouched, like `ServiceName`); payments and the
