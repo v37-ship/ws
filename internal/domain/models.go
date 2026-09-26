@@ -523,6 +523,40 @@ type HeroBanner struct {
 	UpdatedAt time.Time
 }
 
+// GalleryKind selects a photo tile or a linked-video tile.
+type GalleryKind string
+
+const (
+	GalleryPhoto GalleryKind = "photo"
+	GalleryVideo GalleryKind = "video"
+)
+
+// GalleryItem is one service-gallery row. Titles/captions display as-written
+// in both languages (food precedent, no title_id). Photos use ImagePath (local
+// upload under uploads/gallery/) or ImageURL; videos are links only
+// (VideoURL, normalized at render) with an optional thumbnail
+// (ThumbPath/ThumbURL). ServiceID NULL means unlinked (no filter chip).
+type GalleryItem struct {
+	ID          uuid.UUID
+	Kind        GalleryKind
+	Title       string
+	Caption     string
+	ServiceID   *uuid.UUID
+	ServiceName string // joined display name, "" when unlinked
+	ImagePath   string
+	ImageURL    string
+	VideoURL    string
+	ThumbPath   string
+	ThumbURL    string
+	Sort        int
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// IsVideo reports whether the tile embeds a linked video.
+func (g GalleryItem) IsVideo() bool { return g.Kind == GalleryVideo }
+
 // PromoKind selects percent-off (1-100) or fixed-IDR-off discounts.
 type PromoKind string
 

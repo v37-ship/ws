@@ -1,0 +1,78 @@
+{{define "gallery.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "gl.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main x-data="{kind:'all', svc:'all', light:null}">
+    <section class="section-head">
+      <h2>{{t .Lang "gl.title"}}</h2>
+      <p>{{t .Lang "gl.sub"}}</p>
+    </section>
+
+    {{if .Items}}
+    <div class="pill-row" role="group" style="margin-bottom:1rem;">
+      <label class="pill-pick"><input type="radio" name="gkind" value="all" x-model="kind" checked><span>{{t .Lang "gl.all"}}</span></label>
+      <label class="pill-pick"><input type="radio" name="gkind" value="photo" x-model="kind"><span>{{icon "image"}} {{t .Lang "gl.photos"}}</span></label>
+      <label class="pill-pick"><input type="radio" name="gkind" value="video" x-model="kind"><span>{{icon "play"}} {{t .Lang "gl.videos"}}</span></label>
+      {{range .Services}}
+      <button type="button" class="pill-pick" :class="{'on': svc==='{{.ID}}'}" @click="svc=(svc==='{{.ID}}'?'all':'{{.ID}}')"><span>{{.Name}}</span></button>
+      {{end}}
+    </div>
+
+    <div class="grid three">
+      {{range .Items}}
+      {{$isVideo := .IsVideo}}
+      {{$embed := galVideo .}}
+      {{$img := galPhoto .}}
+      {{$thumb := galThumb .}}
+      <article class="panel stack service-card"
+        data-kind="{{if $isVideo}}video{{else}}photo{{end}}"
+        data-svc="{{if .ServiceID}}{{.ServiceID}}{{end}}"
+        x-show="(kind==='all'||kind==='{{if $isVideo}}video{{else}}photo{{end}}')&&(svc==='all'||svc==='{{if .ServiceID}}{{.ServiceID}}{{end}}')">
+        {{if $isVideo}}
+        <div class="gal-media" x-data="{play:false}">
+          <template x-if="!play">
+            <button type="button" class="gal-facade" @click="play=true" aria-label="{{t $.Lang "gl.play"}}: {{.Title}}">
+              {{if $thumb}}<img src="{{$thumb}}" alt="" loading="lazy">{{end}}
+              <span class="gal-play" aria-hidden="true">{{icon "play"}}</span>
+            </button>
+          </template>
+          <template x-if="play">
+            <iframe src="{{$embed}}" title="{{.Title}}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+          </template>
+        </div>
+        {{else if $img}}
+        <button type="button" class="gal-media" @click="light='{{galPhoto .}}'" aria-label="{{t $.Lang "gl.view"}}: {{.Title}}">
+          <img src="{{$img}}" alt="{{.Title}}" loading="lazy">
+        </button>
+        {{end}}
+        <div>
+          <strong>{{.Title}}</strong>
+          {{if .ServiceName}}<br><small class="muted">{{.ServiceName}}</small>{{end}}
+          {{if .Caption}}<p class="muted" style="margin:.25rem 0 0; font-size:.85rem;">{{.Caption}}</p>{{end}}
+        </div>
+      </article>
+      {{end}}
+    </div>
+
+    <div class="modal-backdrop" x-show="light" x-transition style="display:none;" @click="light=null">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="{{t .Lang "gl.view"}}" @click.stop>
+        <img :src="light" alt="" style="width:100%; border-radius:.75rem;">
+        <div style="display:flex; justify-content:flex-end; margin-top:.75rem;">
+          <button type="button" class="btn secondary on-light btn-sm" @click="light=null">{{t .Lang "gl.close"}}</button>
+        </div>
+      </div>
+    </div>
+    {{else}}
+    <p class="muted">{{t .Lang "gl.empty"}}</p>
+    {{end}}
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

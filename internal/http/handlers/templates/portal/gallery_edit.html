@@ -1,0 +1,55 @@
+{{define "portal_gallery_edit.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.gl.edit"}}: {{.Item.Title}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "gallery" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <h1 class="page-title">{{t .Lang "p.gl.edit"}}: {{.Item.Title}}</h1>
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+    <form class="panel stack" method="post" action="/portal/gallery/{{.Item.ID}}/edit" enctype="multipart/form-data" x-data="{kind:'{{.Item.Kind}}'}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+        <label>{{t .Lang "p.gl.ti"}} <input name="title" required autocomplete="off" value="{{.Item.Title}}"></label>
+        <label>{{t .Lang "p.gl.kind"}}
+          <select name="kind" required x-model="kind">
+            <option value="photo" {{if not .Item.IsVideo}}selected{{end}}>{{t .Lang "p.gl.photo"}}</option>
+            <option value="video" {{if .Item.IsVideo}}selected{{end}}>{{t .Lang "p.gl.video"}}</option>
+          </select>
+        </label>
+        <label>{{t .Lang "p.gl.sort"}} <input type="number" name="sort" value="{{.Item.Sort}}" min="0"></label>
+      </div>
+      <label>{{t .Lang "p.gl.cap"}} <textarea name="caption" rows="2">{{.Item.Caption}}</textarea></label>
+      <label>{{t .Lang "p.gl.svc"}}
+        <select name="service_id">
+          <option value="">{{t .Lang "p.gl.none"}}</option>
+          {{range .Services}}<option value="{{.ID}}" {{if and $.Item.ServiceID (eq $.Item.ServiceID.String .ID.String)}}selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </label>
+      <div x-show="kind==='photo'">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.gl.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>URL <input name="image_url" placeholder="https://…" autocomplete="off" value="{{.Item.ImageURL}}"></label>
+        </div>
+      </div>
+      <div x-show="kind==='video'">
+        <label>{{t .Lang "p.gl.vurl"}} <input name="video_url" placeholder="https://drive.google.com/…" autocomplete="off" value="{{.Item.VideoURL}}"></label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.gl.thumb"}} <input type="file" name="thumb" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label>URL <input name="thumb_url" placeholder="https://…" autocomplete="off" value="{{.Item.ThumbURL}}"></label>
+        </div>
+      </div>
+      <button class="btn" type="submit">{{t .Lang "p.gl.edit"}}</button>
+    </form>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

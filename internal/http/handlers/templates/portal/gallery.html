@@ -1,0 +1,125 @@
+{{define "portal_gallery.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.gl.title"}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "gallery" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.gl.title"}}</h1>
+      </div>
+    </div>
+
+    {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+    <details class="panel stack">
+      <summary style="cursor:pointer; font-weight:700;">{{t .Lang "p.gl.add"}}</summary>
+      <form class="stack" method="post" action="/portal/gallery" enctype="multipart/form-data" x-data="{kind:'photo'}">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+          <label>{{t .Lang "p.gl.ti"}} <input name="title" required autocomplete="off"></label>
+          <label>{{t .Lang "p.gl.kind"}}
+            <select name="kind" required x-model="kind">
+              <option value="photo">{{t .Lang "p.gl.photo"}}</option>
+              <option value="video">{{t .Lang "p.gl.video"}}</option>
+            </select>
+          </label>
+          <label>{{t .Lang "p.gl.sort"}} <input type="number" name="sort" value="0" min="0"></label>
+        </div>
+        <label>{{t .Lang "p.gl.cap"}} <textarea name="caption" rows="2"></textarea></label>
+        <label>{{t .Lang "p.gl.svc"}}
+          <select name="service_id">
+            <option value="">{{t .Lang "p.gl.none"}}</option>
+            {{range .Services}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+          </select>
+        </label>
+        <div x-show="kind==='photo'">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+            <label>{{t .Lang "p.gl.photo"}} <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
+            <label>URL <input name="image_url" placeholder="https://…" autocomplete="off"></label>
+          </div>
+        </div>
+        <div x-show="kind==='video'">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+            <label>{{t .Lang "p.gl.vurl"}} <input name="video_url" placeholder="https://drive.google.com/…" autocomplete="off"></label>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem;">
+            <label>{{t .Lang "p.gl.thumb"}} <input type="file" name="thumb" accept=".jpg,.jpeg,.png,.webp"></label>
+            <label>URL <input name="thumb_url" placeholder="https://…" autocomplete="off"></label>
+          </div>
+        </div>
+        <button class="btn" type="submit">{{t .Lang "p.gl.add"}}</button>
+      </form>
+    </details>
+
+    <div class="panel">
+      <div style="overflow-x:auto;" class="table-cards" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{t .Lang "p.gl.ti"}}</th>
+              <th>{{t .Lang "p.gl.kind"}}</th>
+              <th>{{t .Lang "p.gl.svc"}}</th>
+              <th>{{t .Lang "p.gl.sort"}}</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Items}}
+            <tr>
+              <td>
+                <div><strong>{{.Title}}</strong>{{if .Caption}}<br><small class="muted">{{.Caption}}</small>{{end}}</div>
+              </td>
+              <td>{{if .IsVideo}}{{t $.Lang "p.gl.video"}}{{else}}{{t $.Lang "p.gl.photo"}}{{end}}</td>
+              <td>{{if .ServiceName}}{{.ServiceName}}{{else}}<span class="muted">-</span>{{end}}</td>
+              <td>
+                <form method="post" action="/portal/gallery/{{.ID}}/sort" style="display:inline-flex; gap:.3rem; align-items:center;">
+                  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                  <input type="number" name="sort" value="{{.Sort}}" min="0" style="width:4.5rem;">
+                  <button type="submit" class="btn secondary on-light btn-sm">OK</button>
+                </form>
+              </td>
+              <td>
+                {{if .Active}}
+                  <span class="badge confirmed">{{t $.Lang "p.gl.on"}}</span>
+                {{else}}
+                  <span class="badge cancelled">{{t $.Lang "p.gl.off"}}</span>
+                {{end}}
+              </td>
+              <td>
+                <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
+                  <a href="/portal/gallery/{{.ID}}/edit" class="btn secondary on-light btn-sm">{{t $.Lang "p.gl.edit"}}</a>
+                  <form method="post" action="/portal/gallery/{{.ID}}/toggle" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm">
+                      {{if .Active}}{{t $.Lang "p.gl.off"}}{{else}}{{t $.Lang "p.gl.on"}}{{end}}
+                    </button>
+                  </form>
+                  <form method="post" action="/portal/gallery/{{.ID}}/delete" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <button type="submit" class="btn secondary on-light btn-sm" style="color:var(--danger);">{{t $.Lang "p.gl.del"}}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="6" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.gl.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

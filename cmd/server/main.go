@@ -52,6 +52,7 @@ func main() {
 	testimonials := repo.NewTestimonialRepo(pool)
 	foods := repo.NewFoodRepo(pool)
 	heroes := repo.NewHeroRepo(pool)
+	gallery := repo.NewGalleryRepo(pool)
 
 	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
 	catalogSvc := service.NewCatalogService(catalogRepo)
@@ -64,6 +65,7 @@ func main() {
 	tmSvc := service.NewTestimonialService(testimonials)
 	foodSvc := service.NewFoodService(foods)
 	heroSvc := service.NewHeroService(heroes)
+	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
 
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
@@ -88,7 +90,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, promoSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

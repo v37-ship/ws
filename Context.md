@@ -17,7 +17,7 @@ chi router (`RequestID`, `RealIP`, `Logger`, `Recoverer`, `Timeout(60s)`,
 Chi router (`internal/http/handlers/server.go:Routes`) → middleware
 (`LoadUser` always; `RequireAuth` / `RequireStaff` / `RequireAdmin` /
 per-route `RateLimit`: login/register 20/min, book/apply 30/min) → handler
-(`handlers.go`, `guest.go`, `food.go`, `promos.go`, `testimonials.go`,
+(`handlers.go`, `guest.go`, `food.go`, `gallery.go`, `promos.go`, `testimonials.go`,
 `site.go`, `careers.go`, `report.go`) → service (`internal/service`) →
 repo (`internal/repo`, raw SQL via pgx) → Postgres 16.
 
@@ -40,7 +40,7 @@ token-aware `?t=` for guests), portal queue `GET /portal/queue`
 (`every 30s`), portal bookings rows via `HX-Request` (debounced live search
 + `hx-push-url`, search input `name="q"`).
 
-## Database (`internal/db/migrations`, 001–017, Goose)
+## Database (`internal/db/migrations`, 001–018, Goose)
 
 | # | Area |
 |---|------|
@@ -58,11 +58,13 @@ token-aware `?t=` for guests), portal queue `GET /portal/queue`
 | 015 | `promo_codes` + booking `promo_code`/`discount_idr` snapshots |
 | 016 | guest bookings (nullable `customer_id`, guest fields, `access_token`) |
 | 017 | `hero_banners` |
+| 018 | `gallery_items` (photo/video kinds, optional service link) |
 
 Seeds (seed-if-empty on boot): `EnsureAdmin` (from `ADMIN_EMAIL`/
 `ADMIN_PASSWORD`), `SeedDemo` (branch "Wangga Kayu Putih" + services +
 staff + hours), `SeedTestimonials` (10 approved reviews), `SeedFood`
-(18-item Bu Nah menu in card order).
+(18-item Bu Nah menu in card order). Gallery starts empty (no seed —
+like hero banners).
 
 ## Feature map
 
@@ -93,6 +95,11 @@ staff + hours), `SeedTestimonials` (10 approved reviews), `SeedFood`
 - **Food (Bu Nah)** — `GET /food` (food/beverage/snack + order info);
   homepage promo card; manager at `/portal/food` (full CRUD + photo +
   toggle). M/L prices nullable (at least one), variants list, names as-is.
+- **Gallery** — `GET /gallery` (photo/video cards, kind + service filter
+  chips, Alpine lightbox, click-to-play video facade); videos are Drive/
+  YouTube/Vimeo links normalized to embed URLs (`VideoEmbedURL` allowlist);
+  manager at `/portal/gallery` (full CRUD + photo/thumb upload, sort,
+  toggle).
 - **Testimonials** — homepage filmstrip (approved only); authed submit at
   `/testimonials/new` (pending moderation, ≤2 MB photo); manager at
   `/admin/testimonials` (create/status/delete).

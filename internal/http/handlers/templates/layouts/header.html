@@ -19,6 +19,7 @@
       <span id="theme-icon" aria-hidden="true">◐</span><span id="theme-label">Auto</span>
     </button>
     <a href="/services">{{t .Lang "nav.services"}}</a>
+    <a href="/gallery">{{t .Lang "nav.gallery"}}</a>
     {{if .User}}
       {{if .User.Role.IsStaff}}
         <a href="/portal/bookings/new" style="font-weight:800;">{{icon "plus"}} {{t .Lang "nav.newbooking"}}</a>

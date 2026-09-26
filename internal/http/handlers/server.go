@@ -43,6 +43,7 @@ type Server struct {
 	tm         *service.TestimonialService
 	food       *service.FoodService
 	hero       *service.HeroService
+	gallery    *service.GalleryService
 	promo      *service.PromoService
 	tpl        *template.Template
 	csrfSecure bool
@@ -60,6 +61,7 @@ func New(
 	tm *service.TestimonialService,
 	food *service.FoodService,
 	hero *service.HeroService,
+	gallery *service.GalleryService,
 	promo *service.PromoService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
@@ -145,6 +147,15 @@ func New(
 		"heroPhoto": func(h domain.HeroBanner) string {
 			return service.ResolveHeroPhoto(h)
 		},
+		"galPhoto": func(g domain.GalleryItem) string {
+			return service.ResolveGalleryPhoto(g)
+		},
+		"galThumb": func(g domain.GalleryItem) string {
+			return service.ResolveGalleryThumb(g)
+		},
+		"galVideo": func(g domain.GalleryItem) string {
+			return service.VideoEmbedURL(g.VideoURL)
+		},
 		"stars": func(rating int) string {
 			if rating < 0 {
 				rating = 0
@@ -206,7 +217,7 @@ func New(
 		return nil, err
 	}
 	return &Server{
-		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, promo: promo,
+		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -501,6 +512,7 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/uploads/testimonials/{file}", s.ServeTestimonialPhoto)
 	r.Get("/uploads/avatars/{file}", s.ServeAvatar)
 	r.Get("/uploads/food/{file}", s.ServeFoodPhoto)
+	r.Get("/uploads/gallery/{file}", s.ServeGalleryPhoto)
 	r.Get("/uploads/hero/{file}", s.ServeHeroPhoto)
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
@@ -509,6 +521,7 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/", s.Home)
 	r.Get("/services", s.ServicesPage)
 	r.Get("/food", s.FoodPage)
+	r.Get("/gallery", s.GalleryPage)
 	r.Post("/lang", s.SetLanguage)
 	r.Get("/careers", s.CareersPage)
 	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
@@ -597,6 +610,14 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/food/{id}/edit", s.PortalUpdateFood)
 		pr.Post("/food/{id}/toggle", s.PortalToggleFood)
 		pr.Post("/food/{id}/delete", s.PortalDeleteFood)
+
+		pr.Get("/gallery", s.PortalGallery)
+		pr.Post("/gallery", s.PortalCreateGallery)
+		pr.Get("/gallery/{id}/edit", s.PortalEditGalleryForm)
+		pr.Post("/gallery/{id}/edit", s.PortalUpdateGallery)
+		pr.Post("/gallery/{id}/toggle", s.PortalToggleGallery)
+		pr.Post("/gallery/{id}/delete", s.PortalDeleteGallery)
+		pr.Post("/gallery/{id}/sort", s.PortalGallerySort)
 
 		pr.Get("/site", s.PortalSite)
 		pr.Post("/site", s.PortalCreateBanner)

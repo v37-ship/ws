@@ -116,6 +116,9 @@ html[data-theme="dark"] option { background: #2a1f30; color: #f8eff5; }
 .pill-pick:has(input:checked) span {
   border-color: var(--accent-deep); background: #fff0f6; color: var(--accent-deep);
 }
+button.pill-pick.on > span {
+  border-color: var(--accent-deep); background: #fff0f6; color: var(--accent-deep);
+}
 .pill-pick:has(input:focus-visible) span { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 
 .pick-grid {
@@ -654,4 +657,25 @@ html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
   font-family: var(--font-display);
   color: var(--accent-deep);
 }
+/* Service gallery: uniform media tiles, click-to-play video facade
+   (no third-party bytes until the visitor presses play). */
+.gal-media {
+  display: block; width: 100%; aspect-ratio: 4/3; border-radius: .65rem;
+  overflow: hidden; background: var(--bg-2); border: 0; padding: 0;
+}
+button.gal-media { cursor: zoom-in; }
+.gal-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gal-media iframe { width: 100%; height: 100%; border: 0; display: block; }
+.gal-facade {
+  position: relative; width: 100%; height: 100%; border: 0; padding: 0;
+  cursor: pointer; background: var(--bg-2); display: block;
+}
+.gal-facade img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gal-play {
+  position: absolute; inset: 0; margin: auto; width: 3.2rem; height: 3.2rem;
+  border-radius: 9999px; background: rgba(42, 36, 48, 0.72); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.gal-play .ic { width: 1.4rem; height: 1.4rem; }
+.gal-facade:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 .review .promo-save { color: var(--mint-deep); }

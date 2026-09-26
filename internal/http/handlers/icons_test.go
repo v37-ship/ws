@@ -11,7 +11,7 @@ import (
 func TestIconNames(t *testing.T) {
 	used := []string{
 		"plus", "hospital", "grid", "calendar", "users", "user",
-		"user-plus", "sparkles", "utensils", "image", "ticket", "crown",
+		"user-plus", "sparkles", "utensils", "image", "images", "ticket", "crown",
 		"shield", "chart", "cash", "qris", "chat", "pin", "phone",
 		"mail", "clock", "instagram", "home", "building", "briefcase",
 		"play", "check-circle", "alert", "x-circle", "printer",

@@ -11,7 +11,7 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   A 1-minute ticker expires booking holds and deletes expired sessions.
 - `internal/config` (env defaults: `SESSION_TTL=168h`, `BOOKING_HOLD_TTL=15m`),
   `internal/auth` (bcrypt, CSRF token), `internal/db/migrations` (Goose
-  001–017, single source of truth), `internal/domain` (models + helpers
+  001–018, single source of truth), `internal/domain` (models + helpers
   `OwnedBy`/`TokenOK`/`IsGuest`/`Net`/`DisplayName`), `internal/repo` (raw
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
@@ -199,6 +199,15 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   free Kayu Putih delivery — never online payment. The real menu lives in
   `SeedFood`. Key prefixes: `fd.*` (page), `p.fd.*` (manager),
   `p.nav.food`.
+- Gallery: `gallery_items` in photo/video kinds, optional `service_id` link
+  (filter chips, NULL = standalone), names display as-is (no `name_id`).
+  Photos are upload/link (≤2 MB, `uploads/gallery/`); videos are links
+  only — server normalizes Drive/YouTube/Vimeo share URLs to embed URLs
+  (`VideoEmbedURL`, host allowlist, unit-tested), motionless until the
+  visitor presses play (click-to-load facade). Portal CRUD + sort for CS +
+  admin; public page at `/gallery` (nav + footer links, no homepage
+  section). Key prefixes: `gl.*` (page), `p.gl.*` (manager),
+  `p.nav.gal`.
 - Hero banners: `hero_banners` table; 0 rows = built-in fallback image,
   1 active = static, 2+ = crossfade slideshow with dots. Portal manager
   (upload/link, sort, show/hide). Default view is compact (54vh) with text
