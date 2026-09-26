@@ -21,8 +21,10 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-/* Inline SVG UI icons (see Icon in icons.go): stroke-based, currentColor. */
-.ic { width: 1.1em; height: 1.1em; vertical-align: -0.18em; flex: none; }
+/* Inline SVG UI icons (see Icon in icons.go): stroke-based, currentColor.
+   inline-block defeats the Tailwind preflight `svg { display:block }`
+   reset so icons sit beside text in nav links, cells, and pills. */
+.ic { display: inline-block; width: 1.1em; height: 1.1em; vertical-align: -0.18em; flex: none; }
 .btn .ic, .btn-wa .ic { width: 1.15em; height: 1.15em; vertical-align: -0.22em; }
 .portal-ico .ic { width: 1.25rem; height: 1.25rem; vertical-align: 0; }
 .avatar .ic { width: 45%; height: 45%; }
