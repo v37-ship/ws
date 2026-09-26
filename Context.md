@@ -138,6 +138,11 @@ are per-IP rate-limited (20/20/30/30 per minute → 429).
   static assets, 12 hex chars) appends `?v=` — versioned URLs serve
   immutable long-cache; unversioned serve normally. Rebuild to ship
   text/markup/CSS changes. Vendored `htmx.min.js` + `alpine.min.js`;
+  brand `img/logo.png` (header/footer lockup) + `img/favicon.png` /
+  `img/apple-touch-icon.png` (mom-baby crop).
+- UI icons are inline SVG via the `icon` template func (`icons.go`,
+  Lucide-style stroke, `currentColor`); never emoji in UI chrome
+  (`TestNoEmojiIcons` scans every page/partial in both languages).
   `app.js` handles `HX-Trigger` toasts, `?toast=` flash fallback, and the
   non-Alpine slot-picker fallback. HTMX config: 204/`[23]..` swap, `[45]..`
   no-swap (hence 200-with-inline-errors on preview/quote endpoints).

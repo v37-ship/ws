@@ -68,6 +68,8 @@ a:hover { text-decoration: underline; }
   text-decoration: none;
 }
 .brand:hover { text-decoration: none; }
+.brand-logo { height: 3rem; width: auto; display: block; }
+.brand-logo.foot { height: 3.5rem; }
 .brand-mark {
   font-family: var(--font-display);
   font-size: 1.55rem;
