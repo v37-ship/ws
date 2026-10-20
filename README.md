@@ -31,7 +31,7 @@ docker compose up -d umami  # Umami creates its own tables on boot
 Then: open http://localhost:8030, log in `admin` / `umami`, **change the password**, Add Website → copy the Website ID, and set:
 
 ```bash
-ANALYTICS_URL=http://localhost:8030          # or https://umami.wangga.biz.id via tunnel
+ANALYTICS_URL=http://localhost:8030          # or https://umami.wangga.biz.id in prod
 ANALYTICS_SITE_ID=<website-id>
 ```
 
@@ -156,7 +156,7 @@ cp .env.example .env
    sudo ufw deny 8088/tcp && sudo ufw deny 8030/tcp && sudo ufw deny 8025/tcp
    sudo ufw enable
    ```
-   (The Umami dashboard stays reachable via its tunnel hostname, gated by Cloudflare Access.)
+   (In prod the Umami dashboard lives on the VPS behind Traefik BasicAuth + its own login.)
 4. Verify with the same checks as Guide A, step 4, using `ss -tlnp` for port inspection. Reboot survival comes from `restart: unless-stopped` + the enabled docker service — confirm once with a real reboot.
 
 ### C. Tunnel cutover (both targets)
@@ -175,7 +175,7 @@ Expect a brief Cloudflare `502` on the site while the new machine's app containe
 1. `docker compose exec postgres psql -U spa -d spa -c "CREATE DATABASE umami;"` (skip on fresh clones — `docker/postgres-init/` already did it), then `docker compose up -d umami`.
 2. Open the dashboard (`http://localhost:8030` locally), log in `admin` / `umami` → **change the password immediately** (avatar → Profile → Change password).
 3. **Add Website**: name `Wangga`, domain `wangga.biz.id` → open the website → copy the **Website ID** (from the URL or Settings).
-4. Back in `.env`: set `ANALYTICS_URL` (local `http://localhost:8030`, or `https://umami.wangga.biz.id` once the tunnel hostname exists) + `ANALYTICS_SITE_ID=<id>`, then restart only the app (no rebuild): `docker compose up -d app`.
+4. Back in `.env`: set `ANALYTICS_URL` (local `http://localhost:8030`, or `https://umami.wangga.biz.id` in prod) + `ANALYTICS_SITE_ID=<id>`, then restart only the app (no rebuild): `docker compose up -d app`.
 5. Confirm the snippet renders: `curl -s http://localhost:8088/ | grep -o 'script.js'` → shows your Umami host. Then visit the site and watch the visit land in Umami realtime.
 
 ### E. Troubleshooting

@@ -159,7 +159,7 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - Ship: `./scripts/deploy-vps.sh` (git pull + `docker compose -f
   docker-compose.vps.yml up -d --build app` + health wait). Prod runtime
   file is `docker-compose.vps.yml` (no Mailpit/Caddy, no published
-  Postgres/Umami ports; real `${SMTP_*}`, `ANALYTICS_URL=http://umami:3000`).
+  Postgres/Umami ports; real `${SMTP_*}`, `ANALYTICS_URL=https://umami.wangga.biz.id`).
 - Verify with `curl https://wangga.biz.id/` (compare `app.css?v=` or
   content markers), plus `docker logs traefik --since 10m` on the VPS.
 - Backups: `scripts/backup-vps.sh` via VPS crontab 03:15 (pg_dump spa+umami,

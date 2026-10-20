@@ -174,7 +174,12 @@ are per-IP rate-limited (20/20/30/30 per minute → 429).
   `./scripts/deploy-vps.sh` (pull + rebuild + health wait); nightly backups
   via `scripts/backup-vps.sh` (cron 03:15, `~/backups`, 14 kept). Local box
   is dev-only (`deploy-local.sh`); its old cloudflared connector is the
-  rollback path (tunnel CNAME was replaced by the A record). Umami
-  dashboard is container-network-only on the VPS (SSH tunnel to view);
-  the old `umami.wangga.biz.id` hostname still points at the retiring
-  connector. Mailpit/rollout unchanged on this box.
+  rollback path (tunnel CNAME was replaced by the A record). Mailpit
+  unchanged on this box.
+- Umami is public on the VPS (Oct 2026): `umami.wangga.biz.id` A record
+  (proxied) → Traefik router `umami` with BasicAuth `${UMAMI_BA_USER}:
+  ${UMAMI_BA_HASH}` (VPS `~/ws/.env`; `$` doubled in the hash) on
+  everything except `/script.js` + `/api/send`, which a lower-priority
+  `umami-tracker` router keeps unauthenticated. `ANALYTICS_URL=https://
+  umami.wangga.biz.id` on the VPS. Full history restored (source DB also
+  froze 2026-09-21, so nothing was lost in the cutover).
