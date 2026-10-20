@@ -165,6 +165,16 @@ are per-IP rate-limited (20/20/30/30 per minute → 429).
 - Umami analytics (`ANALYTICS_*`; empty = tracker off) reusing Postgres
   (`docker/postgres-init` creates the `umami` DB; tracker renders only when
   URL + site ID are both set; hostname must match the Website domain).
-- Cloudflare Tunnel serves this machine's `:8088` (= public site);
-  Caddy (`:8089` → app `:8080`) is a local reverse-proxy sidecar only.
-  Mailpit/Umami dashboards stay localhost-only.
+- Production since Oct 2026: **VPS `31.97.48.59` (AlmaLinux, gelatto)** —
+  Cloudflare proxied A record → Traefik edge (80/443, `~/docker/portainer-traefik`,
+  cert resolver `wangga` = Cloudflare DNS-01 token in its `.env`) → app
+  container (no published ports; loopback `127.0.0.1:8088` for admin/debug).
+  Prod file `docker-compose.vps.yml` (no Mailpit/Caddy; no published
+  Postgres/Umami app ports; real `${SMTP_*}` from `~/ws/.env`). Ship via
+  `./scripts/deploy-vps.sh` (pull + rebuild + health wait); nightly backups
+  via `scripts/backup-vps.sh` (cron 03:15, `~/backups`, 14 kept). Local box
+  is dev-only (`deploy-local.sh`); its old cloudflared connector is the
+  rollback path (tunnel CNAME was replaced by the A record). Umami
+  dashboard is container-network-only on the VPS (SSH tunnel to view);
+  the old `umami.wangga.biz.id` hostname still points at the retiring
+  connector. Mailpit/rollout unchanged on this box.

@@ -80,6 +80,13 @@ Without Midtrans keys in local dev, payment pages show a **Simulate successful p
 
 ## Deploy to another machine (fresh install)
 
+> **Current production note (Oct 2026):** www lives on the AlmaLinux VPS
+> (`ssh vps`) — Cloudflare proxied A record → Traefik edge → app
+> (`docker-compose.vps.yml`). Ship changes with `./scripts/deploy-vps.sh`;
+> nightly backups land in `~/backups`. The guides below describe a *fresh*
+> single-machine install (dev/demo) and the legacy tunnel cutover used for
+> the migration — they no longer describe how the live site is updated.
+
 This guide moves **no data** — the new machine boots to a clean, demo-seeded instance. Old bookings, customers, CVs, and photos stay on the old machine.
 
 ### Before you start (both targets)
@@ -267,10 +274,24 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 
 ## Production notes
 
-- Set strong `SESSION_SECRET`, production `DATABASE_URL`, Midtrans keys, SMTP
+- **Production is the VPS** (`ssh vps`, AlmaLinux): Cloudflare proxied A
+  record → Traefik edge (automatic Let's Encrypt via a Cloudflare DNS-01
+  token in `~/docker/portainer-traefik/.env`) → app container (Traefik
+  labels). Prod runtime file: `docker-compose.vps.yml` (no Mailpit/Caddy;
+  internal services are never published to the host). Ship with
+  `./scripts/deploy-vps.sh`.
+- SSL mode on Cloudflare must be **Full** (not Flexible); visitor IPs reach
+  the app via `forwardedHeaders.trustedIPs` = Cloudflare ranges.
+- Set strong `SESSION_SECRET`, real `SMTP_*` (Gmail app password — keep the
+  spaces verbatim), Midtrans keys when enabled
 - Set `APP_ENV=production` (enables Secure cookies)
 - Point Midtrans notification URL to `https://your-domain/webhooks/midtrans`
+- Backups: nightly `scripts/backup-vps.sh` cron on the VPS (pg_dump spa+umami
+  + uploads tar, 14-day retention in `~/backups`); copy these off-server for
+  real disaster recovery
 - Keep a single app replica unless shared session storage is added
 - `GET /healthz` (compose/docker healthcheck) + `GET /readyz`
-- Docker: multi-stage build with Go module cache, image `HEALTHCHECK`, non-root `nobody`; Caddy listens on `:80` (mapped to host `8089`)
-- All compose services use `restart: unless-stopped` — the stack survives host reboots as long as Docker Desktop starts on login and the `cloudflared` service stays Automatic.
+- SSH: key-only for `gelatto` — verify with
+  `sudo sshd -T | grep -Ei 'passwordauthentication|permitrootlogin'`
+- Docker: multi-stage build with Go module cache, image `HEALTHCHECK`, non-root `nobody`; on any server verify `ss -tlnp` shows only 22/80/443 (internal ports live on the Docker network, never published)
+- All compose services use `restart: unless-stopped` — the stack survives reboots on its own

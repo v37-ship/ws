@@ -151,18 +151,31 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 
 ## Deploy topology
 
-- The Cloudflare Tunnel serves **this machine's** `:8088`, so local deploy =
-  public deploy. Verify with `curl https://wangga.biz.id/` (compare
-  `app.css?v=` or content markers against localhost).
-- Single stack, single DB, single app replica — no separate prod machine or
-  prod database. Throwaway SQL ops (test codes, seed cleanups) still stay
-  uncommitted.
+- Production lives on a **VPS (`31.97.48.59`, AlmaLinux, `gelatto`)**:
+  Cloudflare proxied A record → Traefik edge (80/443; ` ~/docker/portainer-traefik`
+  compose with resolver `wangga` = Cloudflare DNS-01, token in its `.env`,
+  CF-IP `forwardedHeaders` trust) → app (no published ports; loopback
+  `127.0.0.1:8088` only for admin/debug). This machine is dev-only.
+- Ship: `./scripts/deploy-vps.sh` (git pull + `docker compose -f
+  docker-compose.vps.yml up -d --build app` + health wait). Prod runtime
+  file is `docker-compose.vps.yml` (no Mailpit/Caddy, no published
+  Postgres/Umami ports; real `${SMTP_*}`, `ANALYTICS_URL=http://umami:3000`).
+- Verify with `curl https://wangga.biz.id/` (compare `app.css?v=` or
+  content markers), plus `docker logs traefik --since 10m` on the VPS.
+- Backups: `scripts/backup-vps.sh` via VPS crontab 03:15 (pg_dump spa+umami,
+  tar uploads) into `~/backups`, 14 days kept — restore = drop schema +
+  `psql` the dump + `git pull`.
+- Single stack, single DB, single app replica. Throwaway SQL ops still stay
+  uncommitted. Rollback path: this box's cloudflared connector is still
+  installed (idle) — re-pointing the A record back via the CF API/dashboard
+  restores the old serving chain.
 - Docker: multi-stage build, image `HEALTHCHECK` on `/healthz`, non-root
-  `nobody`. Caddy (`:8089`) is a local reverse-proxy sidecar only.
-  Mailpit/Umami are localhost-only, never on the public tunnel (Umami's
-  public tracker hostname is gated separately).
+  `nobody`. The dev stack still runs Caddy (`:8089`) + Mailpit locally —
+  localhost-only by design, never published on a server.
 - `GET /healthz` (compose/docker healthcheck) + `GET /readyz`. All compose
-  services use `restart: unless-stopped`.
+  services use `restart: unless-stopped`. SSH on the VPS must be key-only
+  for `gelatto` (`sshd_config.d` hardening; verify with
+  `sudo sshd -T | grep -Ei 'passwordauthentication|permitrootlogin'`).
 
 ## Domain decisions (do not "simplify" these)
 
