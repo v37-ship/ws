@@ -32,6 +32,10 @@ services:
       DATABASE_TYPE: postgresql
       # Same salt as dev so the restored admin login keeps working.
       HASH_SALT: dev-umami-salt-change-me
+      # isbot false-positives on some real phone UAs (Android builds/carriers)
+      # silently discard the visit (HTTP 200 `{"beep":"boop"}`, nothing saved).
+      # Count everything; bots are noise, missing real customers is not.
+      DISABLE_BOT_CHECK: "1"
     networks:
       - default
       - proxy
