@@ -178,8 +178,13 @@ are per-IP rate-limited (20/20/30/30 per minute → 429).
   unchanged on this box.
 - Umami is public on the VPS (Oct 2026): `umami.wangga.biz.id` A record
   (proxied) → Traefik router `umami` with BasicAuth `${UMAMI_BA_USER}:
-  ${UMAMI_BA_HASH}` (VPS `~/ws/.env`; `$` doubled in the hash) on
-  everything except `/script.js` + `/api/send`, which a lower-priority
-  `umami-tracker` router keeps unauthenticated. `ANALYTICS_URL=https://
-  umami.wangga.biz.id` on the VPS. Full history restored (source DB also
-  froze 2026-09-21, so nothing was lost in the cutover).
+  ${UMAMI_BA_HASH}` (VPS `~/ws/.env`; `$` doubled in the hash) on **pages
+  only**. A lower-priority `umami-tracker` router keeps `/script.js` and all
+  of `/api/*` outside BasicAuth — the tracker must be anonymous, and the SPA
+  sends `Authorization: Bearer <token>` on every API call, which cannot
+  share the header with BasicAuth (BasicAuth-gating `/api` made the
+  dashboard spin forever after login; `basicauth.removeheader=false` is not
+  a fix — Traefik still has to *read* the Basic credential). API safety =
+  Umami's own token auth + `LOGIN_MAX_FAILED_ATTEMPTS`. `ANALYTICS_URL=
+  https://umami.wangga.biz.id` on the VPS. Full history restored (source DB
+  also froze 2026-09-21, so nothing was lost in the cutover).
