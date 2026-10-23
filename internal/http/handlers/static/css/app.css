@@ -406,7 +406,12 @@ input:focus, select:focus, textarea:focus {
 .drawer-head, .drawer-backdrop, .nav-toggle { display: none; }
 
 @media (min-width: 1024px) {
-  .portal-shell { display: grid; grid-template-columns: var(--side-w, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  .portal-shell { display: grid; grid-template-columns: var(--side-w, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; padding: 0 1.5rem; }
+  /* The public site keeps its 1120px reading width; the portal is a
+     dashboard and should use every pixel right of the sidebar (ultrawide,
+     zoomed-out, and multi-monitor setups included). Shell padding keeps
+     the sidebar aligned with the header and the content off the edge. */
+  .portal-shell > main { width: 100%; max-width: none; margin: 0; }
   /* Floating acrylic card: translucent theme-tinted glass over the page bg.
      Sticky below the sticky header (exact offset refined by JS at load). */
   .portal-side {
@@ -438,6 +443,25 @@ input:focus, select:focus, textarea:focus {
   html[data-side="mini"] .portal-side .portal-tab { justify-content: center; padding-left: 0; border-left-color: transparent; }
   html[data-side="mini"] .portal-side .portal-tab.active { border-left-color: var(--accent-deep); }
   html[data-side="mini"] .side-toggle { margin: 0 auto; }
+}
+
+/* Booking detail is a dashboard of independent cards. Keep card widths
+   stable as the portal grows: add columns instead of stretching a single
+   form across an ultrawide monitor. Audit Log stays below this grid. */
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1500px) {
+  .detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 2200px) {
+  .detail-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1023.98px) {

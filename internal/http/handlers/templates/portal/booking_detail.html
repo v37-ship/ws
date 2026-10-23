@@ -32,8 +32,8 @@
     {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
     {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem; align-items:start;">
-      <!-- Column 1: Booking & Customer Info -->
+    <div class="detail-grid">
+      <!-- Booking & Customer Info -->
       <div class="panel">
         <h2>{{t .Lang "p.det.info"}}</h2>
         <dl class="review">
@@ -53,9 +53,8 @@
         </dl>
       </div>
 
-      <!-- Column 2: Status Transitions & Actions -->
-      <div class="stack">
-        <div class="panel stack">
+      <!-- Status Actions -->
+      <div class="panel stack">
           <h2>{{t .Lang "p.det.act"}}</h2>
           <p class="muted">{{t .Lang "p.det.asub"}}</p>
 
@@ -236,10 +235,8 @@
           {{end}}
         </div>
         {{end}}
-      </div>
-    </div>
 
-    <!-- Reschedule (full width, inline fields) -->
+    <!-- Reschedule -->
     <div class="panel stack">
       <h2>{{t .Lang "p.det.rs"}}</h2>
       <form method="post" action="/portal/bookings/{{.Booking.ID}}/reschedule">
@@ -269,7 +266,6 @@
     </div>
 
     {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem; align-items:start;">
         <div class="panel stack">
           <h2>{{t .Lang "p.det.fix"}}</h2>
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/status" class="stack"
@@ -329,8 +325,8 @@
             </button>
           </form>
         </div>
-    </div>
     {{end}}{{end}}
+    </div>
 
     <!-- Audit Log -->
     <div class="panel stack">

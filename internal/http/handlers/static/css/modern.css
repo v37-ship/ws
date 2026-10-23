@@ -108,6 +108,7 @@ html[data-theme="dark"] option { background: #2a1f30; color: #f8eff5; }
 }
 
 .pick-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.pill-pick { position: relative; }
 .pill-pick input { position: absolute; opacity: 0; pointer-events: none; }
 .pill-pick span {
   display: inline-block; padding: .55rem 1.1rem; border-radius: 9999px;
