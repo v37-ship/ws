@@ -630,8 +630,9 @@ func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
 	status := domain.BookingStatus(r.URL.Query().Get("status"))
 	payment := r.URL.Query().Get("payment")
+	sortBy := normalizeBookingSort(r.URL.Query().Get("sort"))
 	list, err := s.book.ListFiltered(r.Context(), repo.FilterParams{
-		Search: q, Date: date, Status: status, Payment: payment, Limit: 100,
+		Search: q, Date: date, Status: status, Payment: payment, Sort: sortBy, Limit: 100,
 	})
 	if err != nil {
 		http.Error(w, "failed to load bookings", http.StatusInternalServerError)
@@ -643,8 +644,20 @@ func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
 		"Date":     date,
 		"Status":   string(status),
 		"Payment":  payment,
+		"Sort":     sortBy,
 	}
 	s.renderAuto(w, r, "portal_booking_rows.html", "portal_bookings.html", data)
+}
+
+// normalizeBookingSort validates the portal's sort query param. "newest" is
+// the default; unknown values fall back to it rather than reaching SQL.
+func normalizeBookingSort(v string) string {
+	switch v {
+	case "latest", "upcoming", "newest":
+		return v
+	default:
+		return "newest"
+	}
 }
 
 // PortalQueuePartial serves today's live queue rows for HTMX polling.

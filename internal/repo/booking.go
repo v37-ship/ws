@@ -124,6 +124,7 @@ type FilterParams struct {
 	StaffID    uuid.UUID
 	Search     string
 	Payment    string // "unpaid", "claim" or "paid"
+	Sort       string // "newest", "latest" or "upcoming" (empty = appointment asc)
 	Limit      int
 }
 
@@ -182,7 +183,21 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 		sb.WriteString(" AND p.status = 'paid'")
 	}
 
-	sb.WriteString(" ORDER BY b.start_at ASC")
+	switch f.Sort {
+	case "newest":
+		sb.WriteString(" ORDER BY b.created_at DESC, b.id DESC")
+	case "latest":
+		sb.WriteString(" ORDER BY b.start_at DESC, b.id DESC")
+	case "upcoming":
+		sb.WriteString(` ORDER BY
+			(date(b.start_at AT TIME ZONE 'Asia/Jakarta') < (now() AT TIME ZONE 'Asia/Jakarta')::date) ASC,
+			CASE WHEN date(b.start_at AT TIME ZONE 'Asia/Jakarta') >= (now() AT TIME ZONE 'Asia/Jakarta')::date
+				THEN b.start_at END ASC,
+			b.start_at DESC,
+			b.id DESC`)
+	default:
+		sb.WriteString(" ORDER BY b.start_at ASC, b.id ASC")
+	}
 	if f.Limit > 0 {
 		sb.WriteString(fmt.Sprintf(" LIMIT $%d", idx))
 		args = append(args, f.Limit)

@@ -47,8 +47,17 @@
             <option value="paid" {{if eq .Payment "paid"}}selected{{end}}>{{t .Lang "p.bk.paid"}}</option>
           </select>
         </label>
+        <label>{{t .Lang "p.bk.sort"}}
+          <select name="sort"
+            hx-get="/portal/bookings" hx-target="#booking-rows" hx-swap="innerHTML" hx-push-url="true"
+            hx-include="closest form" hx-indicator="#booking-ind">
+            <option value="newest" {{if eq .Sort "newest"}}selected{{end}}>{{t .Lang "p.bk.s.new"}}</option>
+            <option value="latest" {{if eq .Sort "latest"}}selected{{end}}>{{t .Lang "p.bk.s.late"}}</option>
+            <option value="upcoming" {{if eq .Sort "upcoming"}}selected{{end}}>{{t .Lang "p.bk.s.up"}}</option>
+          </select>
+        </label>
         <button type="submit" class="btn" style="height:44px;" hx-disabled-elt="this">{{t .Lang "p.bk.filter"}} <span id="booking-ind" class="htmx-indicator spinner" aria-hidden="true"></span></button>
-        {{if or .Search .Date .Status .Payment}}
+        {{if or .Search .Date .Status .Payment (ne .Sort "newest")}}
           <a href="/portal/bookings" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">{{t .Lang "p.bk.reset"}}</a>
         {{end}}
       </form>
