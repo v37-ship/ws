@@ -53,6 +53,11 @@ services:
       - traefik.http.routers.umami.middlewares=umami-auth
       - traefik.http.routers.umami.priority=200
       - traefik.http.middlewares.umami-auth.basicauth.users=${UMAMI_BA_USER}:${UMAMI_BA_HASH}
+      # Keep the Authorization header intact: Umami's SPA sends its own
+      # `Bearer <token>` on every API call, and Traefik's default is to strip
+      # the header after validating BasicAuth — which made the dashboard
+      # spin forever after login (every API call arrived unauthenticated).
+      - traefik.http.middlewares.umami-auth.basicauth.removeheader=false
 
   app:
     restart: unless-stopped
