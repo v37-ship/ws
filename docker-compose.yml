@@ -39,6 +39,44 @@ services:
       - "8025:8025"
       - "1025:1025"
 
+  # WhatsApp gateway (Evolution API v2.3, Baileys) for local testing. It reuses
+  # the compose Postgres with its own `evolution` database (created by
+  # docker/postgres-init on a fresh volume). The app talks to it at
+  # http://evolution:8080; the manager is on http://localhost:8081.
+  evolution:
+    restart: unless-stopped
+    image: evoapicloud/evolution-api:v2.3.7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: "${WA_API_KEY:-dev-wa-key}"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://spa:spa@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: wangga
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      WEBHOOK_GLOBAL_URL: http://app:8080/webhooks/evolution
+      CONFIG_SESSION_PHONE_CLIENT: Wangga Spa
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+      LANGUAGE: en
+      TELEMETRY_ENABLED: "false"
+      LOG_LEVEL: ERROR
+    ports:
+      - "8081:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+
   app:
     restart: unless-stopped
     build: .
@@ -74,6 +112,13 @@ services:
       CONTACT_FACEBOOK: "https://facebook.com/p/Wangga-Spa-61594094265276"
       ANALYTICS_URL: "${ANALYTICS_URL:-}"
       ANALYTICS_SITE_ID: "${ANALYTICS_SITE_ID:-}"
+      WA_ENABLED: "${WA_ENABLED:-false}"
+      WA_API_URL: "${WA_API_URL:-http://evolution:8080}"
+      WA_API_KEY: "${WA_API_KEY:-dev-wa-key}"
+      WA_INSTANCE: "${WA_INSTANCE:-wangga}"
+      WA_WEBHOOK_SECRET: "${WA_WEBHOOK_SECRET:-dev-webhook-secret}"
+      WA_REMINDER_HOUR: "${WA_REMINDER_HOUR:-18}"
+      WA_SEND_RATE: "${WA_SEND_RATE:-1s}"
     ports:
       - "8088:8080"
     volumes:
@@ -97,3 +142,4 @@ services:
 
 volumes:
   pgdata:
+  evolution_instances:

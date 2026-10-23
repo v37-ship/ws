@@ -39,6 +39,13 @@ type Config struct {
 	ContactFB       string
 	AnalyticsURL    string // Umami base URL, e.g. http://localhost:8030 (empty = tracker off)
 	AnalyticsSiteID string // Umami website ID (empty = tracker off)
+	WAEnabled       bool   // false = render + log messages only (mock mode)
+	WAAPIURL        string // Evolution API base URL
+	WAAPIKey        string // Evolution apikey header
+	WAInstance      string // Evolution instance name
+	WAWebhookSecret string // shared secret for the inbound webhook (phase 2)
+	WAReminderHour  int    // WIB hour of the H-1 appointment reminder
+	WASendRate      time.Duration
 }
 
 func Load() (Config, error) {
@@ -74,12 +81,22 @@ func Load() (Config, error) {
 		ContactFB:       getenv("CONTACT_FACEBOOK", "https://facebook.com/p/Wangga-Spa-61594094265276"),
 		AnalyticsURL:    getenv("ANALYTICS_URL", ""),
 		AnalyticsSiteID: getenv("ANALYTICS_SITE_ID", ""),
+		WAEnabled:       boolEnv("WA_ENABLED", false),
+		WAAPIURL:        getenv("WA_API_URL", "http://evolution:8080"),
+		WAAPIKey:        getenv("WA_API_KEY", ""),
+		WAInstance:      getenv("WA_INSTANCE", "wangga"),
+		WAWebhookSecret: getenv("WA_WEBHOOK_SECRET", ""),
+		WAReminderHour:  intEnv("WA_REMINDER_HOUR", 18),
+		WASendRate:      durationEnv("WA_SEND_RATE", time.Second),
 	}
 	if cfg.DatabaseURL == "" {
 		return cfg, fmt.Errorf("DATABASE_URL is required")
 	}
 	if cfg.SessionSecret == "" {
 		return cfg, fmt.Errorf("SESSION_SECRET is required")
+	}
+	if cfg.WAEnabled && cfg.WAAPIKey == "" {
+		return cfg, fmt.Errorf("WA_API_KEY is required when WA_ENABLED=true")
 	}
 	return cfg, nil
 }
@@ -101,6 +118,18 @@ func intEnv(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func boolEnv(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return b
 }
 
 func durationEnv(key string, fallback time.Duration) time.Duration {

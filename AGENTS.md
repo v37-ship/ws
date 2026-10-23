@@ -17,7 +17,8 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
   validation), `internal/i18n` (EN+ID maps, ~795 keys each), `internal/email`
-  (SMTP sender), `internal/payment` (Midtrans QRIS client).
+  (SMTP sender), `internal/payment` (Midtrans QRIS client),
+  `internal/whatsapp` (Evolution client, phone normalization, message copy).
 - `internal/http/handlers` — `Routes()` + `render`/`renderPartial`/`renderAuto`
   + `templates/` (54 files: layouts 3, pages 11, partials 12, admin 9,
   portal 19) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
@@ -72,6 +73,36 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   (Mailpit `localhost:1025`); with user/pass = PLAIN over STARTTLS (Gmail
   `smtp.gmail.com:587` App Password). From `halo@wangga.biz.id`; inbound via
   Cloudflare Email Routing to Gmail.
+
+## WhatsApp (Evolution API)
+
+- Self-hosted `evolution` service (`evoapicloud/evolution-api:v2.3.7`,
+  Baileys) on the **default compose network only**: no Traefik labels, no
+  public port. The VPS loopback `127.0.0.1:8081` exists for QR pairing over an
+  SSH tunnel. Own Postgres DB `evolution` (init script for fresh clusters +
+  one-time `CREATE DATABASE` on an existing volume); Baileys auth state lives
+  in the `evolution_instances` volume.
+- App side: `internal/whatsapp` (client: `SendText`/`ConnectionState`/
+  `SetWebhook`; `NormalizePhone` → `628…`; `Render` template registry),
+  `internal/repo/wa.go` (outbox), `internal/service/wa.go` (15s worker,
+  `FOR UPDATE SKIP LOCKED`, 4xx = permanent failure, 5xx/timeout backoff
+  `1m/5m/15m/1h/6h`, ≤10 per batch, `WA_SEND_RATE` pacing). **Enqueue only** —
+  never send inline from an HTTP handler or webhook path.
+- Env: `WA_ENABLED` (false = mock: render + log + mark sent, so dev/CI and an
+  unpaired box keep working), `WA_API_URL` (`http://evolution:8080`),
+  `WA_API_KEY` (Evolution `AUTHENTICATION_API_KEY`), `WA_INSTANCE`,
+  `WA_WEBHOOK_SECRET`, `WA_REMINDER_HOUR=18` (WIB), `WA_SEND_RATE=1s`.
+- Pairing: `ssh -L 8081:127.0.0.1:8081 vps`, then `POST
+  /instance/create` (or `/instance/connect/wangga`), render the QR and scan it
+  from the dedicated phone. The phone is a linked device: keep it online
+  (WhatsApp Web rules) and warm the number up slowly.
+- Phases: 0 plumbing (done) · 1 transactional outbound (paid/cancel/
+  reschedule/expire/H-1 reminder/review) · 2 inbound webhook +
+  `/portal/inbox` · 3 automation/campaigns. Evolution is **unofficial** (ban
+  risk): transactional only, opt-in for marketing, keep `wa.me` + email as
+  fallbacks.
+- Backups include the `evolution` DB dump and the `evolution_instances`
+  volume; `deploy-vps.sh` prints the instance state but never fails on it.
 
 ## i18n — hard rules
 

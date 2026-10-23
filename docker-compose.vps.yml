@@ -74,6 +74,48 @@ services:
       - traefik.http.routers.umami-apex.middlewares=umami-strip
       - traefik.http.middlewares.umami-strip.stripprefix.prefixes=/_u
 
+  # WhatsApp gateway (Evolution API v2.3, Baileys). Internal-only: no Traefik
+  # labels, the app reaches it at http://evolution:8080. The loopback port is
+  # for QR pairing/debug over an SSH tunnel — never publish it publicly.
+  # Reuses the compose Postgres with its own `evolution` database (created by
+  # docker/postgres-init on a fresh cluster, or manually on an existing one).
+  evolution:
+    restart: unless-stopped
+    image: evoapicloud/evolution-api:v2.3.7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: "${WA_API_KEY:-}"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://spa:spa@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: wangga
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      # Inbound webhook is configured in phase 2 via /webhook/set (so the
+      # shared-secret header is attached); the env-level global webhook stays
+      # off until the handler exists.
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      WEBHOOK_GLOBAL_URL: http://app:8080/webhooks/evolution
+      CONFIG_SESSION_PHONE_CLIENT: Wangga Spa
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+      LANGUAGE: en
+      TELEMETRY_ENABLED: "false"
+      LOG_LEVEL: ERROR
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+
   app:
     restart: unless-stopped
     build: .
@@ -107,6 +149,15 @@ services:
       CONTACT_FACEBOOK: "https://facebook.com/p/Wangga-Spa-61594094265276"
       ANALYTICS_URL: "${ANALYTICS_URL:-http://umami:3000}"
       ANALYTICS_SITE_ID: "${ANALYTICS_SITE_ID:-}"
+      # WhatsApp outbound (see internal/service/wa.go). Mock mode until a
+      # number is paired: messages are rendered + logged, never sent.
+      WA_ENABLED: "${WA_ENABLED:-false}"
+      WA_API_URL: "${WA_API_URL:-http://evolution:8080}"
+      WA_API_KEY: "${WA_API_KEY:-}"
+      WA_INSTANCE: "${WA_INSTANCE:-wangga}"
+      WA_WEBHOOK_SECRET: "${WA_WEBHOOK_SECRET:-}"
+      WA_REMINDER_HOUR: "${WA_REMINDER_HOUR:-18}"
+      WA_SEND_RATE: "${WA_SEND_RATE:-1s}"
     ports:
       - "127.0.0.1:8088:8080"
     networks:
@@ -133,3 +184,4 @@ networks:
 
 volumes:
   pgdata:
+  evolution_instances:

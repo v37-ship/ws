@@ -17,6 +17,8 @@ for i in $(seq 1 60); do
   if ssh "$HOST" 'curl -fsS http://127.0.0.1:8088/healthz >/dev/null 2>&1'; then
     echo "==> healthy after ${i}0s-ish (attempt $i)"
     ssh "$HOST" 'curl -fsS http://127.0.0.1:8088/readyz >/dev/null && echo readyz OK'
+    echo "==> whatsapp instance state"
+    ssh "$HOST" 'cd ~/ws && if docker compose -f docker-compose.vps.yml ps --services --filter status=running | grep -qx evolution; then key=$(sed -n "s/^WA_API_KEY=//p" .env); state=$(curl -fsS -H "apikey: $key" http://127.0.0.1:8081/instance/connectionState/wangga 2>/dev/null | sed -n "s/.*\"state\":\"\([a-z]*\)\".*/\1/p"); echo "whatsapp: ${state:-unpaired-or-offline}"; fi' || true
     echo "DEPLOY OK -> https://wangga.biz.id"
     exit 0
   fi

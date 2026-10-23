@@ -17,6 +17,7 @@ import (
 	"spa-booking/internal/payment"
 	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
+	"spa-booking/internal/whatsapp"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -53,6 +54,7 @@ func main() {
 	foods := repo.NewFoodRepo(pool)
 	heroes := repo.NewHeroRepo(pool)
 	gallery := repo.NewGalleryRepo(pool)
+	waOutbox := repo.NewWaRepo(pool)
 
 	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
 	catalogSvc := service.NewCatalogService(catalogRepo)
@@ -67,6 +69,13 @@ func main() {
 	heroSvc := service.NewHeroService(heroes)
 	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
+	waSvc := service.NewWaService(waOutbox, whatsapp.NewClient(cfg.WAAPIURL, cfg.WAAPIKey, cfg.WAInstance), log, cfg.WAEnabled, cfg.WASendRate)
+	waSvc.RecoverSending(ctx)
+	if cfg.WAEnabled {
+		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL)
+	} else {
+		log.Info("whatsapp outbound in mock mode (WA_ENABLED=false)")
+	}
 
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
 		log.Error("upload dir", "err", err)
@@ -113,6 +122,14 @@ func main() {
 				log.Warn("expire holds", "err", err)
 			}
 			_ = sessions.DeleteExpired(context.Background())
+		}
+	}()
+
+	go func() {
+		t := time.NewTicker(15 * time.Second)
+		defer t.Stop()
+		for range t.C {
+			waSvc.Drain(context.Background())
 		}
 	}()
 

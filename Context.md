@@ -40,7 +40,7 @@ token-aware `?t=` for guests), portal queue `GET /portal/queue`
 (`every 30s`), portal bookings rows via `HX-Request` (debounced live search
 + `hx-push-url`, search input `name="q"`).
 
-## Database (`internal/db/migrations`, 001–018, Goose)
+## Database (`internal/db/migrations`, 001–019, Goose)
 
 | # | Area |
 |---|------|
@@ -59,6 +59,7 @@ token-aware `?t=` for guests), portal queue `GET /portal/queue`
 | 016 | guest bookings (nullable `customer_id`, guest fields, `access_token`) |
 | 017 | `hero_banners` |
 | 018 | `gallery_items` (photo/video kinds, optional service link) |
+| 019 | WhatsApp plumbing: `wa_outbox` (dedupe key + retry state), `wa_conversations`, `wa_messages`, `users.wa_marketing_opt_in`/`wa_opted_out_at` |
 
 Seeds (seed-if-empty on boot): `EnsureAdmin` (from `ADMIN_EMAIL`/
 `ADMIN_PASSWORD`), `SeedDemo` (branch "Wangga Kayu Putih" + services +
@@ -125,6 +126,12 @@ like hero banners).
   revenue (gross/refunds/net, QRIS-vs-cash, by service/staff, month +
   location filters, print stylesheet). Paid payments group by `paid_at`
   month; refunds deduct in the recorded month; voided refunds excluded.
+- **WhatsApp (phase 0, plumbing only)** — Evolution API v2.3 container
+  (internal-only, `http://evolution:8080`); app-side outbox worker drains
+  `wa_outbox` every 15s (`internal/service/wa.go`, claim with
+  `FOR UPDATE SKIP LOCKED`), retries 5xx with backoff (1m/5m/15m/1h/6h) and
+  fails 4xx permanently. `WA_ENABLED=false` = mock mode (render + log, mark
+  sent). No booking hooks or inbound webhook yet — phase 1/2.
 
 ## Auth model
 

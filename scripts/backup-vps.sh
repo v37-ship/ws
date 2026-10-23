@@ -17,8 +17,19 @@ STAMP="$(date +%Y%m%d-%H%M)"
 "${COMPOSE[@]}" exec -T postgres pg_dump -U spa umami | gzip > "$DEST/umami-$STAMP.sql.gz"
 tar -czf "$DEST/uploads-$STAMP.tar.gz" -C "$HOME/ws" uploads
 
-# Keep the newest KEEP of each of the three prefixes; drop older ones.
-for pre in spa umami uploads; do
+# Evolution API (WhatsApp): its own database plus the Baileys auth volume.
+# Guarded so backups still work on a box that has not enabled WhatsApp yet.
+if "${COMPOSE[@]}" exec -T postgres psql -U spa -d spa -tAc "SELECT 1 FROM pg_database WHERE datname='evolution'" | grep -qx 1; then
+  "${COMPOSE[@]}" exec -T postgres pg_dump -U spa evolution | gzip > "$DEST/evolution-$STAMP.sql.gz"
+fi
+VOL="$(basename "${HOME}/ws")_evolution_instances"
+if docker volume inspect "$VOL" >/dev/null 2>&1; then
+  docker run --rm -v "$VOL":/data:ro -v "$DEST":/backup alpine \
+    tar -czf "/backup/evolution-instances-$STAMP.tar.gz" -C /data .
+fi
+
+# Keep the newest KEEP of each prefix; drop older ones.
+for pre in spa umami evolution evolution-instances uploads; do
   ls -1t "$DEST/${pre}-"* 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f --
 done
 printf 'backup %s ok (%s)\n' "$STAMP" "$(du -sh "$DEST" | cut -f1)"
