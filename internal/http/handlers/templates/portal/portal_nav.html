@@ -43,6 +43,7 @@
       <div class="portal-group">
         <div class="portal-group-title">{{t .Lang "p.nav.g_adm"}}</div>
         {{template "portal_link" dict "Href" "/admin/cs" "Active" (eq .Active "admin_cs") "Label" (t .Lang "p.nav.cs") "Icon" "crown"}}
+        {{template "portal_link" dict "Href" "/admin/payments" "Active" (eq .Active "admin_payments") "Label" (t .Lang "p.nav.pay") "Icon" "qris"}}
         {{template "portal_link" dict "Href" "/admin" "Active" (eq .Active "admin") "Label" (t .Lang "p.nav.adm") "Icon" "shield"}}
       </div>
       {{end}}

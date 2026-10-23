@@ -1,10 +1,20 @@
 {{define "pay_status.html"}}
-{{if eq (printf "%s" .Booking.Status) "confirmed"}}
-  <p class="ok">{{t .Lang "pay.ok"}}</p>
-  <a class="btn" href="/bookings">{{t .Lang "pay.view"}}</a>
-{{else if eq (printf "%s" .Booking.Status) "pending_payment"}}
-  <p class="muted">{{t .Lang "pay.wait"}}</p>
+{{if .Payment}}
+  {{if eq (printf "%s" .Payment.Status) "paid"}}
+    <p class="ok">{{t .Lang "pay.ok"}}</p>
+    <a class="btn" href="/bookings">{{t .Lang "pay.view"}}</a>
+  {{else if .Payment.CustomerReportedAt}}
+    <p class="muted">{{t .Lang "pay.qr.wait"}}</p>
+  {{else if eq (printf "%s" .Booking.Status) "cancelled"}}
+    <p class="error">{{t .Lang "pay.status"}} {{.Booking.Status}}</p>
+  {{else if eq (printf "%s" .Booking.Status) "expired"}}
+    <p class="error">{{t .Lang "pay.status"}} {{.Booking.Status}}</p>
+  {{else if .Manual}}
+    <p class="muted">{{t .Lang "pay.qr.due"}}</p>
+  {{else}}
+    <p class="muted">{{t .Lang "pay.wait"}}</p>
+  {{end}}
 {{else}}
-  <p class="error">{{t .Lang "pay.status"}} {{.Booking.Status}}</p>
+  <p class="muted">{{t .Lang "pay.wait"}}</p>
 {{end}}
 {{end}}

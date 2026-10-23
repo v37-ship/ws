@@ -43,6 +43,14 @@
         <div class="num" style="color:#16a34a;">{{.Stats.Completed}}</div>
         <div class="label">{{t .Lang "p.dash.done"}}</div>
       </div>
+      <a class="stat-card" href="/portal/bookings?payment=unpaid" style="text-decoration:none; color:inherit;">
+        <div class="num" style="color:#dc2626;">{{.Stats.Unpaid}}</div>
+        <div class="label">{{t .Lang "p.dash.unpaid"}}</div>
+      </a>
+      <a class="stat-card" href="/portal/bookings?payment=claim" style="text-decoration:none; color:inherit;">
+        <div class="num" style="color:#7c3aed;">{{.Stats.Claims}}</div>
+        <div class="label">{{t .Lang "p.dash.claim"}}</div>
+      </a>
     </div>
 
     <div class="panel stack">

@@ -1,0 +1,48 @@
+{{define "admin_payments.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "a.pay.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack" style="max-width:720px; margin:0 auto;">
+    <div>
+      <a href="/admin" class="muted">&larr; {{t .Lang "a.home.title"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{icon "qris"}} {{t .Lang "a.pay.title"}}</h1>
+      <p class="muted">{{t .Lang "a.pay.sub"}}</p>
+    </div>
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.pay.cur"}}</h2>
+      <p class="muted">{{if .Uploaded}}{{t .Lang "a.pay.up"}}{{else}}{{t .Lang "a.pay.def"}}{{end}}</p>
+      <img src="{{.QRISImage}}" alt="QRIS Wangga" style="width:100%; max-width:340px; border-radius:1rem; background:#fff; padding:.5rem;">
+      <p class="muted">{{t .Lang "a.pay.hint"}}</p>
+    </div>
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.pay.up"}}</h2>
+      <form method="post" action="/admin/payments/qris" enctype="multipart/form-data" class="stack">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label>{{t .Lang "a.pay.file"}}
+          <input type="file" name="qris" accept=".jpg,.jpeg,.png,.webp" required>
+        </label>
+        <button class="btn" type="submit">{{icon "image"}} {{t .Lang "a.pay.up"}}</button>
+      </form>
+      {{if .Uploaded}}
+      <form method="post" action="/admin/payments/qris/reset" onsubmit="return confirm('{{t .Lang "a.pay.reset"}}?')">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button class="btn secondary on-light" type="submit">{{t .Lang "a.pay.reset"}}</button>
+      </form>
+      {{end}}
+    </div>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

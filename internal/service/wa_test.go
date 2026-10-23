@@ -53,6 +53,10 @@ func (f *fakeWaStore) MarkFailed(_ context.Context, id uuid.UUID, errMsg string)
 
 func (f *fakeWaStore) RequeueSending(context.Context) (int64, error) { return 0, nil }
 
+func (f *fakeWaStore) Enqueue(context.Context, string, string, map[string]any, *uuid.UUID, string, time.Time) (bool, error) {
+	return true, nil
+}
+
 type sendCall struct{ phone, text string }
 
 type fakeSender struct {

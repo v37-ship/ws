@@ -387,16 +387,31 @@ func (s *Server) PayPage(w http.ResponseWriter, r *http.Request) {
 	if token != "" {
 		payLink = s.cfg.BaseURL + "/bookings/" + id.String() + "/pay?t=" + token
 	}
-	data := pageData{
-		"Booking":  b,
-		"Payment":  p,
-		"Token":    token,
-		"PayLink":  payLink,
-		"MockMode": s.cfg.MidtransServer == "",
+	manual := s.cfg.PaymentMode == "qris_manual"
+	qrisImage := "/static/img/qris-wangga.jpeg?v=" + staticVersion
+	if s.paySettings != nil {
+		if set, err := s.paySettings.Get(r.Context()); err == nil && set.QRISImagePath != "" {
+			qrisImage = "/uploads/" + set.QRISImagePath
+		}
 	}
-	if p != nil && strings.HasPrefix(p.QRString, "http") {
+	data := pageData{
+		"Booking":   b,
+		"Payment":   p,
+		"Token":     token,
+		"PayLink":   payLink,
+		"Manual":    manual,
+		"QRISImage": qrisImage,
+		"MockMode":  !manual && s.cfg.MidtransServer == "",
+		"Success":   r.URL.Query().Get("success"),
+		"Error":     r.URL.Query().Get("error"),
+	}
+	if p != nil {
+		data["Claimed"] = p.CustomerReportedAt != nil
+		data["Receipt"] = p.ReceiptPath != ""
+	}
+	if !manual && p != nil && strings.HasPrefix(p.QRString, "http") {
 		data["QRImageURL"] = p.QRString
-	} else if p != nil && p.QRString != "" {
+	} else if !manual && p != nil && p.QRString != "" {
 		data["QRImageURL"] = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + url.QueryEscape(p.QRString)
 	}
 	s.render(w, r, "pay.html", data)
@@ -412,7 +427,8 @@ func (s *Server) BookingStatusPartial(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.renderPartial(w, r, "pay_status.html", pageData{"Booking": b})
+	p, _ := s.book.GetPaymentForBooking(r.Context(), id)
+	s.renderPartial(w, r, "pay_status.html", pageData{"Booking": b, "Payment": p, "Manual": s.cfg.PaymentMode == "qris_manual"})
 }
 
 func (s *Server) CancelBooking(w http.ResponseWriter, r *http.Request) {
@@ -452,7 +468,7 @@ func (s *Server) CancelBooking(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) MockPay(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	if !s.requireCSRF(r) || s.cfg.MidtransServer != "" {
+	if !s.requireCSRF(r) || s.cfg.PaymentMode != "midtrans" || s.cfg.MidtransServer != "" {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
@@ -482,6 +498,13 @@ func (s *Server) MockPay(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) MidtransWebhook(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.PaymentMode != "midtrans" {
+		// Manual QRIS mode: nothing charges through Midtrans. Accept and
+		// ignore so a stale endpoint never turns into a retry storm.
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ignored"))
+		return
+	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		http.Error(w, "bad body", http.StatusBadRequest)
@@ -538,6 +561,8 @@ type PortalStats struct {
 	CheckedIn  int
 	InService  int
 	Completed  int
+	Unpaid     int
+	Claims     int
 }
 
 type locationServices struct {
@@ -590,6 +615,9 @@ func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
 			stats.Completed++
 		}
 	}
+	unpaid, claims, _ := s.book.PaymentCounts(r.Context())
+	stats.Unpaid = unpaid
+	stats.Claims = claims
 	s.render(w, r, "portal_dashboard.html", pageData{
 		"TodayStr":      i18n.DateLong(i18n.Resolve(r), nowWIB),
 		"TodayBookings": bookings,
@@ -601,8 +629,9 @@ func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	date := r.URL.Query().Get("date")
 	status := domain.BookingStatus(r.URL.Query().Get("status"))
+	payment := r.URL.Query().Get("payment")
 	list, err := s.book.ListFiltered(r.Context(), repo.FilterParams{
-		Search: q, Date: date, Status: status, Limit: 100,
+		Search: q, Date: date, Status: status, Payment: payment, Limit: 100,
 	})
 	if err != nil {
 		http.Error(w, "failed to load bookings", http.StatusInternalServerError)
@@ -613,6 +642,7 @@ func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
 		"Search":   q,
 		"Date":     date,
 		"Status":   string(status),
+		"Payment":  payment,
 	}
 	s.renderAuto(w, r, "portal_booking_rows.html", "portal_bookings.html", data)
 }
@@ -762,6 +792,15 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 	if pay != nil && pay.Status == domain.PaymentPaid {
 		refundable = pay.AmountIDR - refundedTotal
 	}
+	msgs, _ := s.waOutbox.ListByBooking(r.Context(), b.ID, 6)
+	waPhone := b.CustomerPhone
+	if b.IsGuest() {
+		waPhone = b.GuestPhone
+	}
+	receiptURL := ""
+	if pay != nil && pay.ReceiptPath != "" {
+		receiptURL = "/portal/bookings/" + b.ID.String() + "/receipt"
+	}
 	s.render(w, r, "portal_booking_detail.html", pageData{
 		"Booking":   b,
 		"StaffList": staffList,
@@ -779,6 +818,12 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		"GuestLink":     s.cfg.BaseURL + "/bookings/" + b.ID.String() + "/pay?t=" + b.TokenParam(),
 		"Success":       r.URL.Query().Get("success"),
 		"Error":         r.URL.Query().Get("error"),
+		"WAMessages":    msgs,
+		"WAEnabled":     s.cfg.WAEnabled,
+		"WACustomer":    s.cfg.WACustomer,
+		"WAPhone":       waPhone,
+		"WaManual":      s.book.ManualPayments(),
+		"ReceiptURL":    receiptURL,
 	})
 }
 

@@ -39,10 +39,13 @@ type Config struct {
 	ContactFB       string
 	AnalyticsURL    string // Umami base URL, e.g. http://localhost:8030 (empty = tracker off)
 	AnalyticsSiteID string // Umami website ID (empty = tracker off)
+	PaymentMode     string // "qris_manual" (default) or "midtrans"
 	WAEnabled       bool   // false = render + log messages only (mock mode)
+	WACustomer      bool   // false = automatic customer messages are not queued (staff alerts still go)
 	WAAPIURL        string // Evolution API base URL
 	WAAPIKey        string // Evolution apikey header
 	WAInstance      string // Evolution instance name
+	WAStaffGroup    string // Evolution group JID for staff alerts (e.g. 1203...@g.us)
 	WAWebhookSecret string // shared secret for the inbound webhook (phase 2)
 	WAReminderHour  int    // WIB hour of the H-1 appointment reminder
 	WASendRate      time.Duration
@@ -82,10 +85,13 @@ func Load() (Config, error) {
 		ContactFB:       getenv("CONTACT_FACEBOOK", "https://facebook.com/p/Wangga-Spa-61594094265276"),
 		AnalyticsURL:    getenv("ANALYTICS_URL", ""),
 		AnalyticsSiteID: getenv("ANALYTICS_SITE_ID", ""),
+		PaymentMode:     getenv("PAYMENT_MODE", "qris_manual"),
 		WAEnabled:       boolEnv("WA_ENABLED", false),
+		WACustomer:      boolEnv("WA_CUSTOMER_ENABLED", false),
 		WAAPIURL:        getenv("WA_API_URL", "http://evolution:8080"),
 		WAAPIKey:        getenv("WA_API_KEY", ""),
 		WAInstance:      getenv("WA_INSTANCE", "wangga"),
+		WAStaffGroup:    getenv("WA_STAFF_GROUP_JID", ""),
 		WAWebhookSecret: getenv("WA_WEBHOOK_SECRET", ""),
 		WAReminderHour:  intEnv("WA_REMINDER_HOUR", 18),
 		WASendRate:      durationEnv("WA_SEND_RATE", time.Second),
@@ -96,6 +102,9 @@ func Load() (Config, error) {
 	}
 	if cfg.SessionSecret == "" {
 		return cfg, fmt.Errorf("SESSION_SECRET is required")
+	}
+	if cfg.PaymentMode != "qris_manual" && cfg.PaymentMode != "midtrans" {
+		return cfg, fmt.Errorf("PAYMENT_MODE must be qris_manual or midtrans")
 	}
 	if cfg.WAEnabled && cfg.WAAPIKey == "" {
 		return cfg, fmt.Errorf("WA_API_KEY is required when WA_ENABLED=true")

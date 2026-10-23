@@ -123,6 +123,7 @@ type FilterParams struct {
 	LocationID uuid.UUID
 	StaffID    uuid.UUID
 	Search     string
+	Payment    string // "unpaid", "claim" or "paid"
 	Limit      int
 }
 
@@ -171,6 +172,14 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 		sb.WriteString(fmt.Sprintf(" AND (lower(u.full_name) LIKE $%d OR u.phone LIKE $%d OR lower(u.email) LIKE $%d OR lower(u.baby_name) LIKE $%d OR lower(b.guest_name) LIKE $%d OR b.guest_phone LIKE $%d)", idx, idx, idx, idx, idx, idx))
 		args = append(args, like)
 		idx++
+	}
+	switch f.Payment {
+	case "unpaid":
+		sb.WriteString(" AND p.status = 'pending' AND b.status IN ('confirmed','checked_in','in_service','completed')")
+	case "claim":
+		sb.WriteString(" AND p.status = 'pending' AND p.customer_reported_at IS NOT NULL AND b.status IN ('confirmed','checked_in','in_service','completed')")
+	case "paid":
+		sb.WriteString(" AND p.status = 'paid'")
 	}
 
 	sb.WriteString(" ORDER BY b.start_at ASC")
@@ -382,12 +391,13 @@ func (r *PaymentRepo) CreateCashPayment(ctx context.Context, p *domain.Payment) 
 }
 
 func (r *PaymentRepo) ByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
-	const q = `SELECT id, booking_id, order_id, amount_idr, status, payment_method, payment_purpose, qr_string, midtrans_trans_id, raw_notification, created_at, updated_at, paid_at
+	const q = `SELECT id, booking_id, order_id, amount_idr, status, payment_method, payment_purpose, qr_string, midtrans_trans_id, raw_notification, reference, review_note, receipt_path, customer_reported_at, verified_at, verified_by, created_at, updated_at, paid_at
 		FROM payments WHERE order_id=$1`
 	var p domain.Payment
 	err := r.pool.QueryRow(ctx, q, orderID).Scan(
 		&p.ID, &p.BookingID, &p.OrderID, &p.AmountIDR, &p.Status,
 		&p.PaymentMethod, &p.PaymentPurpose, &p.QRString, &p.MidtransTransID, &p.RawNotification,
+		&p.Reference, &p.ReviewNote, &p.ReceiptPath, &p.CustomerReportedAt, &p.VerifiedAt, &p.VerifiedBy,
 		&p.CreatedAt, &p.UpdatedAt, &p.PaidAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -400,12 +410,13 @@ func (r *PaymentRepo) ByOrderID(ctx context.Context, orderID string) (*domain.Pa
 }
 
 func (r *PaymentRepo) ByBookingID(ctx context.Context, bookingID uuid.UUID) (*domain.Payment, error) {
-	const q = `SELECT id, booking_id, order_id, amount_idr, status, payment_method, payment_purpose, qr_string, midtrans_trans_id, raw_notification, created_at, updated_at, paid_at
+	const q = `SELECT id, booking_id, order_id, amount_idr, status, payment_method, payment_purpose, qr_string, midtrans_trans_id, raw_notification, reference, review_note, receipt_path, customer_reported_at, verified_at, verified_by, created_at, updated_at, paid_at
 		FROM payments WHERE booking_id=$1`
 	var p domain.Payment
 	err := r.pool.QueryRow(ctx, q, bookingID).Scan(
 		&p.ID, &p.BookingID, &p.OrderID, &p.AmountIDR, &p.Status,
 		&p.PaymentMethod, &p.PaymentPurpose, &p.QRString, &p.MidtransTransID, &p.RawNotification,
+		&p.Reference, &p.ReviewNote, &p.ReceiptPath, &p.CustomerReportedAt, &p.VerifiedAt, &p.VerifiedBy,
 		&p.CreatedAt, &p.UpdatedAt, &p.PaidAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -429,4 +440,57 @@ func (r *PaymentRepo) MarkStatus(ctx context.Context, orderID string, status dom
 	_, err := r.pool.Exec(ctx, `
 		UPDATE payments SET status=$2, raw_notification=$3, updated_at=now() WHERE order_id=$1`, orderID, status, raw)
 	return err
+}
+
+// MarkPaidManual records a staff-verified manual payment (static QRIS or cash
+// at the counter). It returns false when the payment was already settled.
+func (r *PaymentRepo) MarkPaidManual(ctx context.Context, bookingID uuid.UUID, method domain.PaymentMethod, reference, note string, verifiedBy uuid.UUID) (bool, error) {
+	now := time.Now()
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE payments SET status='paid', payment_method=$2, reference=$3, review_note=$4,
+			verified_by=$5, verified_at=$6, paid_at=$6,
+			customer_reported_at=COALESCE(customer_reported_at, $6), updated_at=now()
+		WHERE booking_id=$1 AND status <> 'paid'`,
+		bookingID, method, strings.TrimSpace(reference), strings.TrimSpace(note), verifiedBy, now)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// RequestVerification flags that the customer says they have paid.
+func (r *PaymentRepo) RequestVerification(ctx context.Context, bookingID uuid.UUID) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE payments SET customer_reported_at=now(), updated_at=now()
+		WHERE booking_id=$1 AND status='pending'`, bookingID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ClearVerification drops a paid claim (staff could not match the transfer).
+func (r *PaymentRepo) ClearVerification(ctx context.Context, bookingID uuid.UUID, note string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE payments SET customer_reported_at=NULL, review_note=$2, updated_at=now()
+		WHERE booking_id=$1 AND status='pending'`, bookingID, strings.TrimSpace(note))
+	return err
+}
+
+func (r *PaymentRepo) SetReceipt(ctx context.Context, bookingID uuid.UUID, path string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE payments SET receipt_path=$2, updated_at=now() WHERE booking_id=$1`, bookingID, path)
+	return err
+}
+
+// Counts returns outstanding manual payments and paid claims awaiting review.
+func (r *PaymentRepo) Counts(ctx context.Context) (unpaid, claims int, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT
+			count(*) FILTER (WHERE p.status='pending' AND b.status IN ('confirmed','checked_in','in_service','completed')),
+			count(*) FILTER (WHERE p.status='pending' AND p.customer_reported_at IS NOT NULL AND b.status IN ('confirmed','checked_in','in_service','completed'))
+		FROM payments p
+		JOIN bookings b ON b.id = p.booking_id
+		WHERE p.payment_method IN ('qris_static','qris','cash')`).Scan(&unpaid, &claims)
+	return unpaid, claims, err
 }

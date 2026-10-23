@@ -24,6 +24,8 @@ type WaOutboxItem struct {
 	Attempts    int
 	MaxAttempts int
 	LastError   string
+	Status      string
+	CreatedAt   time.Time
 }
 
 type WaRepo struct{ pool *pgxpool.Pool }
@@ -122,4 +124,30 @@ func (r *WaRepo) RequeueSending(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
+}
+
+// ListByBooking returns the latest outbox rows for a booking (portal history).
+func (r *WaRepo) ListByBooking(ctx context.Context, bookingID uuid.UUID, limit int) ([]WaOutboxItem, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 5
+	}
+	const q = `SELECT id, phone, template_key, payload, booking_id, dedupe_key,
+		scheduled_at, attempts, max_attempts, last_error, status, created_at
+		FROM wa_outbox WHERE booking_id=$1 ORDER BY created_at DESC LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, bookingID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WaOutboxItem
+	for rows.Next() {
+		var it WaOutboxItem
+		if err := rows.Scan(&it.ID, &it.Phone, &it.TemplateKey, &it.Payload, &it.BookingID,
+			&it.DedupeKey, &it.ScheduledAt, &it.Attempts, &it.MaxAttempts, &it.LastError,
+			&it.Status, &it.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
 }

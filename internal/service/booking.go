@@ -34,6 +34,7 @@ type BookingService struct {
 	holdTTL  time.Duration
 	baseURL  string
 	log      *slog.Logger
+	opts     BookingOptions
 }
 
 func NewBookingService(
@@ -48,10 +49,12 @@ func NewBookingService(
 	holdTTL time.Duration,
 	baseURL string,
 	log *slog.Logger,
+	opts BookingOptions,
 ) *BookingService {
 	return &BookingService{
 		bookings: bookings, payments: payments, catalog: catalog, users: users, promos: promos,
 		avail: avail, midtrans: midtrans, mailer: mailer, holdTTL: holdTTL, baseURL: baseURL, log: log,
+		opts: opts,
 	}
 }
 
@@ -104,6 +107,12 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		VisitAddress:  visitAddress,
 		Source:        "web",
 	}
+	if s.ManualPayments() {
+		// Pay-later: the slot is secured now, payment happens online or at
+		// the counter after the service.
+		b.Status = domain.BookingConfirmed
+		b.HoldExpiresAt = nil
+	}
 	if err := s.bookings.Create(ctx, b); err != nil {
 		if isExclusionViolation(err) {
 			return nil, nil, ErrConflict
@@ -119,37 +128,56 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		redeemed = true
 	}
 	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
-	charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
-		OrderID:      orderID,
-		AmountIDR:    b.Net(),
-		CustomerName: customer.FullName,
-		Email:        customer.Email,
-		ItemName:     svc.Name,
-	})
-	if err != nil {
-		if redeemed {
-			_ = s.promos.Unredeem(ctx, quote.Code)
+	var p *domain.Payment
+	if s.ManualPayments() {
+		p = &domain.Payment{
+			BookingID:      b.ID,
+			OrderID:        orderID,
+			AmountIDR:      b.Net(),
+			Status:         domain.PaymentPending,
+			PaymentMethod:  domain.PaymentMethodQRISStatic,
+			PaymentPurpose: domain.PaymentPurposeFull,
 		}
-		_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
-		return nil, nil, fmt.Errorf("qris charge: %w", err)
+		if err := s.payments.Create(ctx, p); err != nil {
+			return nil, nil, err
+		}
+		_ = s.bookings.LogActivity(ctx, b.ID, &customerID, "Booking created online (manual QRIS pending)", notes)
+	} else {
+		charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
+			OrderID:      orderID,
+			AmountIDR:    b.Net(),
+			CustomerName: customer.FullName,
+			Email:        customer.Email,
+			ItemName:     svc.Name,
+		})
+		if err != nil {
+			if redeemed {
+				_ = s.promos.Unredeem(ctx, quote.Code)
+			}
+			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+			return nil, nil, fmt.Errorf("qris charge: %w", err)
+		}
+		p = &domain.Payment{
+			BookingID:       b.ID,
+			OrderID:         orderID,
+			AmountIDR:       b.Net(),
+			Status:          domain.PaymentPending,
+			PaymentMethod:   domain.PaymentMethodQRIS,
+			PaymentPurpose:  domain.PaymentPurposeFull,
+			QRString:        charge.QRString,
+			MidtransTransID: charge.TransactionID,
+		}
+		if err := s.payments.Create(ctx, p); err != nil {
+			return nil, nil, err
+		}
+		_ = s.bookings.LogActivity(ctx, b.ID, &customerID, "Booking created online (QRIS pending)", notes)
 	}
-	p := &domain.Payment{
-		BookingID:       b.ID,
-		OrderID:         orderID,
-		AmountIDR:       b.Net(),
-		Status:          domain.PaymentPending,
-		PaymentMethod:   domain.PaymentMethodQRIS,
-		PaymentPurpose:  domain.PaymentPurposeFull,
-		QRString:        charge.QRString,
-		MidtransTransID: charge.TransactionID,
-	}
-	if err := s.payments.Create(ctx, p); err != nil {
-		return nil, nil, err
-	}
-	_ = s.bookings.LogActivity(ctx, b.ID, &customerID, "Booking created online (QRIS pending)", notes)
 	full, _ := s.bookings.ByID(ctx, b.ID)
 	if full != nil {
 		b = full
+	}
+	if s.ManualPayments() {
+		s.notifyBooking(ctx, b, p, customer.FullName, customer.Phone)
 	}
 	return b, p, nil
 }
@@ -257,6 +285,9 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	orderID := fmt.Sprintf("STAFF-%s", strings.ReplaceAll(uuid.New().String(), "-", "")[:14])
 	var p *domain.Payment
 
+	if req.PaymentMethod == domain.PaymentMethodCash && req.PaymentPurpose == domain.PaymentPurposeBookingFee {
+		return nil, nil, fmt.Errorf("%w: cash cannot be used for a booking fee", ErrValidation)
+	}
 	if req.PaymentMethod == domain.PaymentMethodCash {
 		// Cash paid on-site for services: confirmed immediately
 		b.Status = domain.BookingConfirmed
@@ -285,6 +316,33 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &req.ActorID, "Booking created by CS (Cash Payment - Services)", req.Notes)
+	} else if s.ManualPayments() {
+		b.Status = domain.BookingConfirmed
+		b.HoldExpiresAt = nil
+		if err := s.bookings.Create(ctx, b); err != nil {
+			if isExclusionViolation(err) {
+				return nil, nil, ErrConflict
+			}
+			return nil, nil, err
+		}
+		if quote.Code != "" {
+			if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
+				_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+				return nil, nil, fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
+			}
+		}
+		p = &domain.Payment{
+			BookingID:      b.ID,
+			OrderID:        orderID,
+			AmountIDR:      b.Net(),
+			Status:         domain.PaymentPending,
+			PaymentMethod:  domain.PaymentMethodQRISStatic,
+			PaymentPurpose: req.PaymentPurpose,
+		}
+		if err := s.payments.Create(ctx, p); err != nil {
+			return nil, nil, err
+		}
+		_ = s.bookings.LogActivity(ctx, b.ID, &req.ActorID, "Booking created by CS (manual QRIS pending)", req.Notes)
 	} else {
 		// QRIS: can pay booking fee or service
 		holdExp := time.Now().Add(s.holdTTL)
@@ -337,6 +395,14 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	full, _ := s.bookings.ByID(ctx, b.ID)
 	if full != nil {
 		b = full
+	}
+	if p != nil {
+		switch {
+		case p.Status == domain.PaymentPaid:
+			s.notifyReceipt(ctx, b, p, customer.FullName, customer.Phone)
+		case s.ManualPayments():
+			s.notifyBooking(ctx, b, p, customer.FullName, customer.Phone)
+		}
 	}
 	return b, p, nil
 }
@@ -731,6 +797,10 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 		VisitAddress:  visitAddress,
 		Source:        "web",
 	}
+	if s.ManualPayments() {
+		b.Status = domain.BookingConfirmed
+		b.HoldExpiresAt = nil
+	}
 	if err := s.bookings.Create(ctx, b); err != nil {
 		if isExclusionViolation(err) {
 			return nil, nil, ErrConflict
@@ -746,42 +816,65 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 		redeemed = true
 	}
 	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
-	charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
-		OrderID:      orderID,
-		AmountIDR:    b.Net(),
-		CustomerName: name,
-		Email:        email,
-		ItemName:     svc.Name,
-	})
-	if err != nil {
-		if redeemed {
-			_ = s.promos.Unredeem(ctx, quote.Code)
+	var p *domain.Payment
+	if s.ManualPayments() {
+		p = &domain.Payment{
+			BookingID:      b.ID,
+			OrderID:        orderID,
+			AmountIDR:      b.Net(),
+			Status:         domain.PaymentPending,
+			PaymentMethod:  domain.PaymentMethodQRISStatic,
+			PaymentPurpose: domain.PaymentPurposeFull,
 		}
-		_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
-		return nil, nil, fmt.Errorf("qris charge: %w", err)
-	}
-	p := &domain.Payment{
-		BookingID:       b.ID,
-		OrderID:         orderID,
-		AmountIDR:       b.Net(),
-		Status:          domain.PaymentPending,
-		PaymentMethod:   domain.PaymentMethodQRIS,
-		PaymentPurpose:  domain.PaymentPurposeFull,
-		QRString:        charge.QRString,
-		MidtransTransID: charge.TransactionID,
-	}
-	if err := s.payments.Create(ctx, p); err != nil {
-		return nil, nil, err
-	}
-	_ = s.bookings.LogActivity(ctx, b.ID, nil, "Guest booking created online (QRIS pending)", req.Notes)
-	if email != "" {
-		_ = s.mailer.Send(email, "Wangga booking received",
-			fmt.Sprintf("Thanks %s! Your Wangga booking for %s is pending payment of Rp %d.\n\nManage: %s/bookings/%s/pay?t=%s\n",
-				name, svc.Name, b.Net(), s.baseURL, b.ID.String(), token))
+		if err := s.payments.Create(ctx, p); err != nil {
+			return nil, nil, err
+		}
+		_ = s.bookings.LogActivity(ctx, b.ID, nil, "Guest booking created online (manual QRIS pending)", req.Notes)
+	} else {
+		charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
+			OrderID:      orderID,
+			AmountIDR:    b.Net(),
+			CustomerName: name,
+			Email:        email,
+			ItemName:     svc.Name,
+		})
+		if err != nil {
+			if redeemed {
+				_ = s.promos.Unredeem(ctx, quote.Code)
+			}
+			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+			return nil, nil, fmt.Errorf("qris charge: %w", err)
+		}
+		p = &domain.Payment{
+			BookingID:       b.ID,
+			OrderID:         orderID,
+			AmountIDR:       b.Net(),
+			Status:          domain.PaymentPending,
+			PaymentMethod:   domain.PaymentMethodQRIS,
+			PaymentPurpose:  domain.PaymentPurposeFull,
+			QRString:        charge.QRString,
+			MidtransTransID: charge.TransactionID,
+		}
+		if err := s.payments.Create(ctx, p); err != nil {
+			return nil, nil, err
+		}
+		_ = s.bookings.LogActivity(ctx, b.ID, nil, "Guest booking created online (QRIS pending)", req.Notes)
 	}
 	full, _ := s.bookings.ByID(ctx, b.ID)
 	if full != nil {
 		b = full
+	}
+	if s.ManualPayments() {
+		if email != "" {
+			_ = s.mailer.Send(email, "Wangga booking confirmed",
+				fmt.Sprintf("Thanks %s! Your Wangga booking for %s is confirmed.\n\nWhen: %s\nAmount: Rp %d\n\nPay online: %s/bookings/%s/pay?t=%s\nOr pay at the counter when you arrive.\n",
+					name, svc.Name, formatWIB(b.StartAt), b.Net(), s.baseURL, b.ID.String(), token))
+		}
+		s.notifyBooking(ctx, b, p, name, phone)
+	} else if email != "" {
+		_ = s.mailer.Send(email, "Wangga booking received",
+			fmt.Sprintf("Thanks %s! Your Wangga booking for %s is pending payment of Rp %d.\n\nManage: %s/bookings/%s/pay?t=%s\n",
+				name, svc.Name, b.Net(), s.baseURL, b.ID.String(), token))
 	}
 	return b, p, nil
 }

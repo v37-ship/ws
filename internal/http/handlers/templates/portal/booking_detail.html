@@ -96,6 +96,106 @@
             </div>
           </form>
         </div>
+
+        {{if .Payment}}
+        <div class="panel stack">
+          <h2>{{icon "cash"}} {{t .Lang "p.pay.title"}}</h2>
+          <dl class="review">
+            <div><dt>{{t .Lang "p.pay.am"}}</dt><dd><strong>{{formatIDR .Payment.AmountIDR}}</strong></dd></div>
+            <div><dt>{{t .Lang "p.pay.st"}}</dt><dd><span class="badge {{.Payment.Status}}">{{.Payment.Status}}</span> · {{if eq (printf "%s" .Payment.PaymentMethod) "cash"}}{{t .Lang "p.pay.cash"}}{{else}}{{t .Lang "p.pay.qris"}}{{end}}</dd></div>
+            {{if .Payment.CustomerReportedAt}}<div><dt>{{t .Lang "p.pay.claim"}}</dt><dd>{{t .Lang "p.pay.at"}} {{formatTime .Payment.CustomerReportedAt "02 Jan 15:04"}}</dd></div>{{end}}
+            {{if .Payment.Reference}}<div><dt>{{t .Lang "p.pay.ref"}}</dt><dd>{{.Payment.Reference}}</dd></div>{{end}}
+            {{if .Payment.ReviewNote}}<div><dt>{{t .Lang "p.pay.note"}}</dt><dd>{{.Payment.ReviewNote}}</dd></div>{{end}}
+            {{if .ReceiptURL}}<div><dt>{{t .Lang "p.pay.rcpt"}}</dt><dd><a href="{{.ReceiptURL}}" target="_blank" rel="noopener">{{icon "image"}} {{t .Lang "p.pay.view"}}</a></dd></div>{{end}}
+          </dl>
+
+          {{if and .WaManual (ne (printf "%s" .Payment.Status) "paid") (or (eq (printf "%s" .Booking.Status) "confirmed") (eq (printf "%s" .Booking.Status) "checked_in") (eq (printf "%s" .Booking.Status) "in_service") (eq (printf "%s" .Booking.Status) "completed") (eq (printf "%s" .Booking.Status) "pending_payment"))}}
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/payment/confirm" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/payment/confirm" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <label>{{t .Lang "p.pay.method"}}
+              <select name="method">
+                <option value="qris_static">{{t .Lang "p.pay.qris"}}</option>
+                <option value="cash">{{t .Lang "p.pay.cash"}}</option>
+              </select>
+            </label>
+            <label>{{t .Lang "p.pay.ref"}}
+              <input type="text" name="reference" autocomplete="off">
+            </label>
+            <label>{{t .Lang "p.pay.note"}}
+              <input type="text" name="note" autocomplete="off">
+            </label>
+            <button class="btn" type="submit" hx-disabled-elt="this">{{icon "check-circle"}} {{t .Lang "p.pay.paid"}}</button>
+          </form>
+          {{if .Payment.CustomerReportedAt}}
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/payment/reject" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/payment/reject" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <label>{{t .Lang "p.pay.note"}}
+              <input type="text" name="note" autocomplete="off">
+            </label>
+            <button class="btn secondary on-light" type="submit" style="color:var(--danger);" hx-disabled-elt="this">{{icon "x-circle"}} {{t .Lang "p.pay.reject"}}</button>
+          </form>
+          {{end}}
+          {{end}}
+
+          {{if .WaManual}}
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/receipt" enctype="multipart/form-data" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/receipt" hx-encoding="multipart/form-data" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <label>{{t .Lang "p.pay.upload"}}
+              <input type="file" name="receipt" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
+            </label>
+            <button class="btn secondary on-light btn-sm" type="submit" hx-disabled-elt="this">{{t .Lang "p.pay.upload"}}</button>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
+
+        <div class="panel stack">
+          <h2>{{icon "chat"}} {{t .Lang "p.pay.wa"}}</h2>
+          <small class="muted">
+            {{t .Lang "p.pay.mode"}}: {{if .WAEnabled}}{{t .Lang "p.pay.live"}}{{else}}{{t .Lang "p.pay.mock"}}{{end}}
+            {{if .WAPhone}} · {{.WAPhone}}{{end}}
+          </small>
+          <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+            <form method="post" action="/portal/bookings/{{.Booking.ID}}/wa"
+              hx-post="/portal/bookings/{{.Booking.ID}}/wa" hx-swap="none">
+              <input type="hidden" name="csrf" value="{{.CSRF}}">
+              <input type="hidden" name="kind" value="confirm">
+              <button class="btn btn-sm" type="submit" hx-disabled-elt="this">{{t .Lang "p.pay.resend"}}</button>
+            </form>
+            {{if .Payment}}{{if eq (printf "%s" .Payment.Status) "paid"}}
+            <form method="post" action="/portal/bookings/{{.Booking.ID}}/wa"
+              hx-post="/portal/bookings/{{.Booking.ID}}/wa" hx-swap="none">
+              <input type="hidden" name="csrf" value="{{.CSRF}}">
+              <input type="hidden" name="kind" value="receipt">
+              <button class="btn btn-sm" type="submit" hx-disabled-elt="this">{{t .Lang "p.pay.rsnd"}}</button>
+            </form>
+            {{end}}{{end}}
+          </div>
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/wa" class="stack"
+            hx-post="/portal/bookings/{{.Booking.ID}}/wa" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <input type="hidden" name="kind" value="text">
+            <label>{{t .Lang "p.pay.text"}}
+              <textarea name="message" rows="3" maxlength="700"></textarea>
+            </label>
+            <button class="btn secondary on-light btn-sm" type="submit" hx-disabled-elt="this">{{t .Lang "p.pay.send"}}</button>
+          </form>
+          <details>
+            <summary>{{t .Lang "p.pay.hist"}}</summary>
+            {{if .WAMessages}}
+            <ul style="margin:0.5rem 0; padding-left:1.1rem;">
+              {{range .WAMessages}}
+              <li><small class="muted">{{formatTime .CreatedAt "02 Jan 15:04"}} · {{.TemplateKey}} · <span class="badge">{{.Status}}</span>{{if .LastError}} · {{.LastError}}{{end}}</small></li>
+              {{end}}
+            </ul>
+            {{else}}
+            <p class="muted">{{t .Lang "p.pay.none"}}</p>
+            {{end}}
+          </details>
+        </div>
         <!-- Refund Section -->
         {{if or (gt .Refundable 0) (.Refunds)}}
         <div class="panel stack">

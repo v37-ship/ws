@@ -23,11 +23,15 @@
           <div class="muted">{{slotLabel .Lang .Booking.StartAt}} · {{.Booking.LocationName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} · {{t .Lang "book.badge_home"}}{{end}}</div>
           {{if .Booking.VisitAddress}}<div class="muted">{{icon "home"}} {{.Booking.VisitAddress}}</div>{{end}}
         </div>
-        <div style="font-size:1.6rem; font-weight:800;">{{formatIDR .Booking.Net}}</div>
+        <div style="font-size:1.6rem; font-weight:800;">
+          {{if .Payment}}{{formatIDR .Payment.AmountIDR}}{{else}}{{formatIDR .Booking.Net}}{{end}}
+        </div>
         {{if gt .Booking.DiscountIDR 0}}<div class="muted">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</div>{{end}}
+        {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+        {{if .Success}}<p class="ok">{{.Success}}</p>{{end}}
         <div id="pay-status" style="width:100%;"
           hx-get="/bookings/{{.Booking.ID}}/status{{if .Token}}?t={{.Token}}{{end}}"
-          hx-trigger="every 3s"
+          hx-trigger="every 5s"
           hx-swap="innerHTML">
           {{template "pay_status.html" .}}
         </div>
@@ -38,24 +42,59 @@
           <div><button type="button" class="btn secondary on-light btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('guest-link').textContent)">{{t .Lang "guest.copy"}}</button></div>
         </div>
         {{end}}
-        {{if eq (printf "%s" .Booking.Status) "pending_payment"}}
-        <div class="qr-box stack" style="align-items:center;">
-          <strong>{{t .Lang "pay.scan"}}</strong>
-          {{if .Payment}}
-            {{if .QRImageURL}}
-              <img src="{{.QRImageURL}}" alt="QRIS payment code" width="220" height="220" style="border-radius:1rem;">
+
+        {{if .Manual}}
+          {{if and .Payment (ne (printf "%s" .Payment.Status) "paid")}}
+            <div class="muted">{{t .Lang "pay.qr.later"}}</div>
+            {{if .Claimed}}
+              <p class="ok">{{t .Lang "pay.qr.wait"}}</p>
+            {{else}}
+              <div class="qr-box stack" style="align-items:center;">
+                <strong>{{t .Lang "pay.qr.ins"}}</strong>
+                <img src="{{.QRISImage}}" alt="QRIS Wangga" style="width:100%; max-width:320px; border-radius:1rem; background:#fff; padding:.5rem;">
+                <div>{{t .Lang "pay.qr.amt"}} <strong>{{formatIDR .Payment.AmountIDR}}</strong></div>
+                <p class="muted" style="margin:0;">{{t .Lang "pay.qr.code"}} <code>{{.Payment.OrderID}}</code></p>
+              </div>
+              <a class="btn" href="{{waLink .Contact.WhatsApp (printf "Halo Wangga! Saya sudah transfer untuk booking %s sebesar %s. Berikut bukti transfernya." .Payment.OrderID (formatIDR .Payment.AmountIDR))}}" target="_blank" rel="noopener">
+                {{icon "chat"}} {{t .Lang "pay.qr.send"}}
+              </a>
+              <form method="post" action="/bookings/{{.Booking.ID}}/claim-paid{{if .Token}}?t={{.Token}}{{end}}" style="margin-top:.5rem;">
+                <input type="hidden" name="csrf" value="{{.CSRF}}">
+                <button class="btn secondary on-light" type="submit">{{t .Lang "pay.qr.claim"}}</button>
+              </form>
             {{end}}
-            <code style="word-break:break-all;">{{.Payment.QRString}}</code>
-            <p class="muted">Order {{.Payment.OrderID}}</p>
-          {{end}}
-          {{if .MockMode}}
-            <form method="post" action="/bookings/{{.Booking.ID}}/mock-pay{{if .Token}}?t={{.Token}}{{end}}">
+            <form method="post" action="/bookings/{{.Booking.ID}}/receipt{{if .Token}}?t={{.Token}}{{end}}" enctype="multipart/form-data" class="stack" style="margin-top:.75rem; width:100%; text-align:left;">
               <input type="hidden" name="csrf" value="{{.CSRF}}">
-              <button class="btn" type="submit">{{t .Lang "pay.dev"}}</button>
+              <label>{{t .Lang "pay.qr.file"}}
+                <input type="file" name="receipt" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
+              </label>
+              <button class="btn secondary on-light btn-sm" type="submit">{{t .Lang "pay.qr.up"}}</button>
             </form>
+            {{if .Receipt}}<p class="muted">{{t .Lang "pay.qr.sent"}} <strong>{{t .Lang "pay.qr.rcv"}}</strong></p>{{end}}
+          {{else if .Payment}}
+            <p class="ok">{{t .Lang "pay.qr.ok"}}</p>
           {{end}}
-        </div>
+        {{else}}
+          {{if eq (printf "%s" .Booking.Status) "pending_payment"}}
+          <div class="qr-box stack" style="align-items:center;">
+            <strong>{{t .Lang "pay.scan"}}</strong>
+            {{if .Payment}}
+              {{if .QRImageURL}}
+                <img src="{{.QRImageURL}}" alt="QRIS payment code" width="220" height="220" style="border-radius:1rem;">
+              {{end}}
+              <code style="word-break:break-all;">{{.Payment.QRString}}</code>
+              <p class="muted">Order {{.Payment.OrderID}}</p>
+            {{end}}
+            {{if .MockMode}}
+              <form method="post" action="/bookings/{{.Booking.ID}}/mock-pay{{if .Token}}?t={{.Token}}{{end}}">
+                <input type="hidden" name="csrf" value="{{.CSRF}}">
+                <button class="btn" type="submit">{{t .Lang "pay.dev"}}</button>
+              </form>
+            {{end}}
+          </div>
+          {{end}}
         {{end}}
+
         {{if not .Booking.CustomerID}}
         <form method="post" action="/bookings/{{.Booking.ID}}/cancel{{if .Token}}?t={{.Token}}{{end}}" style="margin-top:.75rem;">
           <input type="hidden" name="csrf" value="{{.CSRF}}">

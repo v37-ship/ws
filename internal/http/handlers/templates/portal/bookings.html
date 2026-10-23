@@ -39,8 +39,16 @@
             <option value="no_show" {{if eq .Status "no_show"}}selected{{end}}>{{t .Lang "p.st.nosh"}}</option>
           </select>
         </label>
+        <label>{{t .Lang "p.th.pay"}}
+          <select name="payment">
+            <option value="">{{t .Lang "p.bk.pall"}}</option>
+            <option value="unpaid" {{if eq .Payment "unpaid"}}selected{{end}}>{{t .Lang "p.bk.unpaid"}}</option>
+            <option value="claim" {{if eq .Payment "claim"}}selected{{end}}>{{t .Lang "p.bk.claim"}}</option>
+            <option value="paid" {{if eq .Payment "paid"}}selected{{end}}>{{t .Lang "p.bk.paid"}}</option>
+          </select>
+        </label>
         <button type="submit" class="btn" style="height:44px;" hx-disabled-elt="this">{{t .Lang "p.bk.filter"}} <span id="booking-ind" class="htmx-indicator spinner" aria-hidden="true"></span></button>
-        {{if or .Search .Date .Status}}
+        {{if or .Search .Date .Status .Payment}}
           <a href="/portal/bookings" class="btn secondary on-light" style="height:44px; display:inline-flex; align-items:center;">{{t .Lang "p.bk.reset"}}</a>
         {{end}}
       </form>

@@ -48,6 +48,7 @@ func main() {
 	catalogRepo := repo.NewCatalogRepo(pool)
 	bookings := repo.NewBookingRepo(pool)
 	payments := repo.NewPaymentRepo(pool)
+	paySettingsRepo := repo.NewPaymentSettingsRepo(pool)
 	promos := repo.NewPromoRepo(pool)
 	careers := repo.NewCareerRepo(pool)
 	testimonials := repo.NewTestimonialRepo(pool)
@@ -61,7 +62,16 @@ func main() {
 	availSvc := service.NewAvailabilityService(catalogRepo)
 	mailer := email.NewAuthenticatedSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom, cfg.SMTPUser, cfg.SMTPPass)
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
-	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log)
+	waSvc := service.NewWaService(waOutbox, whatsapp.NewClient(cfg.WAAPIURL, cfg.WAAPIKey, cfg.WAInstance), log, cfg.WAEnabled, cfg.WASendRate)
+	waSvc.RecoverSending(ctx)
+	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log,
+		service.BookingOptions{
+			PaymentMode: cfg.PaymentMode,
+			Wa:          waSvc,
+			CustomerWA:  cfg.WACustomer,
+			StaffGroup:  cfg.WAStaffGroup,
+		})
+	paySettingsSvc := service.NewPaymentSettingsService(paySettingsRepo)
 	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
 	careerSvc := service.NewCareerService(careers)
 	tmSvc := service.NewTestimonialService(testimonials)
@@ -69,10 +79,8 @@ func main() {
 	heroSvc := service.NewHeroService(heroes)
 	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
-	waSvc := service.NewWaService(waOutbox, whatsapp.NewClient(cfg.WAAPIURL, cfg.WAAPIKey, cfg.WAInstance), log, cfg.WAEnabled, cfg.WASendRate)
-	waSvc.RecoverSending(ctx)
 	if cfg.WAEnabled {
-		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL)
+		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL, "customer_messages", cfg.WACustomer)
 	} else {
 		log.Info("whatsapp outbound in mock mode (WA_ENABLED=false)")
 	}
@@ -99,7 +107,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, paySettingsSvc, waSvc, waOutbox)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

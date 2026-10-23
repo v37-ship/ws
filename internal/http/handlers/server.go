@@ -21,6 +21,7 @@ import (
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/i18n"
+	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
@@ -32,21 +33,24 @@ import (
 var templateFS embed.FS
 
 type Server struct {
-	cfg        config.Config
-	log        *slog.Logger
-	auth       *service.AuthService
-	catalog    *service.CatalogService
-	avail      *service.AvailabilityService
-	book       *service.BookingService
-	reports    *service.ReportService
-	career     *service.CareerService
-	tm         *service.TestimonialService
-	food       *service.FoodService
-	hero       *service.HeroService
-	gallery    *service.GalleryService
-	promo      *service.PromoService
-	tpl        *template.Template
-	csrfSecure bool
+	cfg         config.Config
+	log         *slog.Logger
+	auth        *service.AuthService
+	catalog     *service.CatalogService
+	avail       *service.AvailabilityService
+	book        *service.BookingService
+	reports     *service.ReportService
+	career      *service.CareerService
+	tm          *service.TestimonialService
+	food        *service.FoodService
+	hero        *service.HeroService
+	gallery     *service.GalleryService
+	promo       *service.PromoService
+	paySettings *service.PaymentSettingsService
+	wa          *service.WaService
+	waOutbox    *repo.WaRepo
+	tpl         *template.Template
+	csrfSecure  bool
 }
 
 func New(
@@ -63,6 +67,9 @@ func New(
 	hero *service.HeroService,
 	gallery *service.GalleryService,
 	promo *service.PromoService,
+	paySettings *service.PaymentSettingsService,
+	waSvc *service.WaService,
+	waOutbox *repo.WaRepo,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -121,7 +128,13 @@ func New(
 		},
 		"waInquire": func(serviceName, locName string) string {
 			msg := fmt.Sprintf("Halo Wangga Spa Baby, Mom, & Woman! Saya ingin bertanya tentang layanan %s di %s. Apakah masih tersedia?", serviceName, locName)
-			return "https://wa.me/?text=" + url.QueryEscape(msg)
+			phone := strings.Map(func(r rune) rune {
+				if r >= '0' && r <= '9' {
+					return r
+				}
+				return -1
+			}, cfg.ContactWhatsApp)
+			return "https://wa.me/" + phone + "?text=" + url.QueryEscape(msg)
 		},
 		"waLink": func(phone, msg string) string {
 			digits := strings.Map(func(r rune) rune {
@@ -218,6 +231,7 @@ func New(
 	}
 	return &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
+		paySettings: paySettings, wa: waSvc, waOutbox: waOutbox,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -516,6 +530,7 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/uploads/food/{file}", s.ServeFoodPhoto)
 	r.Get("/uploads/gallery/{file}", s.ServeGalleryPhoto)
 	r.Get("/uploads/hero/{file}", s.ServeHeroPhoto)
+	r.Get("/uploads/qris/{file}", s.serveUploadDir("qris"))
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
@@ -553,6 +568,12 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/bookings/{id}/status", s.BookingStatusPartial)
 	r.Post("/bookings/{id}/cancel", s.CancelBooking)
 	r.Post("/bookings/{id}/mock-pay", s.MockPay)
+	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
+		return "claim:" + req.RemoteAddr
+	})).Post("/bookings/{id}/claim-paid", s.ClaimPayment)
+	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {
+		return "receipt:" + req.RemoteAddr
+	})).Post("/bookings/{id}/receipt", s.UploadBookingReceipt)
 
 	r.With(middleware.RequireAuth).Get("/testimonials/new", s.TestimonialNewForm)
 	r.With(middleware.RequireAuth).Post("/testimonials/new", s.CreateTestimonial)
@@ -575,6 +596,11 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/bookings/{id}/correct", s.PortalCorrectBooking)
 		pr.Post("/bookings/{id}/refunds", s.PortalRecordRefund)
 		pr.Post("/bookings/{id}/refunds/{rid}/void", s.PortalVoidRefund)
+		pr.Post("/bookings/{id}/payment/confirm", s.PortalConfirmPayment)
+		pr.Post("/bookings/{id}/payment/reject", s.PortalRejectClaim)
+		pr.Post("/bookings/{id}/receipt", s.PortalUploadReceipt)
+		pr.Get("/bookings/{id}/receipt", s.PortalServeReceipt)
+		pr.Post("/bookings/{id}/wa", s.PortalSendWhatsApp)
 
 		pr.Get("/reports", s.PortalReports)
 		pr.Get("/reports.csv", s.PortalReportsCSV)
@@ -648,6 +674,9 @@ func (s *Server) Routes(r chi.Router) {
 			http.Redirect(w, r, "/portal/schedule", http.StatusSeeOther)
 		})
 		ar.Get("/bookings", s.AdminBookings)
+		ar.Get("/payments", s.AdminPayments)
+		ar.Post("/payments/qris", s.AdminUploadQRIS)
+		ar.Post("/payments/qris/reset", s.AdminResetQRIS)
 
 		// CS Accounts Management
 		ar.Get("/cs", s.AdminCSList)

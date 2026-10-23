@@ -62,7 +62,15 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 
 ## Payments & mail
 
-- Midtrans QRIS is charged at booking creation over the **net** amount
+- `PAYMENT_MODE=qris_manual` (default): a static merchant QRIS is shown on the
+  pay page, the booking is confirmed immediately with no hold, and staff
+  verify the transfer receipt in the portal (`payments.customer_reported_at`
+  → confirm QRIS/Tunai). Receipts are uploaded by the customer or staff
+  (`uploads/receipts/<booking>/`, staff-only serving route); the QR is
+  replaceable at `/admin/payments` (fallback: embedded
+  `static/img/qris-wangga.jpeg`). Customer copy says pay now or at the counter.
+- `PAYMENT_MODE=midtrans` keeps the dormant gateway checkout: Midtrans QRIS is
+  charged at booking creation over the **net** amount
   (`PriceIDR - DiscountIDR`). Empty `MIDTRANS_SERVER_KEY` = mock mode
   (`MOCK-QRIS|order=...` + Simulate-payment button); `MockPay` is blocked
   when keys are set. Webhook `POST /webhooks/midtrans`; signature check is
@@ -98,11 +106,14 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   /instance/create` (or `/instance/connect/wangga`), render the QR and scan it
   from the dedicated phone. The phone is a linked device: keep it online
   (WhatsApp Web rules) and warm the number up slowly.
-- Phases: 0 plumbing (done) · 1 transactional outbound (paid/cancel/
-  reschedule/expire/H-1 reminder/review) · 2 inbound webhook +
-  `/portal/inbox` · 3 automation/campaigns. Evolution is **unofficial** (ban
-  risk): transactional only, opt-in for marketing, keep `wa.me` + email as
-  fallbacks.
+- Phase 1 (manual-payment slice, done): `booking_confirm` (with pay link),
+  `payment_receipt`, `staff_paid_claim` (group alert), `claim_rejected`, and
+  free-text staff resends from the booking detail page. Automatic customer
+  sends honour `WA_CUSTOMER_ENABLED` (default false); staff-triggered sends
+  always enqueue. Remaining phase 1: cancel/reschedule/expire, H-1 reminder,
+  review request. Phase 2: inbound webhook + `/portal/inbox`; phase 3
+  automation/campaigns. Evolution is **unofficial** (ban risk): transactional
+  only, opt-in for marketing, keep `wa.me` + email as fallbacks.
 - Backups include the `evolution` DB dump and the `evolution_instances`
   volume; `deploy-vps.sh` prints the instance state but never fails on it.
 

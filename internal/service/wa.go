@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"spa-booking/internal/repo"
@@ -22,6 +23,7 @@ type WhatsAppSender interface {
 
 // waStore is the outbox persistence surface.
 type waStore interface {
+	Enqueue(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
 	ClaimDue(ctx context.Context, limit int) ([]repo.WaOutboxItem, error)
 	MarkSent(ctx context.Context, id uuid.UUID) error
 	RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time, errMsg string) error
@@ -61,6 +63,15 @@ func (s *WaService) RecoverSending(ctx context.Context) {
 	}
 }
 
+// Enqueue adds a message to the outbox. The empty phone or an empty template
+// is rejected so callers can pass optional recipients without branching.
+func (s *WaService) Enqueue(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error) {
+	if strings.TrimSpace(phone) == "" || templateKey == "" {
+		return false, nil
+	}
+	return s.store.Enqueue(ctx, phone, templateKey, payload, bookingID, dedupeKey, scheduledAt)
+}
+
 // Drain sends due messages, up to a bounded batch per tick. A failing message
 // is rescheduled with backoff (or failed permanently) and never stops the
 // rest of the batch.
@@ -89,7 +100,10 @@ func (s *WaService) Drain(ctx context.Context) {
 
 // deliver returns true when a send was attempted (so the caller can pace).
 func (s *WaService) deliver(ctx context.Context, it repo.WaOutboxItem) bool {
-	phone := whatsapp.NormalizePhone(it.Phone)
+	phone := it.Phone
+	if !strings.Contains(phone, "@") {
+		phone = whatsapp.NormalizePhone(phone)
+	}
 	if phone == "" {
 		s.fail(ctx, it, "invalid phone number")
 		return false

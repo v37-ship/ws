@@ -215,8 +215,9 @@ func (s BookingStatus) Display() string {
 type PaymentMethod string
 
 const (
-	PaymentMethodQRIS PaymentMethod = "qris"
-	PaymentMethodCash PaymentMethod = "cash"
+	PaymentMethodQRIS       PaymentMethod = "qris"
+	PaymentMethodQRISStatic PaymentMethod = "qris_static"
+	PaymentMethodCash       PaymentMethod = "cash"
 )
 
 type PaymentPurpose string
@@ -293,19 +294,32 @@ const (
 )
 
 type Payment struct {
-	ID              uuid.UUID
-	BookingID       uuid.UUID
-	OrderID         string
-	AmountIDR       int64
-	Status          PaymentStatus
-	PaymentMethod   PaymentMethod
-	PaymentPurpose  PaymentPurpose
-	QRString        string
-	MidtransTransID string
-	RawNotification string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	PaidAt          *time.Time
+	ID                 uuid.UUID
+	BookingID          uuid.UUID
+	OrderID            string
+	AmountIDR          int64
+	Status             PaymentStatus
+	PaymentMethod      PaymentMethod
+	PaymentPurpose     PaymentPurpose
+	QRString           string
+	MidtransTransID    string
+	RawNotification    string
+	Reference          string
+	ReviewNote         string
+	ReceiptPath        string
+	CustomerReportedAt *time.Time
+	VerifiedAt         *time.Time
+	VerifiedBy         *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	PaidAt             *time.Time
+}
+
+// PaymentSettings holds the single-row admin configuration for manual QRIS.
+type PaymentSettings struct {
+	QRISImagePath string
+	UpdatedBy     *uuid.UUID
+	UpdatedAt     time.Time
 }
 
 type Session struct {
