@@ -39,25 +39,23 @@ services:
       - traefik.enable=true
       - traefik.docker.network=proxy
       - traefik.http.services.umami.loadbalancer.server.port=3000
-      # Tracker endpoints must stay unauthenticated (the browser script and
-      # the /api/send collector cannot use BasicAuth) — plain catch-all.
-      - traefik.http.routers.umami-tracker.rule=Host(`umami.wangga.biz.id`)
+      # Tracker + API paths stay outside BasicAuth. `/script.js` and
+      # `/api/send` must work anonymously; the rest of `/api/*` cannot use
+      # BasicAuth either — Umami's SPA sends its own `Authorization: Bearer`
+      # token on every API call, and one header cannot carry both schemes.
+      # Those endpoints are still protected by Umami's own auth.
+      - traefik.http.routers.umami-tracker.rule=Host(`umami.wangga.biz.id`) && (PathPrefix(`/script.js`) || PathPrefix(`/api/`))
       - traefik.http.routers.umami-tracker.entrypoints=websecure
       - traefik.http.routers.umami-tracker.tls.certresolver=wangga
       - traefik.http.routers.umami-tracker.priority=100
-      # Everything else (dashboard, login, settings…) is gated by BasicAuth;
-      # the more specific rule wins automatically, but set priority high too.
-      - traefik.http.routers.umami.rule=Host(`umami.wangga.biz.id`) && !PathPrefix(`/script.js`) && !PathPrefix(`/api/send`)
+      # Pages (dashboard UI, login screen, settings…) are gated by BasicAuth:
+      # scanners and bots never reach Umami's own login form.
+      - traefik.http.routers.umami.rule=Host(`umami.wangga.biz.id`) && !PathPrefix(`/script.js`) && !PathPrefix(`/api/`)
       - traefik.http.routers.umami.entrypoints=websecure
       - traefik.http.routers.umami.tls.certresolver=wangga
       - traefik.http.routers.umami.middlewares=umami-auth
       - traefik.http.routers.umami.priority=200
       - traefik.http.middlewares.umami-auth.basicauth.users=${UMAMI_BA_USER}:${UMAMI_BA_HASH}
-      # Keep the Authorization header intact: Umami's SPA sends its own
-      # `Bearer <token>` on every API call, and Traefik's default is to strip
-      # the header after validating BasicAuth — which made the dashboard
-      # spin forever after login (every API call arrived unauthenticated).
-      - traefik.http.middlewares.umami-auth.basicauth.removeheader=false
 
   app:
     restart: unless-stopped
