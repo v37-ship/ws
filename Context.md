@@ -185,6 +185,14 @@ are per-IP rate-limited (20/20/30/30 per minute → 429).
   share the header with BasicAuth (BasicAuth-gating `/api` made the
   dashboard spin forever after login; `basicauth.removeheader=false` is not
   a fix — Traefik still has to *read* the Basic credential). API safety =
-  Umami's own token auth + `LOGIN_MAX_FAILED_ATTEMPTS`. `ANALYTICS_URL=
-  https://umami.wangga.biz.id` on the VPS. Full history restored (source DB
-  also froze 2026-09-21, so nothing was lost in the cutover).
+  Umami's own token auth + `LOGIN_MAX_FAILED_ATTEMPTS`.
+  **The tracker itself is first-party**: `ANALYTICS_URL=https://wangga.biz.id/_u`
+  and Traefik router `umami-apex` (`Host(wangga.biz.id) && PathPrefix('/_u/')`,
+  priority 300, `stripPrefix /_u`, service `umami`) maps `/_u/script.js` and
+  `/_u/api/send` onto Umami. Third-party analytics hosts are dropped by ad
+  blockers (uBO) for a large share of phone visitors — scripts were never
+  even requested — so the tag must stay on the main origin with a neutral
+  path. `DISABLE_BOT_CHECK=1` because isbot false-positives silently discard
+  real phone visits (HTTP 200 `{"beep":"boop"}`, nothing stored). Full
+  history restored (source DB also froze 2026-09-21, so nothing was lost in
+  the cutover).
