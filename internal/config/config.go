@@ -46,6 +46,7 @@ type Config struct {
 	WAWebhookSecret string // shared secret for the inbound webhook (phase 2)
 	WAReminderHour  int    // WIB hour of the H-1 appointment reminder
 	WASendRate      time.Duration
+	GoogleReviewURL string // direct "write a review" link (post-visit message)
 }
 
 func Load() (Config, error) {
@@ -88,6 +89,7 @@ func Load() (Config, error) {
 		WAWebhookSecret: getenv("WA_WEBHOOK_SECRET", ""),
 		WAReminderHour:  intEnv("WA_REMINDER_HOUR", 18),
 		WASendRate:      durationEnv("WA_SEND_RATE", time.Second),
+		GoogleReviewURL: getenv("GOOGLE_REVIEW_URL", "https://g.page/r/CTLPrFudX25eEBM/review"),
 	}
 	if cfg.DatabaseURL == "" {
 		return cfg, fmt.Errorf("DATABASE_URL is required")

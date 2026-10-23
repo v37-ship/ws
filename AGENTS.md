@@ -91,7 +91,9 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - Env: `WA_ENABLED` (false = mock: render + log + mark sent, so dev/CI and an
   unpaired box keep working), `WA_API_URL` (`http://evolution:8080`),
   `WA_API_KEY` (Evolution `AUTHENTICATION_API_KEY`), `WA_INSTANCE`,
-  `WA_WEBHOOK_SECRET`, `WA_REMINDER_HOUR=18` (WIB), `WA_SEND_RATE=1s`.
+  `WA_WEBHOOK_SECRET`, `WA_REMINDER_HOUR=18` (WIB), `WA_SEND_RATE=1s`,
+  `GOOGLE_REVIEW_URL` (direct "write a review" link used by the post-visit
+  message; `https://g.page/r/CTLPrFudX25eEBM/review`).
 - Pairing: `ssh -L 8081:127.0.0.1:8081 vps`, then `POST
   /instance/create` (or `/instance/connect/wangga`), render the QR and scan it
   from the dedicated phone. The phone is a linked device: keep it online

@@ -158,6 +158,7 @@ services:
       WA_WEBHOOK_SECRET: "${WA_WEBHOOK_SECRET:-}"
       WA_REMINDER_HOUR: "${WA_REMINDER_HOUR:-18}"
       WA_SEND_RATE: "${WA_SEND_RATE:-1s}"
+      GOOGLE_REVIEW_URL: "${GOOGLE_REVIEW_URL:-}"
     ports:
       - "127.0.0.1:8088:8080"
     networks:
