@@ -291,7 +291,9 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   Key prefixes: `p.nav.site`, `p.hb.*`.
 - Booking wizard: first-available collapses identical hours to one button
   (free slot preferred); slot labels are time-only because the review row
-  already carries the date.
+  already carries the date. Homecare inserts its own **Visit** step (address +
+  Maps check + band) between Schedule and Review, so homecare shows 4 steps
+  and onsite 3; the review only appears once that step is continued.
 - Promo codes: uppercase unique codes, percent/fixed, min spend, optional
   validity window and use cap. Bookings snapshot `promo_code` +
   `discount_idr` (history untouched, like `ServiceName`); payments and the

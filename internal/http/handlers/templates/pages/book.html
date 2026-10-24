@@ -17,7 +17,9 @@
         @htmx:afterSwap.window="readPromo()"
         x-data="{
           loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'{{t .Lang "book.today"}}', time:'', start:'', staff:'', place:'{{if eq .Place "homecare"}}homecare{{else}}onsite{{end}}',
-          address:'', zone:'', fee:0, price:0, discount:0,
+          address:'', zone:'', fee:0, price:0, discount:0, visitDone:false, zonesOn:{{if .Zones}}true{{else}}false{{end}},
+          get addressReady(){ return (this.address || '').trim().length >= 10; },
+          get visitReady(){ return this.addressReady && (!this.zonesOn || !!this.zone); },
           get totalLabel(){
             var total = this.price + this.fee - this.discount;
             if (total < 0) total = 0;
@@ -36,6 +38,7 @@
           },
           setPlace(p){
             this.place = p;
+            this.visitDone = false;
             if (p !== 'homecare') { this.zone = ''; this.fee = 0; }
           },
           setZone(ev){
@@ -120,7 +123,8 @@
         <ol class="steps" aria-label="{{t .Lang "book.prog"}}">
           <li :class="{'done': svcLabel, 'active': !svcLabel}"><span>1</span> {{t .Lang "book.step1"}}</li>
           <li :class="{'done': time, 'active': svcLabel && !time}"><span>2</span> {{t .Lang "book.step2"}}</li>
-          <li :class="{'active': time}"><span>3</span> {{t .Lang "book.step3"}}</li>
+          <li x-show="place==='homecare'" x-cloak :class="{'done': visitDone, 'active': time && !visitDone}"><span>3</span> {{t .Lang "book.vstep"}}</li>
+          <li :class="{'active': time && (place!=='homecare' || visitDone)}"><span x-text="place==='homecare' ? 4 : 3">3</span> {{t .Lang "book.step3"}}</li>
         </ol>
 
         <div class="panel stack wiz-step">
@@ -180,8 +184,42 @@
           <div id="slots-wrap" aria-live="polite"></div>
         </div>
 
-        <div class="panel stack wiz-step" x-show="time" x-transition id="review">
-          <h2><span class="step-n">3</span> {{t .Lang "book.s3"}}</h2>
+        <div class="panel stack wiz-step" x-show="time && place==='homecare'" x-transition>
+          <h2><span class="step-n">3</span> {{t .Lang "book.visit"}}</h2>
+          <p class="muted" style="margin:0; font-size:.85rem;">{{t .Lang "book.vsub"}}</p>
+          <label>{{t .Lang "book.address"}}
+            <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" x-model="address" minlength="10" :required="place==='homecare'"></textarea>
+          </label>
+          <a class="maps-cta" :href="addressReady ? mapsLink : '#'" :tabindex="addressReady ? 0 : -1"
+            :aria-disabled="addressReady ? 'false' : 'true'" @click="if (!addressReady) $event.preventDefault()"
+            target="_blank" rel="noopener">{{icon "pin"}} {{t .Lang "hc.check"}} {{icon "external"}}</a>
+          <p class="muted" style="margin:0; font-size:.8rem;" x-show="!addressReady">{{t .Lang "book.noaddr"}}</p>
+          <p class="muted" style="margin:0; font-size:.8rem;">{{t .Lang "hc.help"}}</p>
+          {{if .Zones}}
+          <label>{{t .Lang "hc.pick"}}
+            <select name="distance_zone" x-model="zone" :required="place==='homecare'" @change="setZone($event)">
+              <option value="">{{t .Lang "hc.sel"}}</option>
+              {{range .Zones}}<option value="{{.ID}}" data-fee="{{.FeeIDR}}">{{.Label}} · {{formatIDR .FeeIDR}}</option>{{end}}
+            </select>
+          </label>
+          <p style="margin:0;" x-show="fee > 0"><strong>{{t .Lang "hc.fee"}}: <span x-text="feeLabel"></span></strong>
+            <span class="muted" style="font-size:.85rem;">{{t .Lang "hc.added"}}</span></p>
+          <details style="font-size:.85rem;">
+            <summary style="cursor:pointer;" class="muted">{{t .Lang "hc.tbl"}}</summary>
+            <ul class="muted" style="margin:.4rem 0 0; padding-left:1.1rem;">
+              {{range .Zones}}<li>{{.Label}} — {{formatIDR .FeeIDR}}</li>{{end}}
+            </ul>
+          </details>
+          <p class="muted" style="margin:0; font-size:.8rem;">{{t .Lang "hc.far"}}
+            <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Alamat saya di luar jangkauan online, apakah bisa homecare?"}}" target="_blank" rel="noopener">WhatsApp</a>
+          </p>
+          {{end}}
+          <button type="button" class="btn big" :disabled="!visitReady"
+            @click="visitDone = true; $nextTick(() => document.getElementById('review').scrollIntoView({behavior:'smooth', block:'start'}))">{{t .Lang "book.vnext"}}</button>
+        </div>
+
+        <div class="panel stack wiz-step" x-show="time && (place!=='homecare' || visitDone)" x-transition id="review">
+          <h2><span class="step-n" x-text="place==='homecare' ? 4 : 3">3</span> {{t .Lang "book.s3"}}</h2>
           <dl class="review">
             <div><dt>{{t .Lang "book.treatment"}}</dt><dd x-text="svcLabel || '—'"></dd></div>
             <div><dt>{{t .Lang "book.therapist"}}</dt><dd x-text="staffLabel || '{{t .Lang "book.first"}}'"></dd></div>
@@ -197,6 +235,7 @@
               </span>
             </dd></div>
             <div><dt>{{t .Lang "book.place"}}</dt><dd x-text="place==='homecare' ? '{{t .Lang "book.homecare"}}' : '{{t .Lang "book.onsite"}}'"></dd></div>
+            <div x-show="place==='homecare' && address.trim()"><dt>{{t .Lang "book.address"}}</dt><dd x-text="address"></dd></div>
             <div x-show="place==='homecare' && fee > 0"><dt>{{t .Lang "hc.fee"}}</dt><dd x-text="feeLabel"></dd></div>
             <div class="promo-total" x-show="price > 0"><dt>{{t .Lang "promo.total"}}</dt><dd><strong x-text="totalLabel"></strong></dd></div>
           </dl>
@@ -204,28 +243,6 @@
           <div id="promo-box" aria-live="polite"></div>
           <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
           <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
-          <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}} <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" x-model="address" :required="place==='homecare'"></textarea></label>
-          {{if .Zones}}
-          <div class="stack" x-show="place==='homecare'" x-transition style="gap:.5rem;">
-            <a class="muted" style="font-size:.85rem;" x-show="address.trim()" :href="mapsLink" target="_blank" rel="noopener">{{icon "pin"}} {{t .Lang "hc.check"}}</a>
-            <p class="muted" style="margin:0; font-size:.8rem;">{{t .Lang "hc.help"}}</p>
-            <label>{{t .Lang "hc.pick"}}
-              <select name="distance_zone" x-model="zone" :required="place==='homecare'" @change="setZone($event)">
-                <option value="">{{t .Lang "hc.sel"}}</option>
-                {{range .Zones}}<option value="{{.ID}}" data-fee="{{.FeeIDR}}">{{.Label}} · {{formatIDR .FeeIDR}}</option>{{end}}
-              </select>
-            </label>
-            <details style="font-size:.85rem;">
-              <summary style="cursor:pointer;" class="muted">{{t .Lang "hc.tbl"}}</summary>
-              <ul class="muted" style="margin:.4rem 0 0; padding-left:1.1rem;">
-                {{range .Zones}}<li>{{.Label}} — {{formatIDR .FeeIDR}}</li>{{end}}
-              </ul>
-            </details>
-            <p class="muted" style="margin:0; font-size:.8rem;">{{t .Lang "hc.far"}}
-              <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Alamat saya di luar jangkauan online, apakah bisa homecare?"}}" target="_blank" rel="noopener">WhatsApp</a>
-            </p>
-          </div>
-          {{end}}
           <label>{{t .Lang "book.notes"}} <textarea name="notes" rows="2" autocomplete="off" placeholder="{{t .Lang "book.notes_ph"}}">{{.Notes}}</textarea></label>
           {{if .User}}
             <button class="btn big" type="submit" :disabled="!time">{{t .Lang "book.continue"}}</button>

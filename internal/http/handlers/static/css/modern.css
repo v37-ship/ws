@@ -175,6 +175,24 @@ button.pill-pick.on > span {
 .review dd { margin: 0; font-weight: 700; text-align: right; }
 
 .btn.big { font-size: 1.05rem; padding: .9rem 1.5rem; width: 100%; }
+.btn:disabled, .btn[disabled] {
+  opacity: .5; cursor: not-allowed; box-shadow: none; transform: none; filter: none;
+}
+/* Visit step: the Google Maps distance helper reads as a real action, not a
+   decorative link — full-width outline button with the brand accent. */
+.maps-cta {
+  display: flex; align-items: center; justify-content: center; gap: .45rem;
+  width: 100%; padding: .75rem 1rem; border-radius: .85rem;
+  border: 1.5px solid var(--accent); background: #fff;
+  color: var(--accent-deep); font-weight: 800; text-decoration: none;
+  transition: background .18s ease;
+}
+.maps-cta:hover { background: rgba(233, 30, 99, .07); text-decoration: none; }
+.maps-cta[aria-disabled="true"] {
+  border-color: var(--line); border-style: dashed; background: transparent; color: var(--muted);
+}
+html[data-theme="dark"] .maps-cta { background: transparent; border-color: var(--accent); }
+html[data-theme="dark"] .maps-cta[aria-disabled="true"] { border-color: var(--line); }
 
 .sticky-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
