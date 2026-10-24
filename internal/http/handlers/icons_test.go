@@ -15,7 +15,7 @@ func TestIconNames(t *testing.T) {
 		"shield", "chart", "cash", "qris", "chat", "pin", "phone",
 		"mail", "clock", "instagram", "tiktok", "facebook", "home", "building", "briefcase",
 		"play", "check-circle", "alert", "x-circle", "printer",
-		"download", "key", "info", "smile", "heart", "external",
+		"download", "key", "info", "smile", "heart", "external", "send",
 	}
 	if len(used) != len(icons) {
 		t.Errorf("test lists %d icons but map has %d; keep them in sync", len(used), len(icons))

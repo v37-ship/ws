@@ -65,6 +65,66 @@ func (r *WaRepo) Enqueue(ctx context.Context, phone, templateKey string, payload
 	return true, nil
 }
 
+// UpsertScheduled inserts a message for later (or moves one that has not been
+// delivered yet). Enqueue cannot do this: dedupe_key is unique forever, so a
+// second insert is a silent no-op. Here an existing pending or failed row is
+// moved to the new time and retried, while sent/cancelled rows are left alone
+// (so history is never resurrected).
+func (r *WaRepo) UpsertScheduled(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error) {
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return false, fmt.Errorf("encode wa payload: %w", err)
+	}
+	if scheduledAt.IsZero() {
+		scheduledAt = time.Now()
+	}
+	if dedupeKey == "" {
+		return r.Enqueue(ctx, phone, templateKey, payload, bookingID, "", scheduledAt)
+	}
+	const q = `INSERT INTO wa_outbox (phone, template_key, payload, booking_id, dedupe_key, scheduled_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (dedupe_key) DO UPDATE
+			SET scheduled_at = EXCLUDED.scheduled_at, phone = EXCLUDED.phone,
+			    payload = EXCLUDED.payload, status = 'pending', attempts = 0,
+			    last_error = '', updated_at = now()
+			WHERE wa_outbox.status IN ('pending', 'failed')
+		RETURNING id`
+	var id uuid.UUID
+	err = r.pool.QueryRow(ctx, q, phone, templateKey, raw, bookingID, dedupeKey, scheduledAt).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// CancelPending drops scheduled rows that have not gone out yet: every pending
+// row for the booking, or only the given dedupe keys. Used when a booking is
+// cancelled/rescheduled/expired so a stale reminder cannot fire later.
+func (r *WaRepo) CancelPending(ctx context.Context, bookingID uuid.UUID, keys ...string) (int64, error) {
+	if len(keys) == 0 {
+		tag, err := r.pool.Exec(ctx,
+			`UPDATE wa_outbox SET status='cancelled', updated_at=now()
+			 WHERE booking_id=$1 AND status='pending'`, bookingID)
+		if err != nil {
+			return 0, err
+		}
+		return tag.RowsAffected(), nil
+	}
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE wa_outbox SET status='cancelled', updated_at=now()
+		 WHERE booking_id=$1 AND status='pending' AND dedupe_key = ANY($2)`, bookingID, keys)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // ClaimDue atomically claims up to limit due rows (FOR UPDATE SKIP LOCKED, so
 // several workers would not double-send). The attempt counter is incremented
 // on claim, so the returned Attempts is the current try (1 for the first).

@@ -16,7 +16,11 @@
         <h1 class="page-title" style="margin-bottom:0.2rem;">{{t .Lang "p.dash.title"}}</h1>
         <p class="muted">{{t .Lang "p.dash.sub"}}</p>
       </div>
-      <div style="display:flex; gap:0.5rem;">
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <form method="post" action="/portal/digest" hx-post="/portal/digest" hx-swap="none">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button class="btn secondary on-light" type="submit" hx-disabled-elt="this">{{icon "send"}} {{t .Lang "p.dg.btn"}}</button>
+        </form>
         <a href="/portal/bookings/new" class="btn">{{t .Lang "p.dash.walk"}}</a>
         <a href="/portal/customers/new" class="btn secondary on-light">{{t .Lang "p.dash.reg"}}</a>
       </div>

@@ -62,6 +62,152 @@ var messageTemplates = map[string]func(Payload) string{
 		return fmt.Sprintf("Bukti pembayaran *%s* belum kami terima. Mohon kirim ulang bukti transfer ke nomor ini, atau bayar di kasir. — Wangga",
 			str(p, "code"))
 	},
+	"booking_remind": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "Halo %s 👋\n", str(p, "name"))
+		b.WriteString("Pengingat jadwal kunjungan Anda:\n\n")
+		fmt.Fprintf(&b, "✨ %s\n", str(p, "service"))
+		fmt.Fprintf(&b, "📅 %s\n", str(p, "when"))
+		fmt.Fprintf(&b, "👩‍⚕️ %s · 📍 %s\n", str(p, "staff"), str(p, "location"))
+		if homes := str(p, "address"); homes != "" {
+			fmt.Fprintf(&b, "🏠 %s\n", homes)
+		}
+		fmt.Fprintf(&b, "Total: *Rp %s*\n\n", rp(int64Val(p, "amount")))
+		b.WriteString("Kalau tidak bisa hadir, mohon kabari kami ya.\n")
+		if link := str(p, "pay_url"); link != "" {
+			fmt.Fprintf(&b, "Detail & pembatalan:\n%s\n", link)
+		}
+		b.WriteString("\nSampai jumpa! — Wangga")
+		return b.String()
+	},
+	"booking_cancelled": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "Halo %s 👋\n", str(p, "name"))
+		fmt.Fprintf(&b, "Booking *%s* (%s) pada %s sudah dibatalkan.\n", str(p, "code"), str(p, "service"), str(p, "when"))
+		if note := str(p, "note"); note != "" {
+			fmt.Fprintf(&b, "Catatan: %s\n", note)
+		}
+		b.WriteString("\nKalau sudah ada pembayaran, tim kami akan menghubungi soal pengembalian dana.\n")
+		b.WriteString("Sampai jumpa lain waktu — Wangga")
+		return b.String()
+	},
+	"booking_rescheduled": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "Halo %s 👋\n", str(p, "name"))
+		fmt.Fprintf(&b, "Jadwal booking *%s* (%s) sudah diubah.\n\n", str(p, "code"), str(p, "service"))
+		if old := str(p, "old_when"); old != "" {
+			fmt.Fprintf(&b, "Sebelumnya: %s\n", old)
+		}
+		fmt.Fprintf(&b, "Sekarang: *%s*\n", str(p, "when"))
+		fmt.Fprintf(&b, "👩‍⚕️ %s · 📍 %s\n", str(p, "staff"), str(p, "location"))
+		b.WriteString("\nSampai jumpa! — Wangga")
+		return b.String()
+	},
+	"booking_expired": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "Halo %s 👋\n", str(p, "name"))
+		fmt.Fprintf(&b, "Booking *%s* (%s) pada %s hangus karena belum diselesaikan dalam batas waktu.\n", str(p, "code"), str(p, "service"), str(p, "when"))
+		b.WriteString("\nSilakan booking ulang kapan saja ya.\n")
+		if link := str(p, "book_url"); link != "" {
+			fmt.Fprintf(&b, "%s\n", link)
+		}
+		b.WriteString("\n— Wangga")
+		return b.String()
+	},
+	"review_request": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "Terima kasih sudah mempercayakan perawatan Anda kepada kami, %s 🙏\n\n", str(p, "name"))
+		if svc := str(p, "service"); svc != "" {
+			fmt.Fprintf(&b, "✨ %s", svc)
+			if staff := str(p, "staff"); staff != "" {
+				fmt.Fprintf(&b, " · 👩‍⚕️ %s", staff)
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\nCerita Anda sangat membantu bunda lain. Yuk tulis ulasan singkat di Google:\n")
+		if link := str(p, "review_url"); link != "" {
+			fmt.Fprintf(&b, "%s\n", link)
+		}
+		b.WriteString("\n— Wangga")
+		return b.String()
+	},
+	"staff_booking": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "🆕 Booking baru — %s\n\n", str(p, "when"))
+		fmt.Fprintf(&b, "✨ %s\n", str(p, "service"))
+		fmt.Fprintf(&b, "👩‍⚕️ %s\n", str(p, "staff"))
+		fmt.Fprintf(&b, "👤 %s · %s\n", str(p, "name"), str(p, "phone"))
+		if homes := str(p, "address"); homes != "" {
+			b.WriteString("🏠 " + homes)
+			if band := str(p, "band"); band != "" {
+				fmt.Fprintf(&b, " (%s)", band)
+			}
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "Total: *Rp %s*", rp(int64Val(p, "amount")))
+		if boolean(p, "paid") {
+			b.WriteString(" · LUNAS ✅\n")
+		} else {
+			b.WriteString(" · BELUM BAYAR\n")
+		}
+		if src := str(p, "source"); src != "" {
+			fmt.Fprintf(&b, "Sumber: %s\n", src)
+		}
+		if link := str(p, "portal_url"); link != "" {
+			fmt.Fprintf(&b, "Detail: %s\n", link)
+		}
+		return b.String()
+	},
+	"staff_cancelled": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "❌ %s — %s\n\n", str(p, "label"), str(p, "when"))
+		fmt.Fprintf(&b, "✨ %s · 👩‍⚕️ %s\n", str(p, "service"), str(p, "staff"))
+		fmt.Fprintf(&b, "👤 %s · oleh %s\n", str(p, "name"), str(p, "actor"))
+		b.WriteString("Slot ini sudah kosong.\n")
+		if link := str(p, "portal_url"); link != "" {
+			fmt.Fprintf(&b, "Detail: %s\n", link)
+		}
+		return b.String()
+	},
+	"staff_rescheduled": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "🔁 %s — %s\n\n", str(p, "label"), str(p, "service"))
+		if old := str(p, "old_when"); old != "" {
+			fmt.Fprintf(&b, "Dari: %s\n", old)
+		}
+		fmt.Fprintf(&b, "Ke: *%s*\n", str(p, "when"))
+		fmt.Fprintf(&b, "👩‍⚕️ %s · 👤 %s\n", str(p, "staff"), str(p, "name"))
+		if link := str(p, "portal_url"); link != "" {
+			fmt.Fprintf(&b, "Detail: %s\n", link)
+		}
+		return b.String()
+	},
+	"staff_digest": func(p Payload) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "☀️ *Agenda Wangga* — %s\n\n", str(p, "date"))
+		items := list(p, "items")
+		if len(items) == 0 {
+			b.WriteString("_Belum ada booking hari ini._\n")
+		}
+		for _, it := range items {
+			fmt.Fprintf(&b, "• %s ✨ %s · 👩‍⚕️ %s · 👤 %s", str(it, "time"), str(it, "service"), str(it, "staff"), str(it, "who"))
+			if place := str(it, "place"); place != "" {
+				fmt.Fprintf(&b, " · %s", place)
+			}
+			if pay := str(it, "pay"); pay != "" {
+				fmt.Fprintf(&b, " · %s", pay)
+			}
+			b.WriteString("\n")
+		}
+		if claims := int64Val(p, "claims"); claims > 0 {
+			fmt.Fprintf(&b, "💳 Klaim bayar menunggu verifikasi: %d\n", claims)
+		}
+		fmt.Fprintf(&b, "Besok: %d booking\n", int64Val(p, "tomorrow"))
+		if link := str(p, "portal_url"); link != "" {
+			fmt.Fprintf(&b, "Portal: %s\n", link)
+		}
+		return b.String()
+	},
 }
 
 // Render returns the message body for a template key.
@@ -76,6 +222,24 @@ func Render(key string, payload Payload) (string, error) {
 		return strings.TrimSpace(body), nil
 	}
 	return "", fmt.Errorf("unknown template %q", key)
+}
+
+// list reads an array payload field; JSON decodes arrays as []any.
+func list(p Payload, key string) []Payload {
+	if typed, ok := p[key].([]Payload); ok {
+		return typed
+	}
+	raw, ok := p[key].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]Payload, 0, len(raw))
+	for _, it := range raw {
+		if m, ok := it.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // str reads a payload field as a string (empty when absent/not a string).

@@ -159,6 +159,10 @@ func (s *BookingService) SendManualWA(ctx context.Context, bookingID uuid.UUID, 
 		key = "booking_confirm"
 		payload = s.waPayload(b, p)
 		payload["name"] = displayName(name)
+	case "remind":
+		key = "booking_remind"
+		payload = s.waPayload(b, p)
+		payload["name"] = displayName(name)
 	case "receipt":
 		if p == nil || p.Status != domain.PaymentPaid {
 			return fmt.Errorf("%w: payment is not settled yet", ErrValidation)

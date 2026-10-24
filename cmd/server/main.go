@@ -67,10 +67,13 @@ func main() {
 	waSvc.RecoverSending(ctx)
 	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, distances, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log,
 		service.BookingOptions{
-			PaymentMode: cfg.PaymentMode,
-			Wa:          waSvc,
-			CustomerWA:  cfg.WACustomer,
-			StaffGroup:  cfg.WAStaffGroup,
+			PaymentMode:  cfg.PaymentMode,
+			Wa:           waSvc,
+			CustomerWA:   cfg.WACustomer,
+			StaffGroup:   cfg.WAStaffGroup,
+			GroupBooking: cfg.WAGroupBooking,
+			RemindHour:   cfg.WAReminderHour,
+			ReviewURL:    cfg.GoogleReviewURL,
 		})
 	paySettingsSvc := service.NewPaymentSettingsService(paySettingsRepo)
 	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
@@ -81,6 +84,7 @@ func main() {
 	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
 	distanceSvc := service.NewDistanceService(distances)
+	digestSvc := service.NewDigestService(bookSvc, waSvc, cfg.WAStaffGroup, cfg.BaseURL, cfg.WADigestHour, log)
 	if cfg.WAEnabled {
 		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL, "customer_messages", cfg.WACustomer)
 	} else {
@@ -113,7 +117,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSvc, waOutbox)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSvc, waOutbox, digestSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)
@@ -134,6 +138,11 @@ func main() {
 		for range t.C {
 			if err := bookSvc.ExpireHolds(context.Background()); err != nil {
 				log.Warn("expire holds", "err", err)
+			}
+			if digestSvc.Due(time.Now()) {
+				if _, err := digestSvc.Run(context.Background(), false); err != nil {
+					log.Warn("staff digest", "err", err)
+				}
 			}
 			_ = sessions.DeleteExpired(context.Background())
 		}

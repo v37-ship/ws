@@ -50,6 +50,7 @@ type Server struct {
 	paySettings *service.PaymentSettingsService
 	wa          *service.WaService
 	waOutbox    *repo.WaRepo
+	digest      *service.DigestService
 	tpl         *template.Template
 	csrfSecure  bool
 }
@@ -72,6 +73,7 @@ func New(
 	paySettings *service.PaymentSettingsService,
 	waSvc *service.WaService,
 	waOutbox *repo.WaRepo,
+	digest *service.DigestService,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -253,7 +255,7 @@ func New(
 	}
 	return &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
-		distance: distance, paySettings: paySettings, wa: waSvc, waOutbox: waOutbox,
+		distance: distance, paySettings: paySettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -609,6 +611,7 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Use(middleware.RequireStaff)
 		pr.Get("/", s.PortalDashboard)
 		pr.Get("/queue", s.PortalQueuePartial)
+		pr.Post("/digest", s.PortalSendDigest)
 		pr.Get("/bookings", s.PortalBookings)
 		pr.Get("/bookings/new", s.PortalNewBookingForm)
 		pr.Post("/bookings/new", s.PortalCreateBooking)

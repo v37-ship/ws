@@ -99,7 +99,8 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - Env: `WA_ENABLED` (false = mock: render + log + mark sent, so dev/CI and an
   unpaired box keep working), `WA_API_URL` (`http://evolution:8080`),
   `WA_API_KEY` (Evolution `AUTHENTICATION_API_KEY`), `WA_INSTANCE`,
-  `WA_WEBHOOK_SECRET`, `WA_REMINDER_HOUR=18` (WIB), `WA_SEND_RATE=1s`,
+  `WA_WEBHOOK_SECRET`, `WA_REMINDER_HOUR=18` (WIB), `WA_DIGEST_HOUR=7` (WIB),
+  `WA_GROUP_BOOKING=off|web|all` (default `web`), `WA_SEND_RATE=1s`,
   `GOOGLE_REVIEW_URL` (direct "write a review" link used by the post-visit
   message; `https://g.page/r/CTLPrFudX25eEBM/review`).
 - Pairing: `ssh -L 8081:127.0.0.1:8081 vps`, then `POST
@@ -107,13 +108,23 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   from the dedicated phone. The phone is a linked device: keep it online
   (WhatsApp Web rules) and warm the number up slowly.
 - Phase 1 (manual-payment slice, done): `booking_confirm` (with pay link),
-  `payment_receipt`, `staff_paid_claim` (group alert), `claim_rejected`, and
-  free-text staff resends from the booking detail page. Automatic customer
-  sends honour `WA_CUSTOMER_ENABLED` (default false); staff-triggered sends
-  always enqueue. Remaining phase 1: cancel/reschedule/expire, H-1 reminder,
-  review request. Phase 2: inbound webhook + `/portal/inbox`; phase 3
-  automation/campaigns. Evolution is **unofficial** (ban risk): transactional
-  only, opt-in for marketing, keep `wa.me` + email as fallbacks.
+  `payment_receipt`, `staff_paid_claim` (group alert), `claim_rejected`,
+  free-text staff resends from the booking detail page, staff-triggered
+  reminder resends (kind `remind`), automatic customer lifecycle messages
+  (`booking_remind` H-1 at `WA_REMINDER_HOUR` WIB, `booking_cancelled`,
+  `booking_rescheduled`, `booking_expired`, `review_request` +2h after a
+  completed visit); scheduling uses `UpsertScheduled`/`CancelPending`
+  (never a bare `Enqueue` for a key that must move), plus the group pings
+  `staff_booking` (new online booking) and `staff_cancelled`/
+  `staff_rescheduled` (freed or moved slot) and the 07:00 WIB `staff_digest`
+  agenda (`WA_DIGEST_HOUR`, once a day via the `digest:{YYYY-MM-DD}` key; the
+  dashboard *Send agenda* button uses `digest:manual:{date}:{nano}`).
+  Automatic customer sends honour `WA_CUSTOMER_ENABLED` (default false);
+  staff-triggered sends always enqueue. Group pings follow `WA_GROUP_BOOKING`
+  (`off`/`web` default/`all`): new-booking pings are online-only unless `all`,
+  slot-freed pings fire unless `off`. Phase 2: inbound webhook + `/portal/inbox`;
+  phase 3: automation/campaigns. Evolution is **unofficial** (ban risk):
+  transactional only, opt-in for marketing, keep `wa.me` + email as fallbacks.
 - Backups include the `evolution` DB dump and the `evolution_instances`
   volume; `deploy-vps.sh` prints the instance state but never fails on it.
 

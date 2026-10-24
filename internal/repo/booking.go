@@ -357,14 +357,34 @@ func (r *BookingRepo) ListLogs(ctx context.Context, bookingID uuid.UUID) ([]doma
 	return out, rows.Err()
 }
 
-func (r *BookingRepo) ExpireHolds(ctx context.Context) (int64, error) {
-	tag, err := r.pool.Exec(ctx, `
-		UPDATE bookings SET status='expired', updated_at=now()
-		WHERE status='pending_payment' AND hold_expires_at IS NOT NULL AND hold_expires_at < now()`)
+// ExpireHolds expires unpaid holds and returns the affected booking ids so the
+// service can send the follow-up messages. Pending WhatsApp rows for those
+// bookings are cancelled in the same statement: this repo call bypasses the
+// service, so a reminder parked for tomorrow must not survive the expiry.
+func (r *BookingRepo) ExpireHolds(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := r.pool.Query(ctx, `
+		WITH expired AS (
+			UPDATE bookings SET status='expired', updated_at=now()
+			WHERE status='pending_payment' AND hold_expires_at IS NOT NULL AND hold_expires_at < now()
+			RETURNING id
+		), dropped AS (
+			UPDATE wa_outbox SET status='cancelled', updated_at=now()
+			WHERE status='pending' AND booking_id IN (SELECT id FROM expired)
+		)
+		SELECT id FROM expired`)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return tag.RowsAffected(), nil
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 type PaymentRepo struct{ pool *pgxpool.Pool }

@@ -172,6 +172,12 @@
               <button class="btn btn-sm" type="submit" hx-disabled-elt="this">{{t .Lang "p.pay.rsnd"}}</button>
             </form>
             {{end}}{{end}}
+            <form method="post" action="/portal/bookings/{{.Booking.ID}}/wa"
+              hx-post="/portal/bookings/{{.Booking.ID}}/wa" hx-swap="none">
+              <input type="hidden" name="csrf" value="{{.CSRF}}">
+              <input type="hidden" name="kind" value="remind">
+              <button class="btn secondary on-light btn-sm" type="submit" hx-disabled-elt="this">{{t .Lang "p.det.warem"}}</button>
+            </form>
           </div>
           <form method="post" action="/portal/bookings/{{.Booking.ID}}/wa" class="stack"
             hx-post="/portal/bookings/{{.Booking.ID}}/wa" hx-swap="none">

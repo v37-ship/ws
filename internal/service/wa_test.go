@@ -57,6 +57,14 @@ func (f *fakeWaStore) Enqueue(context.Context, string, string, map[string]any, *
 	return true, nil
 }
 
+func (f *fakeWaStore) UpsertScheduled(context.Context, string, string, map[string]any, *uuid.UUID, string, time.Time) (bool, error) {
+	return true, nil
+}
+
+func (f *fakeWaStore) CancelPending(context.Context, uuid.UUID, ...string) (int64, error) {
+	return 0, nil
+}
+
 type sendCall struct{ phone, text string }
 
 type fakeSender struct {

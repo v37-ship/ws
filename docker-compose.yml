@@ -121,6 +121,8 @@ services:
       WA_STAFF_GROUP_JID: "${WA_STAFF_GROUP_JID:-}"
       WA_WEBHOOK_SECRET: "${WA_WEBHOOK_SECRET:-dev-webhook-secret}"
       WA_REMINDER_HOUR: "${WA_REMINDER_HOUR:-18}"
+      WA_DIGEST_HOUR: "${WA_DIGEST_HOUR:-7}"
+      WA_GROUP_BOOKING: "${WA_GROUP_BOOKING:-web}"
       WA_SEND_RATE: "${WA_SEND_RATE:-1s}"
       GOOGLE_REVIEW_URL: "${GOOGLE_REVIEW_URL:-}"
     ports:

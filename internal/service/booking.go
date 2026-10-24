@@ -36,6 +36,7 @@ type BookingService struct {
 	baseURL  string
 	log      *slog.Logger
 	opts     BookingOptions
+	now      func() time.Time // test seam; nil = wall clock
 }
 
 func NewBookingService(
@@ -135,7 +136,7 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		}
 		redeemed = true
 	}
-	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
+	orderID := orderRef(b.ID)
 	var p *domain.Payment
 	if s.ManualPayments() {
 		p = &domain.Payment{
@@ -185,7 +186,7 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		b = full
 	}
 	if s.ManualPayments() {
-		s.notifyBooking(ctx, b, p, customer.FullName, customer.Phone)
+		s.onConfirmed(ctx, b, p, customer.FullName, customer.Phone)
 	}
 	return b, p, nil
 }
@@ -414,9 +415,13 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	if p != nil {
 		switch {
 		case p.Status == domain.PaymentPaid:
+			// Cash walk-in: the receipt is the confirmation, so it is not sent
+			// twice — but the reminder and the staff ping still apply.
 			s.notifyReceipt(ctx, b, p, customer.FullName, customer.Phone)
+			s.scheduleReminder(ctx, b, customer.FullName, customer.Phone)
+			s.notifyGroupBooking(ctx, b, p)
 		case s.ManualPayments():
-			s.notifyBooking(ctx, b, p, customer.FullName, customer.Phone)
+			s.onConfirmed(ctx, b, p, customer.FullName, customer.Phone)
 		}
 	}
 	return b, p, nil
@@ -438,11 +443,35 @@ func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, 
 		return err
 	}
 
-	if newStatus == domain.BookingCancelled {
+	// Every lifecycle transition funnels through here so the customer and the
+	// staff group hear about it exactly once, and so scheduled reminders never
+	// outlive the booking they belong to.
+	switch newStatus {
+	case domain.BookingCancelled:
+		s.cancelReminder(ctx, bookingID)
+		s.notifyCustomerCancelled(ctx, b, note)
+		s.notifyGroupSlot(ctx, b, "cancelled", actorLabel(actorID), time.Time{})
 		if email, name := s.bookingRecipient(ctx, b); email != "" {
 			_ = s.mailer.Send(email, "Wangga booking cancelled",
 				fmt.Sprintf("Hi %s, your Wangga booking for %s on %s was cancelled. Note: %s", name, b.ServiceName, b.StartAt.Format(time.RFC1123), note))
 		}
+	case domain.BookingExpired:
+		s.cancelReminder(ctx, bookingID)
+		s.notifyCustomerExpired(ctx, b)
+		s.notifyGroupSlot(ctx, b, "expired", "sistem", time.Time{})
+	case domain.BookingNoShow:
+		s.cancelReminder(ctx, bookingID)
+		s.notifyGroupSlot(ctx, b, "no_show", actorLabel(actorID), time.Time{})
+	case domain.BookingCompleted:
+		s.notifyReviewRequest(ctx, b)
+	case domain.BookingConfirmed:
+		// Reload as confirmed: the confirmation message, the H-1 reminder and
+		// the group ping all key off the new status.
+		bb := *b
+		bb.Status = domain.BookingConfirmed
+		p, _ := s.payments.ByBookingID(ctx, bookingID)
+		name, phone := s.contact(ctx, &bb)
+		s.onConfirmed(ctx, &bb, p, name, phone)
 	}
 	return nil
 }
@@ -495,6 +524,17 @@ func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid
 			fmt.Sprintf("Hi %s, your Wangga booking for %s has been rescheduled to %s. Note: %s",
 				name, b.ServiceName, startAt.Format(time.RFC1123), note))
 	}
+
+	// The reminder travels with the booking, and both the customer and the
+	// group are told about the new time.
+	oldStart := b.StartAt
+	if full, err := s.bookings.ByID(ctx, bookingID); err == nil && full != nil {
+		b = full
+	}
+	name, phone := s.contact(ctx, b)
+	s.scheduleReminder(ctx, b, name, phone)
+	s.notifyCustomerRescheduled(ctx, b, oldStart)
+	s.notifyGroupSlot(ctx, b, "rescheduled", actorLabel(actorID), oldStart)
 	return nil
 }
 
@@ -656,10 +696,9 @@ func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []b
 		if err := s.payments.MarkPaid(ctx, n.OrderID, n.TransactionID, string(raw)); err != nil {
 			return err
 		}
-		if err := s.bookings.UpdateStatus(ctx, p.BookingID, domain.BookingConfirmed); err != nil {
+		if err := s.UpdateStatus(ctx, p.BookingID, domain.BookingConfirmed, nil, "Payment confirmed via Midtrans QRIS"); err != nil {
 			return err
 		}
-		_ = s.bookings.LogActivity(ctx, p.BookingID, nil, "Payment confirmed via Midtrans QRIS", "")
 		b, err := s.bookings.ByID(ctx, p.BookingID)
 		if err != nil {
 			return err
@@ -683,8 +722,11 @@ func (s *BookingService) HandleMidtransNotification(ctx context.Context, raw []b
 			status = domain.PaymentExpired
 		}
 		_ = s.payments.MarkStatus(ctx, n.OrderID, status, string(raw))
-		_ = s.bookings.UpdateStatus(ctx, p.BookingID, domain.BookingExpired)
-		_ = s.bookings.LogActivity(ctx, p.BookingID, nil, "Payment marked "+string(status)+" by Midtrans", "")
+		// Only the first failure notification expires the hold: later webhooks
+		// would otherwise re-send the customer notice.
+		if b0, err := s.bookings.ByID(ctx, p.BookingID); err == nil && b0.Status == domain.BookingPendingPayment {
+			_ = s.UpdateStatus(ctx, p.BookingID, domain.BookingExpired, nil, "Payment marked "+string(status)+" by Midtrans")
+		}
 	}
 	return nil
 }
@@ -720,8 +762,22 @@ func (s *BookingService) ConfirmMockPayment(ctx context.Context, bookingID uuid.
 }
 
 func (s *BookingService) ExpireHolds(ctx context.Context) error {
-	_, err := s.bookings.ExpireHolds(ctx)
-	return err
+	// Pending outbox rows for these bookings are cancelled by the same
+	// statement; the messages below are what the customers still need to hear.
+	ids, err := s.bookings.ExpireHolds(ctx)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		b, err := s.bookings.ByID(ctx, id)
+		if err != nil {
+			s.log.Warn("wa expire lookup", "booking", id, "err", err)
+			continue
+		}
+		s.notifyCustomerExpired(ctx, b)
+		s.notifyGroupSlot(ctx, b, "expired", "sistem", time.Time{})
+	}
+	return nil
 }
 
 func isExclusionViolation(err error) bool {
@@ -860,7 +916,7 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 		}
 		redeemed = true
 	}
-	orderID := fmt.Sprintf("SPA-%s", strings.ReplaceAll(b.ID.String(), "-", "")[:16])
+	orderID := orderRef(b.ID)
 	var p *domain.Payment
 	if s.ManualPayments() {
 		p = &domain.Payment{
@@ -915,7 +971,7 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 				fmt.Sprintf("Thanks %s! Your Wangga booking for %s is confirmed.\n\nWhen: %s\nAmount: Rp %d\n\nPay online: %s/bookings/%s/pay?t=%s\nOr pay at the counter when you arrive.\n",
 					name, svc.Name, formatWIB(b.StartAt), b.Net(), s.baseURL, b.ID.String(), token))
 		}
-		s.notifyBooking(ctx, b, p, name, phone)
+		s.onConfirmed(ctx, b, p, name, phone)
 	} else if email != "" {
 		_ = s.mailer.Send(email, "Wangga booking received",
 			fmt.Sprintf("Thanks %s! Your Wangga booking for %s is pending payment of Rp %d.\n\nManage: %s/bookings/%s/pay?t=%s\n",

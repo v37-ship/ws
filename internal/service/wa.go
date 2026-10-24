@@ -24,6 +24,8 @@ type WhatsAppSender interface {
 // waStore is the outbox persistence surface.
 type waStore interface {
 	Enqueue(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
+	UpsertScheduled(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
+	CancelPending(ctx context.Context, bookingID uuid.UUID, keys ...string) (int64, error)
 	ClaimDue(ctx context.Context, limit int) ([]repo.WaOutboxItem, error)
 	MarkSent(ctx context.Context, id uuid.UUID) error
 	RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time, errMsg string) error
@@ -70,6 +72,22 @@ func (s *WaService) Enqueue(ctx context.Context, phone, templateKey string, payl
 		return false, nil
 	}
 	return s.store.Enqueue(ctx, phone, templateKey, payload, bookingID, dedupeKey, scheduledAt)
+}
+
+// UpsertScheduled schedules a message that may need to move later (H-1
+// reminder, review request): an existing pending/failed row is rescheduled
+// rather than duplicated or silently dropped.
+func (s *WaService) UpsertScheduled(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error) {
+	if strings.TrimSpace(phone) == "" || templateKey == "" {
+		return false, nil
+	}
+	return s.store.UpsertScheduled(ctx, phone, templateKey, payload, bookingID, dedupeKey, scheduledAt)
+}
+
+// CancelPending cancels scheduled rows for a booking (all of them, or only the
+// given dedupe keys) that have not been delivered yet.
+func (s *WaService) CancelPending(ctx context.Context, bookingID uuid.UUID, keys ...string) (int64, error) {
+	return s.store.CancelPending(ctx, bookingID, keys...)
 }
 
 // Drain sends due messages, up to a bounded batch per tick. A failing message

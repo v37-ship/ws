@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -48,6 +49,8 @@ type Config struct {
 	WAStaffGroup    string // Evolution group JID for staff alerts (e.g. 1203...@g.us)
 	WAWebhookSecret string // shared secret for the inbound webhook (phase 2)
 	WAReminderHour  int    // WIB hour of the H-1 appointment reminder
+	WADigestHour    int    // WIB hour of the daily staff agenda digest
+	WAGroupBooking  string // group booking pings: off | web (default) | all
 	WASendRate      time.Duration
 	GoogleReviewURL string // direct "write a review" link (post-visit message)
 }
@@ -94,6 +97,8 @@ func Load() (Config, error) {
 		WAStaffGroup:    getenv("WA_STAFF_GROUP_JID", ""),
 		WAWebhookSecret: getenv("WA_WEBHOOK_SECRET", ""),
 		WAReminderHour:  intEnv("WA_REMINDER_HOUR", 18),
+		WADigestHour:    intEnv("WA_DIGEST_HOUR", 7),
+		WAGroupBooking:  strings.ToLower(getenv("WA_GROUP_BOOKING", "web")),
 		WASendRate:      durationEnv("WA_SEND_RATE", time.Second),
 		GoogleReviewURL: getenv("GOOGLE_REVIEW_URL", "https://g.page/r/CTLPrFudX25eEBM/review"),
 	}
@@ -108,6 +113,11 @@ func Load() (Config, error) {
 	}
 	if cfg.WAEnabled && cfg.WAAPIKey == "" {
 		return cfg, fmt.Errorf("WA_API_KEY is required when WA_ENABLED=true")
+	}
+	switch cfg.WAGroupBooking {
+	case "off", "web", "all":
+	default:
+		return cfg, fmt.Errorf("WA_GROUP_BOOKING must be off, web or all")
 	}
 	return cfg, nil
 }
