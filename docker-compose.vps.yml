@@ -153,6 +153,8 @@ services:
       # number is paired: messages are rendered + logged, never sent.
       PAYMENT_MODE: "${PAYMENT_MODE:-qris_manual}"
       WA_ENABLED: "${WA_ENABLED:-false}"
+      # Customer toggle / staff group / reminder+digest hours / group mode /
+      # review URL are defaults; override live at /admin/whatsapp (DB wins).
       WA_API_URL: "${WA_API_URL:-http://evolution:8080}"
       WA_API_KEY: "${WA_API_KEY:-}"
       WA_INSTANCE: "${WA_INSTANCE:-wangga}"

@@ -1,0 +1,208 @@
+{{define "admin_whatsapp.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "a.wa.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <main class="stack" style="max-width:760px; margin:0 auto;">
+    <div>
+      <a href="/admin" class="muted">&larr; {{t .Lang "a.home.title"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{icon "chat"}} {{t .Lang "a.wa.title"}}</h1>
+      <p class="muted">{{t .Lang "a.wa.sub"}}</p>
+    </div>
+
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+
+    {{if not .Settings.OutboundEnabled}}
+    <div class="panel stack" style="border-color:var(--warn,#b45309);">
+      <strong>{{icon "alert"}} {{t .Lang "a.wa.paused"}}</strong>
+      <p class="muted">{{t .Lang "a.wa.pausedx"}}</p>
+    </div>
+    {{end}}
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.wa.status"}}</h2>
+      <p class="muted">
+        {{t .Lang "a.wa.conn"}}:
+        {{if eq .Conn "open"}}<strong style="color:var(--ok);">connected</strong>
+        {{else if eq .Conn "mock"}}<strong>mock (WA_ENABLED=false)</strong>
+        {{else if eq .Conn "close"}}<strong class="error">disconnected</strong>
+        {{else}}<strong>{{t .Lang "a.wa.unknown"}}</strong>{{end}}
+      </p>
+    </div>
+
+    <form method="post" action="/admin/whatsapp" class="panel stack">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <h2>{{t .Lang "a.wa.title"}}</h2>
+
+      <label>{{t .Lang "a.wa.pause"}}
+        <select name="outbound_enabled">
+          <option value="" {{if not .Raw.OutboundEnabled}}selected{{end}}>{{t .Lang "a.wa.env"}}</option>
+          <option value="on" {{if and .Raw.OutboundEnabled .Settings.OutboundEnabled}}selected{{end}}>{{t .Lang "a.wa.off"}}</option>
+          <option value="off" {{if and .Raw.OutboundEnabled (not .Settings.OutboundEnabled)}}selected{{end}}>{{t .Lang "a.wa.pauseon"}}</option>
+        </select>
+      </label>
+      <p class="muted">{{t .Lang "a.wa.pausex"}}</p>
+
+      <label>{{t .Lang "a.wa.remind"}}
+        <select name="reminder_enabled">
+          <option value="" {{if not .Raw.ReminderEnabled}}selected{{end}}>{{t .Lang "a.wa.env"}}</option>
+          <option value="on" {{if and .Raw.ReminderEnabled .Settings.ReminderEnabled}}selected{{end}}>{{t .Lang "a.wa.on"}}</option>
+          <option value="off" {{if and .Raw.ReminderEnabled (not .Settings.ReminderEnabled)}}selected{{end}}>{{t .Lang "a.wa.off"}}</option>
+        </select>
+      </label>
+      <label>{{t .Lang "a.wa.hour"}} <span class="muted">({{t .Lang "a.wa.wib"}})</span>
+        <input type="number" min="0" max="23" name="remind_hour"
+               value="{{if .Raw.RemindHour}}{{.Settings.RemindHour}}{{end}}" placeholder="{{.Defaults.RemindHour}}">
+      </label>
+      <p class="muted">{{t .Lang "a.wa.remindx"}}</p>
+
+      <label>{{t .Lang "a.wa.cust"}}
+        <select name="customer_enabled">
+          <option value="" {{if not .Raw.CustomerEnabled}}selected{{end}}>{{t .Lang "a.wa.env"}}</option>
+          <option value="on" {{if and .Raw.CustomerEnabled .Settings.CustomerEnabled}}selected{{end}}>{{t .Lang "a.wa.on"}}</option>
+          <option value="off" {{if and .Raw.CustomerEnabled (not .Settings.CustomerEnabled)}}selected{{end}}>{{t .Lang "a.wa.off"}}</option>
+        </select>
+      </label>
+
+      <label>{{t .Lang "a.wa.review"}}
+        <select name="review_enabled">
+          <option value="" {{if not .Raw.ReviewEnabled}}selected{{end}}>{{t .Lang "a.wa.env"}}</option>
+          <option value="on" {{if and .Raw.ReviewEnabled .Settings.ReviewEnabled}}selected{{end}}>{{t .Lang "a.wa.on"}}</option>
+          <option value="off" {{if and .Raw.ReviewEnabled (not .Settings.ReviewEnabled)}}selected{{end}}>{{t .Lang "a.wa.off"}}</option>
+        </select>
+      </label>
+      <label>{{t .Lang "a.wa.url"}}
+        <input type="url" name="review_url" value="{{if .Raw.ReviewURL}}{{.Settings.ReviewURL}}{{end}}"
+               placeholder="{{.Defaults.ReviewURL}}">
+      </label>
+
+      <label>{{t .Lang "a.wa.group"}}
+        <select name="group_mode">
+          <option value="" {{if not .Raw.GroupMode}}selected{{end}}>{{t .Lang "a.wa.env"}} ({{.Defaults.GroupMode}})</option>
+          <option value="off" {{if and .Raw.GroupMode (eq .Settings.GroupMode "off")}}selected{{end}}>off</option>
+          <option value="web" {{if and .Raw.GroupMode (eq .Settings.GroupMode "web")}}selected{{end}}>web</option>
+          <option value="all" {{if and .Raw.GroupMode (eq .Settings.GroupMode "all")}}selected{{end}}>all</option>
+        </select>
+      </label>
+      <label>{{t .Lang "a.wa.jid"}}
+        <input type="text" name="staff_group_jid" value="{{if .Raw.StaffGroupJID}}{{.Settings.StaffGroupJID}}{{end}}"
+               placeholder="{{.Defaults.StaffGroupJID}}">
+      </label>
+
+      <label>{{t .Lang "a.wa.digest"}}
+        <select name="digest_enabled">
+          <option value="" {{if not .Raw.DigestEnabled}}selected{{end}}>{{t .Lang "a.wa.env"}}</option>
+          <option value="on" {{if and .Raw.DigestEnabled .Settings.DigestEnabled}}selected{{end}}>{{t .Lang "a.wa.on"}}</option>
+          <option value="off" {{if and .Raw.DigestEnabled (not .Settings.DigestEnabled)}}selected{{end}}>{{t .Lang "a.wa.off"}}</option>
+        </select>
+      </label>
+      <label>{{t .Lang "a.wa.hour"}} <span class="muted">({{t .Lang "a.wa.wib"}})</span>
+        <input type="number" min="0" max="23" name="digest_hour"
+               value="{{if .Raw.DigestHour}}{{.Settings.DigestHour}}{{end}}" placeholder="{{.Defaults.DigestHour}}">
+      </label>
+
+      <div class="row" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <button class="btn" type="submit">{{icon "check-circle"}} {{t .Lang "a.wa.save"}}</button>
+      </div>
+      <p class="muted">{{t .Lang "a.wa.saved"}}</p>
+    </form>
+
+    <form method="post" action="/admin/whatsapp/reset"
+          onsubmit="return confirm('{{t .Lang "a.wa.reset"}}?')">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="btn secondary on-light" type="submit">{{t .Lang "a.wa.reset"}}</button>
+    </form>
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.wa.test"}}</h2>
+      <form method="post" action="/admin/whatsapp/test" class="stack">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label>{{t .Lang "a.wa.tophone"}}
+          <input type="text" name="target" placeholder="62812… atau 1234-567@g.us" required>
+        </label>
+        <label>{{t .Lang "a.wa.testmsg"}}
+          <input type="text" name="message" placeholder="Tes pesan Wangga">
+        </label>
+        <button class="btn secondary on-light" type="submit">{{icon "send"}} {{t .Lang "a.wa.test"}}</button>
+      </form>
+      <p class="muted">{{t .Lang "a.wa.testx"}}</p>
+    </div>
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.wa.next"}}</h2>
+      {{if .Next}}
+      <table class="table">
+        <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th></tr></thead>
+        <tbody>
+        {{range .Next}}
+          <tr>
+            <td>{{formatTime .ScheduledAt "02 Jan 15:04"}} WIB</td>
+            <td>{{.Phone}}</td>
+            <td><code>{{.TemplateKey}}</code></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<p class="muted">{{t .Lang "a.wa.none"}}</p>{{end}}
+    </div>
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.wa.recent"}}</h2>
+      {{if .Recent}}
+      <table class="table">
+        <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th><th>{{t .Lang "a.wa.state"}}</th></tr></thead>
+        <tbody>
+        {{range .Recent}}
+          <tr>
+            <td>{{formatTime .CreatedAt "02 Jan 15:04"}}</td>
+            <td>{{.Phone}}</td>
+            <td><code>{{.TemplateKey}}</code></td>
+            <td>{{.Status}}{{if .LastError}} · <span class="muted">{{.LastError}}</span>{{end}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<p class="muted">{{t .Lang "a.wa.none"}}</p>{{end}}
+    </div>
+
+    <div class="panel stack">
+      <h2>{{t .Lang "a.wa.copy"}}</h2>
+      <p class="muted">{{t .Lang "a.wa.copyx"}}</p>
+      {{range .Templates}}
+      <div class="panel stack" style="background:var(--surface-2,#faf7f2);">
+        <h3 style="margin:0;">{{t $.Lang .LabelKey}} <code class="muted">{{.Key}}</code></h3>
+        <p class="muted">{{t $.Lang "a.wa.ph"}}: {{range .Fields}}<code>{ {{.}} }</code> {{end}}</p>
+        <form method="post" action="/admin/whatsapp/template" class="stack">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="key" value="{{.Key}}">
+          <textarea name="body" rows="6" placeholder="{{.Default}}">{{.Override}}</textarea>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button class="btn secondary on-light" type="submit">{{icon "check-circle"}} {{t $.Lang "a.wa.save"}}</button>
+          </div>
+        </form>
+        {{if .Custom}}
+        <form method="post" action="/admin/whatsapp/template/reset"
+              onsubmit="return confirm('{{t $.Lang "a.wa.def"}}?')">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="key" value="{{.Key}}">
+          <button class="btn secondary on-light" type="submit">{{t $.Lang "a.wa.def"}}</button>
+        </form>
+        {{end}}
+        <details>
+          <summary class="muted">{{t $.Lang "a.wa.preview"}}</summary>
+          <pre style="white-space:pre-wrap; font-family:inherit;">{{.Preview}}</pre>
+        </details>
+      </div>
+      {{end}}
+    </div>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

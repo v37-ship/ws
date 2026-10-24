@@ -186,6 +186,67 @@ func (r *WaRepo) RequeueSending(ctx context.Context) (int64, error) {
 	return tag.RowsAffected(), nil
 }
 
+// ListRecent returns the most recently created outbox rows (admin log).
+func (r *WaRepo) ListRecent(ctx context.Context, limit int) ([]WaOutboxItem, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	const q = `SELECT id, phone, template_key, payload, booking_id, dedupe_key,
+		scheduled_at, attempts, max_attempts, last_error, status, created_at
+		FROM wa_outbox ORDER BY created_at DESC LIMIT $1`
+	return r.scanList(ctx, q, limit)
+}
+
+// ListUpcoming returns pending rows scheduled for the future, soonest first.
+// templateKey filters to one template (empty = every template).
+func (r *WaRepo) ListUpcoming(ctx context.Context, templateKey string, limit int) ([]WaOutboxItem, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	const q = `SELECT id, phone, template_key, payload, booking_id, dedupe_key,
+		scheduled_at, attempts, max_attempts, last_error, status, created_at
+		FROM wa_outbox
+		WHERE status='pending' AND scheduled_at > now()
+		  AND ($1 = '' OR template_key = $1)
+		ORDER BY scheduled_at ASC LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, templateKey, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WaOutboxItem
+	for rows.Next() {
+		var it WaOutboxItem
+		if err := rows.Scan(&it.ID, &it.Phone, &it.TemplateKey, &it.Payload, &it.BookingID,
+			&it.DedupeKey, &it.ScheduledAt, &it.Attempts, &it.MaxAttempts, &it.LastError,
+			&it.Status, &it.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// scanList reads outbox rows in the shared column order.
+func (r *WaRepo) scanList(ctx context.Context, q string, arg any) ([]WaOutboxItem, error) {
+	rows, err := r.pool.Query(ctx, q, arg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WaOutboxItem
+	for rows.Next() {
+		var it WaOutboxItem
+		if err := rows.Scan(&it.ID, &it.Phone, &it.TemplateKey, &it.Payload, &it.BookingID,
+			&it.DedupeKey, &it.ScheduledAt, &it.Attempts, &it.MaxAttempts, &it.LastError,
+			&it.Status, &it.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
 // ListByBooking returns the latest outbox rows for a booking (portal history).
 func (r *WaRepo) ListByBooking(ctx context.Context, bookingID uuid.UUID, limit int) ([]WaOutboxItem, error) {
 	if limit <= 0 || limit > 50 {

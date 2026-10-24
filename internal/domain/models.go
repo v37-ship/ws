@@ -325,6 +325,24 @@ type PaymentSettings struct {
 	UpdatedAt     time.Time
 }
 
+// WaSettings is the single-row admin WhatsApp configuration. Every field is a
+// pointer: NULL means "fall back to the env default", so the row starts empty
+// and only the fields an admin changed are stored here.
+type WaSettings struct {
+	CustomerEnabled *bool
+	ReminderEnabled *bool
+	RemindHour      *int
+	ReviewEnabled   *bool
+	ReviewURL       *string
+	GroupMode       *string
+	StaffGroupJID   *string
+	DigestEnabled   *bool
+	DigestHour      *int
+	OutboundEnabled *bool
+	UpdatedBy       *uuid.UUID
+	UpdatedAt       time.Time
+}
+
 type Session struct {
 	ID        string
 	UserID    uuid.UUID

@@ -19,7 +19,7 @@ func (s *Server) PortalSendDigest(w http.ResponseWriter, r *http.Request) {
 	}
 	lang := i18n.Resolve(r)
 	message, kind := i18n.T(lang, "p.dg.sent"), "success"
-	if s.digest == nil || !s.digest.Configured() {
+	if s.digest == nil || !s.digest.Configured(r.Context()) {
 		message, kind = i18n.T(lang, "p.dg.off"), "error"
 	} else if sent, err := s.digest.Run(r.Context(), true); err != nil {
 		s.log.Error("staff digest", "err", err)

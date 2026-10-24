@@ -1,8 +1,11 @@
 package whatsapp
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // Payload is the decoded `wa_outbox.payload` JSON document.
@@ -289,4 +292,150 @@ func int64Val(p Payload, key string) int64 {
 		return int64(v)
 	}
 	return 0
+}
+
+// ---- editable copy (admin overrides) ----
+//
+// Only customer-facing templates are editable; the staff group pings keep
+// their code copy because they are operational, not brand voice. An override
+// is a body with {placeholders}; the allowlist is the set of fields the
+// template actually reads, so a typo can never ship a message with a literal
+// "{nmae}" in it.
+
+var editableTemplates = []string{
+	"booking_confirm",
+	"payment_receipt",
+	"claim_rejected",
+	"booking_remind",
+	"booking_cancelled",
+	"booking_rescheduled",
+	"booking_expired",
+	"review_request",
+}
+
+var templateFields = map[string][]string{
+	"booking_confirm":     {"name", "code", "service", "when", "staff", "location", "address", "amount", "paid", "pay_url"},
+	"payment_receipt":     {"code", "amount", "method", "paid_at", "note"},
+	"claim_rejected":      {"code"},
+	"booking_remind":      {"name", "service", "when", "staff", "location", "address", "amount", "pay_url"},
+	"booking_cancelled":   {"name", "code", "service", "when", "note"},
+	"booking_rescheduled": {"name", "code", "service", "old_when", "when", "staff", "location"},
+	"booking_expired":     {"name", "code", "service", "when", "book_url"},
+	"review_request":      {"name", "service", "staff", "review_url"},
+}
+
+// sampleValues is realistic data for the admin preview and the default-copy
+// render; keys mirror the payload the services build.
+var sampleValues = map[string]any{
+	"name":       "Bunda Sari",
+	"phone":      "6281234567890",
+	"code":       "SPA-1a2b3c4d5e6f7a8b",
+	"service":    "Baby Massage",
+	"staff":      "Bidan Ayu",
+	"when":       "Senin, 26 Oktober 2026 · 10:45 WIB",
+	"old_when":   "Minggu, 25 Oktober 2026 · 09:00 WIB",
+	"location":   "Kayu Putih",
+	"address":    "Jl. Melati No. 5, Jakarta Timur",
+	"band":       "≤5 km",
+	"source":     "web",
+	"amount":     int64(175000),
+	"paid":       false,
+	"pay_url":    "https://wangga.biz.id/bookings/example/pay",
+	"book_url":   "https://wangga.biz.id/book",
+	"review_url": "https://g.page/r/CTLPrFudX25eEBM/review",
+	"portal_url": "https://wangga.biz.id/portal/bookings",
+	"method":     "QRIS",
+	"paid_at":    "Senin, 26 Oktober 2026 · 10:50 WIB",
+	"note":       "Tolong siapkan ruangan yang hangat.",
+	"label":      "BATAL",
+	"actor":      "customer",
+	"date":       "Senin, 26 Oktober 2026",
+	"claims":     int64(2),
+	"tomorrow":   int64(3),
+}
+
+var placeholderRe = regexp.MustCompile(`\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
+
+// EditableTemplates lists the customer templates whose copy an admin may
+// override, in display order.
+func EditableTemplates() []string {
+	return append([]string(nil), editableTemplates...)
+}
+
+// Editable reports whether a template's copy may be overridden.
+func Editable(key string) bool { return templateFields[key] != nil }
+
+// Fields lists the {placeholders} a template accepts.
+func Fields(key string) []string { return templateFields[key] }
+
+// SamplePayload returns preview data for a template (empty for unknown keys).
+func SamplePayload(key string) Payload {
+	out := Payload{}
+	for _, f := range templateFields[key] {
+		if v, ok := sampleValues[f]; ok {
+			out[f] = v
+		}
+	}
+	return out
+}
+
+// DefaultCopy renders the built-in copy for a template with sample data.
+func DefaultCopy(key string) string {
+	body, _ := Render(key, SamplePayload(key))
+	return body
+}
+
+// ValidateOverride checks an admin-supplied body: known template, non-empty,
+// bounded length, and only placeholders the template accepts.
+func ValidateOverride(key, body string) error {
+	fields, ok := templateFields[key]
+	if !ok {
+		return fmt.Errorf("template %q is not editable", key)
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return errors.New("message cannot be empty")
+	}
+	if utf8.RuneCountInString(body) > 1000 {
+		return errors.New("message is too long (max 1000 characters)")
+	}
+	allowed := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		allowed[f] = true
+	}
+	for _, m := range placeholderRe.FindAllStringSubmatch(body, -1) {
+		if !allowed[m[1]] {
+			return fmt.Errorf("unknown placeholder {%s}", m[1])
+		}
+	}
+	return nil
+}
+
+// RenderOverride renders an admin body, substituting {placeholders} from the
+// payload. It re-validates, so a stored body can never inject a bad field.
+func RenderOverride(key, body string, payload Payload) (string, error) {
+	if err := ValidateOverride(key, body); err != nil {
+		return "", err
+	}
+	out := placeholderRe.ReplaceAllStringFunc(body, func(m string) string {
+		return fieldValue(payload, m[1:len(m)-1])
+	})
+	return strings.TrimSpace(out), nil
+}
+
+// fieldValue formats one placeholder for the message body.
+func fieldValue(p Payload, key string) string {
+	switch key {
+	case "amount":
+		return rp(int64Val(p, key))
+	case "paid":
+		if boolean(p, key) {
+			return "LUNAS"
+		}
+		return "BELUM BAYAR"
+	case "claims", "tomorrow":
+		return fmt.Sprintf("%d", int64Val(p, key))
+	default:
+		return str(p, key)
+	}
 }

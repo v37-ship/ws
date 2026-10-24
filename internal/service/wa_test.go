@@ -94,7 +94,7 @@ func testItem(phone, key, text string, attempts, max int) repo.WaOutboxItem {
 }
 
 func newTestWaService(store waStore, sender WhatsAppSender, enabled bool) *WaService {
-	return NewWaService(store, sender, slog.New(slog.NewTextHandler(io.Discard, nil)), enabled, 0)
+	return NewWaService(store, sender, slog.New(slog.NewTextHandler(io.Discard, nil)), enabled, 0, nil)
 }
 
 func TestWaDrainMockMode(t *testing.T) {

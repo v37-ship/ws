@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"strings"
@@ -36,21 +37,43 @@ func TestDigestKeyOnceADay(t *testing.T) {
 }
 
 func TestDigestDue(t *testing.T) {
-	svc := NewDigestService(nil, &fakeNotifier{}, "g@g.us", "https://x.test", 7, testLogger())
-	if svc.Due(wibAt(6, 59)) {
+	ctx := context.Background()
+	svc := NewDigestService(nil, &fakeNotifier{}, nil, "g@g.us", "https://x.test", 7, testLogger())
+	if svc.Due(ctx, wibAt(6, 59)) {
 		t.Error("digest is due before its hour")
 	}
-	if !svc.Due(wibAt(7, 0)) {
+	if !svc.Due(ctx, wibAt(7, 0)) {
 		t.Error("digest is not due at its hour")
 	}
-	if !svc.Due(wibAt(15, 30)) {
+	if !svc.Due(ctx, wibAt(15, 30)) {
 		t.Error("a late start must still get the agenda out")
 	}
-	if NewDigestService(nil, nil, "", "", 7, testLogger()).Configured() {
+	if NewDigestService(nil, nil, nil, "", "", 7, testLogger()).Configured(ctx) {
 		t.Error("no group JID means not configured")
 	}
-	if !svc.Configured() {
+	if !svc.Configured(ctx) {
 		t.Error("configured service reported as unconfigured")
+	}
+}
+
+// TestDigestLiveSettings proves the on/off and hour come from the settings
+// service, not the constructor.
+func TestDigestLiveSettings(t *testing.T) {
+	ctx := context.Background()
+	svc := NewDigestService(nil, &fakeNotifier{}, nil, "g@g.us", "https://x.test", 7, testLogger())
+	svc.settings = newTestWaSettings(WaConfig{DigestEnabled: false, DigestHour: 7, StaffGroupJID: "g@g.us"})
+	if svc.Due(ctx, wibAt(9, 0)) {
+		t.Error("a disabled digest is never due")
+	}
+	svc.settings = newTestWaSettings(WaConfig{DigestEnabled: true, DigestHour: 10, StaffGroupJID: "g@g.us"})
+	if svc.Due(ctx, wibAt(9, 0)) {
+		t.Error("digest before the live hour")
+	}
+	if !svc.Due(ctx, wibAt(10, 0)) {
+		t.Error("digest at the live hour")
+	}
+	if !svc.Configured(ctx) {
+		t.Error("a group from settings should count as configured")
 	}
 }
 

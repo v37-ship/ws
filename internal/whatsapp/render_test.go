@@ -193,3 +193,63 @@ func TestRenderStaffDigest(t *testing.T) {
 		t.Errorf("empty digest copy:\n%s", empty)
 	}
 }
+
+func TestRenderOverrideSubstitutes(t *testing.T) {
+	body, err := RenderOverride("booking_remind",
+		"Halo {name}, {service} pada {when}. Total Rp {amount}.",
+		Payload{"name": "Sari", "service": "Baby Spa", "when": "Senin · 14:00 WIB", "amount": float64(150000)})
+	if err != nil {
+		t.Fatalf("render override: %v", err)
+	}
+	want := "Halo Sari, Baby Spa pada Senin · 14:00 WIB. Total Rp 150.000."
+	if body != want {
+		t.Errorf("override = %q, want %q", body, want)
+	}
+}
+
+func TestRenderOverrideRejects(t *testing.T) {
+	if _, err := RenderOverride("booking_remind", "Halo {nmae}", Payload{"name": "Sari"}); err == nil {
+		t.Error("unknown placeholder must fail")
+	}
+	if err := ValidateOverride("booking_remind", "   "); err == nil {
+		t.Error("empty body must fail")
+	}
+	if err := ValidateOverride("booking_remind", strings.Repeat("a", 1001)); err == nil {
+		t.Error("over-long body must fail")
+	}
+	if err := ValidateOverride("staff_digest", "halo"); err == nil {
+		t.Error("staff templates are not editable")
+	}
+	if Editable("staff_digest") {
+		t.Error("staff_digest must not be editable")
+	}
+}
+
+// TestEditableTemplatesCoverFields guards the allowlist: every placeholder a
+// template accepts must substitute with the sample payload, leaving no braces.
+func TestEditableTemplatesCoverFields(t *testing.T) {
+	for _, key := range EditableTemplates() {
+		if !Editable(key) {
+			t.Errorf("%s listed as editable but not registered", key)
+		}
+		if DefaultCopy(key) == "" {
+			t.Errorf("%s has no default copy", key)
+		}
+		fields := Fields(key)
+		if len(fields) == 0 {
+			t.Errorf("%s has no placeholders", key)
+		}
+		var sb strings.Builder
+		for _, f := range fields {
+			sb.WriteString("{" + f + "} ")
+		}
+		out, err := RenderOverride(key, sb.String(), SamplePayload(key))
+		if err != nil {
+			t.Errorf("render every field of %s: %v", key, err)
+			continue
+		}
+		if strings.ContainsAny(out, "{}") {
+			t.Errorf("%s left a placeholder unsubstituted: %q", key, out)
+		}
+	}
+}

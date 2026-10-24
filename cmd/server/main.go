@@ -57,13 +57,27 @@ func main() {
 	heroes := repo.NewHeroRepo(pool)
 	gallery := repo.NewGalleryRepo(pool)
 	waOutbox := repo.NewWaRepo(pool)
+	waSettingsRepo := repo.NewWaSettingsRepo(pool)
+
+	waSettingsSvc := service.NewWaSettingsService(waSettingsRepo, service.WaConfig{
+		CustomerEnabled: cfg.WACustomer,
+		ReminderEnabled: true,
+		RemindHour:      cfg.WAReminderHour,
+		ReviewEnabled:   cfg.GoogleReviewURL != "",
+		ReviewURL:       cfg.GoogleReviewURL,
+		GroupMode:       cfg.WAGroupBooking,
+		StaffGroupJID:   cfg.WAStaffGroup,
+		DigestEnabled:   true,
+		DigestHour:      cfg.WADigestHour,
+		OutboundEnabled: true,
+	}, log)
 
 	authSvc := service.NewAuthService(users, sessions, cfg.SessionTTL)
 	catalogSvc := service.NewCatalogService(catalogRepo)
 	availSvc := service.NewAvailabilityService(catalogRepo)
 	mailer := email.NewAuthenticatedSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom, cfg.SMTPUser, cfg.SMTPPass)
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
-	waSvc := service.NewWaService(waOutbox, whatsapp.NewClient(cfg.WAAPIURL, cfg.WAAPIKey, cfg.WAInstance), log, cfg.WAEnabled, cfg.WASendRate)
+	waSvc := service.NewWaService(waOutbox, whatsapp.NewClient(cfg.WAAPIURL, cfg.WAAPIKey, cfg.WAInstance), log, cfg.WAEnabled, cfg.WASendRate, waSettingsSvc)
 	waSvc.RecoverSending(ctx)
 	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, distances, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log,
 		service.BookingOptions{
@@ -74,6 +88,7 @@ func main() {
 			GroupBooking: cfg.WAGroupBooking,
 			RemindHour:   cfg.WAReminderHour,
 			ReviewURL:    cfg.GoogleReviewURL,
+			Settings:     waSettingsSvc,
 		})
 	paySettingsSvc := service.NewPaymentSettingsService(paySettingsRepo)
 	reportSvc := service.NewReportService(repo.NewReportRepo(pool), bookings, payments)
@@ -84,7 +99,7 @@ func main() {
 	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
 	distanceSvc := service.NewDistanceService(distances)
-	digestSvc := service.NewDigestService(bookSvc, waSvc, cfg.WAStaffGroup, cfg.BaseURL, cfg.WADigestHour, log)
+	digestSvc := service.NewDigestService(bookSvc, waSvc, waSettingsSvc, cfg.WAStaffGroup, cfg.BaseURL, cfg.WADigestHour, log)
 	if cfg.WAEnabled {
 		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL, "customer_messages", cfg.WACustomer)
 	} else {
@@ -117,7 +132,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSvc, waOutbox, digestSvc)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSettingsSvc, waSvc, waOutbox, digestSvc)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)
@@ -139,7 +154,7 @@ func main() {
 			if err := bookSvc.ExpireHolds(context.Background()); err != nil {
 				log.Warn("expire holds", "err", err)
 			}
-			if digestSvc.Due(time.Now()) {
+			if digestSvc.Due(context.Background(), time.Now()) {
 				if _, err := digestSvc.Run(context.Background(), false); err != nil {
 					log.Warn("staff digest", "err", err)
 				}

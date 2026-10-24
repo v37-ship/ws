@@ -15,42 +15,56 @@ import (
 // the same booking list the portal queue does, so the group never sees a
 // different schedule from the one on screen.
 type DigestService struct {
-	book    *BookingService
-	wa      Notifier
-	group   string
-	baseURL string
-	hour    int
-	log     *slog.Logger
+	book     *BookingService
+	wa       Notifier
+	settings *WaSettingsService
+	group    string
+	baseURL  string
+	hour     int
+	log      *slog.Logger
 }
 
-func NewDigestService(book *BookingService, wa Notifier, group, baseURL string, hour int, log *slog.Logger) *DigestService {
-	return &DigestService{book: book, wa: wa, group: group, baseURL: baseURL, hour: hour, log: log}
+func NewDigestService(book *BookingService, wa Notifier, settings *WaSettingsService, group, baseURL string, hour int, log *slog.Logger) *DigestService {
+	return &DigestService{book: book, wa: wa, settings: settings, group: group, baseURL: baseURL, hour: hour, log: log}
+}
+
+// cfg resolves the live digest settings (falling back to the constructor
+// values when no settings service is wired).
+func (s *DigestService) cfg(ctx context.Context) (enabled bool, hour int, group string) {
+	if s.settings != nil {
+		c := s.settings.Effective(ctx)
+		return c.DigestEnabled, c.DigestHour, c.StaffGroupJID
+	}
+	return true, s.hour, s.group
 }
 
 // Due reports whether the daily digest should be attempted now. The once-a-day
 // dedupe key makes catch-up safe, so a late start still gets the agenda out.
-func (s *DigestService) Due(now time.Time) bool {
-	return now.In(wib).Hour() >= s.hour
+func (s *DigestService) Due(ctx context.Context, now time.Time) bool {
+	enabled, hour, _ := s.cfg(ctx)
+	return enabled && now.In(wib).Hour() >= hour
 }
 
 // Configured reports whether a staff group is reachable at all.
-func (s *DigestService) Configured() bool {
-	return s.wa != nil && strings.TrimSpace(s.group) != ""
+func (s *DigestService) Configured(ctx context.Context) bool {
+	_, _, group := s.cfg(ctx)
+	return s.wa != nil && strings.TrimSpace(group) != ""
 }
 
 // Run queues the agenda for today. It returns sent=false when the group is not
 // configured, the day's digest is already queued, or nothing was sent. force
 // bypasses the once-a-day key (the portal button).
 func (s *DigestService) Run(ctx context.Context, force bool) (bool, error) {
-	if !s.Configured() {
+	if !s.Configured(ctx) {
 		return false, nil
 	}
+	_, _, group := s.cfg(ctx)
 	now := time.Now().In(wib)
 	payload, err := s.build(ctx, now)
 	if err != nil {
 		return false, err
 	}
-	sent, err := s.wa.Enqueue(ctx, s.group, "staff_digest", payload, nil, digestKey(now, force), time.Time{})
+	sent, err := s.wa.Enqueue(ctx, group, "staff_digest", payload, nil, digestKey(now, force), time.Time{})
 	if err != nil {
 		return false, err
 	}

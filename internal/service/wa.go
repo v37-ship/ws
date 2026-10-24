@@ -37,23 +37,52 @@ type waStore interface {
 // renders and logs messages, marking them sent (mock mode for dev/CI and for
 // running without a paired instance). It never blocks an HTTP request.
 type WaService struct {
-	store   waStore
-	sender  WhatsAppSender
-	log     *slog.Logger
-	enabled bool
-	rate    time.Duration
-	now     func() time.Time
+	store    waStore
+	sender   WhatsAppSender
+	log      *slog.Logger
+	enabled  bool
+	rate     time.Duration
+	settings *WaSettingsService
+	now      func() time.Time
 }
 
-func NewWaService(store waStore, sender WhatsAppSender, log *slog.Logger, enabled bool, rate time.Duration) *WaService {
+func NewWaService(store waStore, sender WhatsAppSender, log *slog.Logger, enabled bool, rate time.Duration, settings *WaSettingsService) *WaService {
 	return &WaService{
-		store:   store,
-		sender:  sender,
-		log:     log,
-		enabled: enabled,
-		rate:    rate,
-		now:     time.Now,
+		store:    store,
+		sender:   sender,
+		log:      log,
+		enabled:  enabled,
+		rate:     rate,
+		settings: settings,
+		now:      time.Now,
 	}
+}
+
+// WaConnProbe is the Evolution status surface (the client implements it; a
+// fake sender in tests need not).
+type WaConnProbe interface {
+	ConnectionState(ctx context.Context) (string, error)
+}
+
+// ConnectionState reports the linked device state for the admin badge. In mock
+// mode there is nothing to probe.
+func (s *WaService) ConnectionState(ctx context.Context) (string, error) {
+	if !s.enabled {
+		return "mock", nil
+	}
+	if p, ok := s.sender.(WaConnProbe); ok {
+		return p.ConnectionState(ctx)
+	}
+	return "", nil
+}
+
+// paused reports the admin "pause all sending" switch. A paused outbox keeps
+// filling and drains as soon as it is unpaused (delays, never drops).
+func (s *WaService) paused(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	return !s.settings.Effective(ctx).OutboundEnabled
 }
 
 // RecoverSending resets rows a previous process left mid-send.
@@ -94,6 +123,9 @@ func (s *WaService) CancelPending(ctx context.Context, bookingID uuid.UUID, keys
 // is rescheduled with backoff (or failed permanently) and never stops the
 // rest of the batch.
 func (s *WaService) Drain(ctx context.Context) {
+	if s.paused(ctx) {
+		return
+	}
 	const batches, batchSize = 5, 10
 	for i := 0; i < batches; i++ {
 		items, err := s.store.ClaimDue(ctx, batchSize)
@@ -133,7 +165,15 @@ func (s *WaService) deliver(ctx context.Context, it repo.WaOutboxItem) bool {
 			return false
 		}
 	}
-	text, err := whatsapp.Render(it.TemplateKey, payload)
+	// Resolve the copy at delivery time so an admin fix also applies to
+	// messages already queued.
+	var text string
+	var err error
+	if body, ok := s.copyOverride(ctx, it.TemplateKey); ok {
+		text, err = whatsapp.RenderOverride(it.TemplateKey, body, payload)
+	} else {
+		text, err = whatsapp.Render(it.TemplateKey, payload)
+	}
 	if err != nil {
 		s.fail(ctx, it, err.Error())
 		return false
@@ -161,6 +201,14 @@ func (s *WaService) deliver(ctx context.Context, it repo.WaOutboxItem) bool {
 	s.log.Info("wa sent", "phone", phone, "template", it.TemplateKey, "wa_message_id", id)
 	s.markSent(ctx, it)
 	return true
+}
+
+// copyOverride returns the admin body for a template, if one is stored.
+func (s *WaService) copyOverride(ctx context.Context, key string) (string, bool) {
+	if s.settings == nil || !whatsapp.Editable(key) {
+		return "", false
+	}
+	return s.settings.Override(ctx, key)
 }
 
 func (s *WaService) markSent(ctx context.Context, it repo.WaOutboxItem) {

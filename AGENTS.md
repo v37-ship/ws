@@ -11,7 +11,7 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   A 1-minute ticker expires booking holds and deletes expired sessions.
 - `internal/config` (env defaults: `SESSION_TTL=168h`, `BOOKING_HOLD_TTL=15m`),
   `internal/auth` (bcrypt, CSRF token), `internal/db/migrations` (Goose
-  001–018, single source of truth), `internal/domain` (models + helpers
+  001–022, single source of truth), `internal/domain` (models + helpers
   `OwnedBy`/`TokenOK`/`IsGuest`/`Net`/`DisplayName`), `internal/repo` (raw
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
@@ -103,6 +103,26 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   `WA_GROUP_BOOKING=off|web|all` (default `web`), `WA_SEND_RATE=1s`,
   `GOOGLE_REVIEW_URL` (direct "write a review" link used by the post-visit
   message; `https://g.page/r/CTLPrFudX25eEBM/review`).
+- Admin config (`/admin/whatsapp`, admin-only, DB-backed like
+  `payment_settings`): migration `022_wa_settings.sql` (`wa_settings` singleton
+  + `wa_template_overrides`), `repo/wa_settings.go`,
+  `service/wa_settings.go` (`WaConfig`, `Effective()` = DB over env, 15s cache
+  + `Invalidate()`), `handlers/admin_whatsapp.go`. **Precedence: a NULL/empty
+  DB column means "use the env default"**, so the row starts empty and a deploy
+  changes nothing. Live-editable: reminder on/off + hour, customer messages,
+  review on/off + URL, group mode + JID, digest on/off + hour, and
+  `outbound_enabled` (pause-all). `WaService.Drain` skips claiming while
+  paused, so the outbox keeps filling — **pauses delay, never drop**. Services
+  read `Effective()` at call time (`BookingService.waCfg`, `DigestService.cfg`,
+  `WaService.paused`), falling back to the static `BookingOptions` when no
+  settings service is wired (tests). Secrets/transport (`WA_ENABLED`,
+  `WA_API_KEY`, `WA_API_URL`, `WA_INSTANCE`, `WA_WEBHOOK_SECRET`,
+  `WA_SEND_RATE`) stay env-only.
+- Editable copy: `whatsapp.RenderOverride`/`ValidateOverride`/`Fields`/
+  `SamplePayload`/`EditableTemplates` — customer templates only, a `{name}`
+  placeholder allowlist, preview, reset-to-default. Copy is resolved at
+  **delivery** time (`WaService.deliver`), so an edit also fixes already-queued
+  rows. Staff group pings keep their code copy.
 - Pairing: `ssh -L 8081:127.0.0.1:8081 vps`, then `POST
   /instance/create` (or `/instance/connect/wangga`), render the QR and scan it
   from the dedicated phone. The phone is a linked device: keep it online

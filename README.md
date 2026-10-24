@@ -119,11 +119,12 @@ cp .env.example .env
 | `PAYMENT_MODE` | `qris_manual` (default) shows the static merchant QR and staff verify receipts; `midtrans` re-enables the dormant gateway checkout. |
 | `MIDTRANS_*` | Only used when `PAYMENT_MODE=midtrans`. Sandbox keys for testing, production keys for live. Empty = "Simulate successful payment" button. |
 | `WA_ENABLED` | `false` renders and logs WhatsApp messages without sending (dev/CI). `true` uses the paired Evolution instance. |
-| `WA_CUSTOMER_ENABLED` | `true` allows automatic customer messages (booking confirmation, payment receipt, H-1 reminder, cancel/reschedule/expiry notices, post-visit review request). Staff-triggered resends always work. |
-| `WA_STAFF_GROUP_JID` | Evolution group JID (`1203...@g.us`) that receives staff alerts: paid claims, new online bookings, freed slots (cancel/reschedule/expire) and the daily agenda. |
-| `WA_REMINDER_HOUR` | WIB hour of the H-1 customer reminder (default `18`). |
-| `WA_DIGEST_HOUR` | WIB hour of the daily staff agenda digest (default `7`). |
-| `WA_GROUP_BOOKING` | Group booking pings: `off`, `web` (online bookings only, default) or `all`. Slot-freed pings fire unless this is `off`. |
+| `WA_CUSTOMER_ENABLED` | `true` allows automatic customer messages (booking confirmation, payment receipt, H-1 reminder, cancel/reschedule/expiry notices, post-visit review request). Staff-triggered resends always work. Overridable live at `/admin/whatsapp`. |
+| `WA_STAFF_GROUP_JID` | Evolution group JID (`1203...@g.us`) that receives staff alerts: paid claims, new online bookings, freed slots (cancel/reschedule/expire) and the daily agenda. Overridable live at `/admin/whatsapp`. |
+| `WA_REMINDER_HOUR` | WIB hour of the H-1 customer reminder (default `18`). Overridable live at `/admin/whatsapp`. |
+| `WA_DIGEST_HOUR` | WIB hour of the daily staff agenda digest (default `7`). Overridable live at `/admin/whatsapp`. |
+| `WA_GROUP_BOOKING` | Group booking pings: `off`, `web` (online bookings only, default) or `all`. Slot-freed pings fire unless this is `off`. Overridable live at `/admin/whatsapp`. |
+| `GOOGLE_REVIEW_URL` | Direct "write a review" link used by the post-visit message. Overridable live at `/admin/whatsapp`. |
 | `ANALYTICS_*` | Leave empty for now — set after the Umami first-run in step D. |
 | `SESSION_TTL` / `BOOKING_HOLD_TTL` | Session lifetime (default `168h` = 7 days) and unpaid-booking hold (default `15m`). Defaults are sane — change only with a reason. |
 
@@ -230,6 +231,7 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 - **Live Clinic Dashboard**: Real-time queue (`Confirmed`, `Checked-in`, `In-service`, `Completed`, `No-show`).
 - **1-Click WhatsApp Slip**: Open pre-filled appointment confirmation directly to the mother's WhatsApp, or resend a reminder.
 - **WhatsApp automation (phase 1)**: H-1 reminder the evening before (guests included), post-visit review request, and a daily staff agenda digest at 07:00 WIB — all queued in `wa_outbox` and drained by the background worker. The staff group also gets a ping for every new online booking and whenever a slot frees up (cancel/expire/no-show) or moves (reschedule). The portal dashboard has a *Send agenda* button for a manual re-send.
+- **Admin WhatsApp settings** (`/admin/whatsapp`, admin only): live, no-restart control of the reminder on/off + hour, automatic customer messages, the review request + link, staff group mode + JID, the daily agenda on/off + hour, and a **pause-all** switch (paused messages keep queueing and send when unpaused — delays, never drops). Also: connection badge, a test send, the next reminders queued, the recent outbox, and **editable customer message copy** with `{name}`/`{service}`/`{when}`/… placeholders, a live preview and reset-to-default. Each field shows whether it comes from env or a custom value; empty = env default.
 - **Manage Bookings**: View, filter, edit details, reschedule appointments, and execute clinic workflow transitions.
 - **Register Customer**: Phone-first customer registration capturing baby age/DOB, maternal condition (pregnancy trimester/postpartum recovery), and medical/skin sensitivities.
 - **Register Walk-in Bookings**: Create bookings on behalf of customers.

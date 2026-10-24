@@ -29,6 +29,29 @@ type BookingOptions struct {
 	GroupBooking string // group booking pings: "off", "web" (default) or "all"
 	RemindHour   int    // WIB hour of the H-1 reminder (default 18)
 	ReviewURL    string // Google review link for the post-visit request
+
+	// Settings, when set, supplies the live admin configuration (DB over
+	// env). The fields above stay as the fallback for tests and for a
+	// deployment without the settings service.
+	Settings *WaSettingsService
+}
+
+// waCfg resolves the live WhatsApp configuration, falling back to the static
+// options when no settings service is wired (tests).
+func (s *BookingService) waCfg(ctx context.Context) WaConfig {
+	if s.settings != nil {
+		return s.settings.Effective(ctx)
+	}
+	return WaConfig{
+		CustomerEnabled: s.opts.CustomerWA,
+		ReminderEnabled: true,
+		RemindHour:      s.opts.RemindHour,
+		ReviewEnabled:   strings.TrimSpace(s.opts.ReviewURL) != "",
+		ReviewURL:       s.opts.ReviewURL,
+		GroupMode:       s.opts.GroupBooking,
+		StaffGroupJID:   s.opts.StaffGroup,
+		OutboundEnabled: true,
+	}
 }
 
 // wib is the spa's operating timezone. Every scheduling decision (reminders,
@@ -65,13 +88,13 @@ func clampSendTime(at time.Time) time.Time {
 // remindAt returns when the H-1 reminder should go out for a booking, or the
 // zero time when there is no useful window left (the confirmation message
 // already covered it, or the visit is too close).
-func (s *BookingService) remindAt(b *domain.Booking) time.Time {
+func (s *BookingService) remindAt(ctx context.Context, b *domain.Booking) time.Time {
 	now := s.nowWIB()
 	visit := b.StartAt.In(wib)
 	if visit.Sub(now) < remindMinLead {
 		return time.Time{}
 	}
-	hour := s.opts.RemindHour
+	hour := s.waCfg(ctx).RemindHour
 	if hour <= 0 || hour > 23 {
 		hour = 18
 	}
@@ -114,7 +137,7 @@ func (s *BookingService) payURL(b *domain.Booking) string {
 // no-op in midtrans mode (the payment webhook sends the confirmation) or when
 // customer messaging is disabled.
 func (s *BookingService) notifyBooking(ctx context.Context, b *domain.Booking, p *domain.Payment, name, phone string) {
-	if s.opts.Wa == nil || !s.opts.CustomerWA || !s.ManualPayments() {
+	if s.opts.Wa == nil || !s.waCfg(ctx).CustomerEnabled || !s.ManualPayments() {
 		return
 	}
 	payload := s.waPayload(b, p)
@@ -127,7 +150,7 @@ func (s *BookingService) notifyBooking(ctx context.Context, b *domain.Booking, p
 
 // notifyReceipt queues the payment receipt after a manual confirmation.
 func (s *BookingService) notifyReceipt(ctx context.Context, b *domain.Booking, p *domain.Payment, name, phone string) {
-	if s.opts.Wa == nil || !s.opts.CustomerWA {
+	if s.opts.Wa == nil || !s.waCfg(ctx).CustomerEnabled {
 		return
 	}
 	payload := s.waPayload(b, p)
@@ -140,12 +163,13 @@ func (s *BookingService) notifyReceipt(ctx context.Context, b *domain.Booking, p
 
 // notifyStaffClaim alerts the staff group that a customer reported a payment.
 func (s *BookingService) notifyStaffClaim(ctx context.Context, b *domain.Booking, p *domain.Payment) {
-	if s.opts.Wa == nil || strings.TrimSpace(s.opts.StaffGroup) == "" {
+	group := s.waCfg(ctx).StaffGroupJID
+	if s.opts.Wa == nil || strings.TrimSpace(group) == "" {
 		return
 	}
 	payload := s.waPayload(b, p)
 	dedupe := fmt.Sprintf("claim:%s:%d", b.ID.String(), time.Now().UnixNano())
-	if _, err := s.opts.Wa.Enqueue(ctx, s.opts.StaffGroup, "staff_paid_claim", payload, &b.ID,
+	if _, err := s.opts.Wa.Enqueue(ctx, group, "staff_paid_claim", payload, &b.ID,
 		dedupe, time.Time{}); err != nil {
 		s.log.Warn("wa enqueue staff claim", "booking", b.ID, "err", err)
 	}
@@ -153,7 +177,7 @@ func (s *BookingService) notifyStaffClaim(ctx context.Context, b *domain.Booking
 
 // notifyClaimRejected tells the customer their proof was not accepted yet.
 func (s *BookingService) notifyClaimRejected(ctx context.Context, b *domain.Booking, phone string) {
-	if s.opts.Wa == nil || !s.opts.CustomerWA {
+	if s.opts.Wa == nil || !s.waCfg(ctx).CustomerEnabled {
 		return
 	}
 	payload := s.waPayload(b, nil)
@@ -181,12 +205,19 @@ func (s *BookingService) scheduleReminder(ctx context.Context, b *domain.Booking
 	if s.opts.Wa == nil {
 		return
 	}
-	at := s.remindAt(b)
-	if at.IsZero() {
+	cfg := s.waCfg(ctx)
+	if !cfg.ReminderEnabled {
+		// Reminders are switched off: drop any pending row so a queued one
+		// cannot fire after the fact.
 		s.cancelReminder(ctx, b.ID)
 		return
 	}
-	if !s.opts.CustomerWA {
+	if !cfg.CustomerEnabled {
+		return
+	}
+	at := s.remindAt(ctx, b)
+	if at.IsZero() {
+		s.cancelReminder(ctx, b.ID)
 		return
 	}
 	payload := s.waPayload(b, nil)
@@ -209,10 +240,39 @@ func (s *BookingService) cancelReminder(ctx context.Context, id uuid.UUID) {
 	}
 }
 
+// ReschedulePendingReminders moves the pending H-1 reminders of future
+// bookings after the reminder hour changed. Already-sent rows are never
+// revived (UpsertScheduled only moves pending/failed rows).
+func (s *BookingService) ReschedulePendingReminders(ctx context.Context) (int, error) {
+	if s.opts.Wa == nil {
+		return 0, nil
+	}
+	cfg := s.waCfg(ctx)
+	if !cfg.ReminderEnabled || !cfg.CustomerEnabled {
+		return 0, nil
+	}
+	list, err := s.bookings.ListActiveFrom(ctx, 500)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for i := range list {
+		b := &list[i]
+		name, phone := s.contact(ctx, b)
+		if strings.TrimSpace(phone) == "" {
+			continue
+		}
+		s.scheduleReminder(ctx, b, name, phone)
+		n++
+	}
+	return n, nil
+}
+
 // notifyReviewRequest queues the post-visit review ask (two hours after the
 // visit, clamped to waking hours).
 func (s *BookingService) notifyReviewRequest(ctx context.Context, b *domain.Booking) {
-	if s.opts.Wa == nil || !s.opts.CustomerWA || strings.TrimSpace(s.opts.ReviewURL) == "" {
+	cfg := s.waCfg(ctx)
+	if s.opts.Wa == nil || !cfg.CustomerEnabled || !cfg.ReviewEnabled || strings.TrimSpace(cfg.ReviewURL) == "" {
 		return
 	}
 	name, phone := s.contact(ctx, b)
@@ -223,7 +283,7 @@ func (s *BookingService) notifyReviewRequest(ctx context.Context, b *domain.Book
 		"name":       displayName(name),
 		"service":    b.ServiceName,
 		"staff":      b.StaffName,
-		"review_url": s.opts.ReviewURL,
+		"review_url": cfg.ReviewURL,
 	}
 	at := clampSendTime(s.nowWIB().Add(2 * time.Hour))
 	if _, err := s.opts.Wa.UpsertScheduled(ctx, phone, "review_request", payload, &b.ID,
@@ -237,7 +297,7 @@ func (s *BookingService) notifyReviewRequest(ctx context.Context, b *domain.Book
 // notifyCustomer queues a lifecycle message (cancel/reschedule/expired) to the
 // booking's WhatsApp number, account or guest.
 func (s *BookingService) notifyCustomer(ctx context.Context, b *domain.Booking, key string, extra map[string]any) {
-	if s.opts.Wa == nil || !s.opts.CustomerWA {
+	if s.opts.Wa == nil || !s.waCfg(ctx).CustomerEnabled {
 		return
 	}
 	name, phone := s.contact(ctx, b)
@@ -271,31 +331,35 @@ func (s *BookingService) notifyCustomerRescheduled(ctx context.Context, b *domai
 
 // groupEnabled reports whether booking pings have both a destination and are
 // switched on at all.
-func (s *BookingService) groupEnabled() bool {
-	if s.opts.Wa == nil || strings.TrimSpace(s.opts.StaffGroup) == "" {
+func (s *BookingService) groupEnabled(ctx context.Context) bool {
+	if s.opts.Wa == nil {
 		return false
 	}
-	return s.opts.GroupBooking != "off"
+	cfg := s.waCfg(ctx)
+	if strings.TrimSpace(cfg.StaffGroupJID) == "" {
+		return false
+	}
+	return cfg.GroupMode != "off"
 }
 
 // groupBookingPing decides whether a *new booking* pings the group: online
 // bookings by default, every source with "all". A booking typed in by CS never
 // pings — the staff member creating it is the one reading the group.
-func (s *BookingService) groupBookingPing(source string) bool {
-	if !s.groupEnabled() {
+func (s *BookingService) groupBookingPing(ctx context.Context, source string) bool {
+	if !s.groupEnabled(ctx) {
 		return false
 	}
-	return s.opts.GroupBooking == "all" || source == "web"
+	return s.waCfg(ctx).GroupMode == "all" || source == "web"
 }
 
 // notifyGroupBooking tells the staff group that a new booking landed.
 func (s *BookingService) notifyGroupBooking(ctx context.Context, b *domain.Booking, p *domain.Payment) {
-	if !s.groupBookingPing(b.Source) {
+	if !s.groupBookingPing(ctx, b.Source) {
 		return
 	}
 	payload := s.waPayload(b, p)
 	payload["band"] = bandLabel(b)
-	if _, err := s.opts.Wa.Enqueue(ctx, s.opts.StaffGroup, "staff_booking", payload, &b.ID,
+	if _, err := s.opts.Wa.Enqueue(ctx, s.waCfg(ctx).StaffGroupJID, "staff_booking", payload, &b.ID,
 		"booking:"+b.ID.String()+":staff", time.Time{}); err != nil {
 		s.log.Warn("wa enqueue staff booking", "booking", b.ID, "err", err)
 	}
@@ -305,7 +369,7 @@ func (s *BookingService) notifyGroupBooking(ctx context.Context, b *domain.Booki
 // always fire (unless pings are off): a freed slot is actionable whoever
 // released it, and a reschedule changes the bidan's day.
 func (s *BookingService) notifyGroupSlot(ctx context.Context, b *domain.Booking, kind, actor string, oldStart time.Time) {
-	if !s.groupEnabled() {
+	if !s.groupEnabled(ctx) {
 		return
 	}
 	key := "staff_cancelled"
@@ -319,7 +383,7 @@ func (s *BookingService) notifyGroupSlot(ctx context.Context, b *domain.Booking,
 		payload["old_when"] = formatWIB(oldStart)
 	}
 	dedupe := fmt.Sprintf("slot:%s:%s:%d", b.ID.String(), kind, time.Now().UnixNano())
-	if _, err := s.opts.Wa.Enqueue(ctx, s.opts.StaffGroup, key, payload, &b.ID, dedupe, time.Time{}); err != nil {
+	if _, err := s.opts.Wa.Enqueue(ctx, s.waCfg(ctx).StaffGroupJID, key, payload, &b.ID, dedupe, time.Time{}); err != nil {
 		s.log.Warn("wa enqueue staff slot", "booking", b.ID, "kind", kind, "err", err)
 	}
 }

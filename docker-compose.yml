@@ -113,6 +113,9 @@ services:
       ANALYTICS_URL: "${ANALYTICS_URL:-}"
       ANALYTICS_SITE_ID: "${ANALYTICS_SITE_ID:-}"
       PAYMENT_MODE: "${PAYMENT_MODE:-qris_manual}"
+      # WA_CUSTOMER_ENABLED/WA_STAFF_GROUP_JID/WA_REMINDER_HOUR/WA_DIGEST_HOUR/
+      # WA_GROUP_BOOKING/GOOGLE_REVIEW_URL are defaults; override live at
+      # /admin/whatsapp (DB wins). WA_ENABLED + transport keys stay env-only.
       WA_ENABLED: "${WA_ENABLED:-false}"
       WA_API_URL: "${WA_API_URL:-http://evolution:8080}"
       WA_API_KEY: "${WA_API_KEY:-dev-wa-key}"

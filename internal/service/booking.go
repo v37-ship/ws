@@ -36,6 +36,7 @@ type BookingService struct {
 	baseURL  string
 	log      *slog.Logger
 	opts     BookingOptions
+	settings *WaSettingsService
 	now      func() time.Time // test seam; nil = wall clock
 }
 
@@ -57,7 +58,7 @@ func NewBookingService(
 	return &BookingService{
 		bookings: bookings, payments: payments, catalog: catalog, users: users, promos: promos,
 		zones: zones, avail: avail, midtrans: midtrans, mailer: mailer, holdTTL: holdTTL, baseURL: baseURL, log: log,
-		opts: opts,
+		opts: opts, settings: opts.Settings,
 	}
 }
 

@@ -48,6 +48,7 @@ type Server struct {
 	promo       *service.PromoService
 	distance    *service.DistanceService
 	paySettings *service.PaymentSettingsService
+	waSettings  *service.WaSettingsService
 	wa          *service.WaService
 	waOutbox    *repo.WaRepo
 	digest      *service.DigestService
@@ -71,6 +72,7 @@ func New(
 	promo *service.PromoService,
 	distance *service.DistanceService,
 	paySettings *service.PaymentSettingsService,
+	waSettings *service.WaSettingsService,
 	waSvc *service.WaService,
 	waOutbox *repo.WaRepo,
 	digest *service.DigestService,
@@ -255,7 +257,7 @@ func New(
 	}
 	return &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
-		distance: distance, paySettings: paySettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
+		distance: distance, paySettings: paySettings, waSettings: waSettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -708,6 +710,14 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/payments", s.AdminPayments)
 		ar.Post("/payments/qris", s.AdminUploadQRIS)
 		ar.Post("/payments/qris/reset", s.AdminResetQRIS)
+
+		// WhatsApp configuration (reminders, copy, pause).
+		ar.Get("/whatsapp", s.AdminWhatsApp)
+		ar.Post("/whatsapp", s.AdminSaveWhatsApp)
+		ar.Post("/whatsapp/reset", s.AdminResetWhatsApp)
+		ar.Post("/whatsapp/test", s.AdminTestWhatsApp)
+		ar.Post("/whatsapp/template", s.AdminSaveWaTemplate)
+		ar.Post("/whatsapp/template/reset", s.AdminResetWaTemplate)
 
 		// CS Accounts Management
 		ar.Get("/cs", s.AdminCSList)
