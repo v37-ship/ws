@@ -167,6 +167,39 @@ func (s *Server) AdminTestWhatsApp(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/whatsapp?success="+url.QueryEscape("Test message queued — check the outbox below"), http.StatusSeeOther)
 }
 
+// AdminRescheduleWhatsApp re-queues the H-1 reminders of future confirmed
+// bookings. The scheduled row is normally written when a booking is confirmed,
+// so this is the recovery action for bookings that predate the automation (or
+// whose reminder was cancelled while a switch was off).
+func (s *Server) AdminRescheduleWhatsApp(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	if u == nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	cfg := s.waSettings.Effective(r.Context())
+	if !cfg.ReminderEnabled || !cfg.CustomerEnabled {
+		s.renderAdminWhatsApp(w, r, "", "Turn the H-1 reminder and automatic customer messages on first")
+		return
+	}
+	n, err := s.book.ReschedulePendingReminders(r.Context())
+	if err != nil {
+		s.log.Error("wa reschedule reminders", "err", err)
+		s.renderAdminWhatsApp(w, r, "", "Could not re-schedule the reminders")
+		return
+	}
+	msg := "No upcoming booking needed a reminder"
+	if n > 0 {
+		msg = fmt.Sprintf("%d upcoming reminder(s) re-scheduled", n)
+	}
+	http.Redirect(w, r, "/admin/whatsapp?success="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
 func (s *Server) AdminSaveWaTemplate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {

@@ -150,6 +150,11 @@
         </tbody>
       </table>
       {{else}}<p class="muted">{{t .Lang "a.wa.none"}}</p>{{end}}
+      <form method="post" action="/admin/whatsapp/reschedule">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button class="btn secondary on-light" type="submit">{{icon "calendar"}} {{t .Lang "a.wa.resched"}}</button>
+      </form>
+      <p class="muted">{{t .Lang "a.wa.reschedx"}}</p>
     </div>
 
     <div class="panel stack">

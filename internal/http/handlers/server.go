@@ -716,6 +716,7 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Post("/whatsapp", s.AdminSaveWhatsApp)
 		ar.Post("/whatsapp/reset", s.AdminResetWhatsApp)
 		ar.Post("/whatsapp/test", s.AdminTestWhatsApp)
+		ar.Post("/whatsapp/reschedule", s.AdminRescheduleWhatsApp)
 		ar.Post("/whatsapp/template", s.AdminSaveWaTemplate)
 		ar.Post("/whatsapp/template/reset", s.AdminResetWaTemplate)
 
