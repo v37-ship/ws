@@ -33,6 +33,9 @@
             </div>
             <dl class="pay-lines">
               <div><dt>{{t .Lang "svc2.service"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}</dd></div>
+              {{if gt .Booking.DistanceFeeIDR 0}}
+              <div><dt>{{t .Lang "hc.fee"}}{{if .Booking.DistanceKm}} (≤ {{formatKm .Booking.DistanceKm}} km){{end}}</dt><dd>{{formatIDR .Booking.DistanceFeeIDR}}</dd></div>
+              {{end}}
               {{if gt .Booking.DiscountIDR 0}}
               <div><dt>{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}})</dt><dd class="pay-disc">−{{formatIDR .Booking.DiscountIDR}}</dd></div>
               {{end}}

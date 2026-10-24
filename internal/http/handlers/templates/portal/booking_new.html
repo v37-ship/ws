@@ -87,6 +87,14 @@
       <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}}
         <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" :required="place==='homecare'"></textarea>
       </label>
+      {{if .Zones}}
+      <label x-show="place==='homecare'" x-transition>{{t .Lang "hc.pick"}}
+        <select name="distance_zone" :required="place==='homecare'">
+          <option value="">{{t .Lang "hc.sel"}}</option>
+          {{range .Zones}}<option value="{{.ID}}">{{.Label}} — {{formatIDR .FeeIDR}}</option>{{end}}
+        </select>
+      </label>
+      {{end}}
       <span id="staff-svc-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span> <span class="muted">{{t .Lang "p.nb.load"}}</span></span>
 
       <div id="service-wrap" aria-live="polite">

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -237,41 +238,43 @@ const (
 )
 
 type Booking struct {
-	ID            uuid.UUID
-	CustomerID    *uuid.UUID // nil = guest booking (identity in Guest* fields)
-	GuestName     string
-	GuestPhone    string
-	GuestEmail    string
-	AccessToken   *string // guest management token, nil = none/revoked
-	LocationID    uuid.UUID
-	ServiceID     uuid.UUID
-	StaffID       uuid.UUID
-	StartAt       time.Time
-	EndAt         time.Time
-	Status        BookingStatus
-	PriceIDR      int64
-	BookingFeeIDR int64
-	PromoCode     string // applied promo code snapshot ('' = none)
-	DiscountIDR   int64  // discount snapshot; net charged = PriceIDR - DiscountIDR
-	HoldExpiresAt *time.Time
-	Notes         string
-	Place         Place  // 'onsite' (at branch) or 'homecare' (customer address)
-	VisitAddress  string // required when Place is homecare
-	Source        string // 'web', 'walkin', 'whatsapp', 'phone'
-	CreatedByID   *uuid.UUID
-	UpdatedByID   *uuid.UUID
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
-	ServiceName   string
-	StaffName     string
-	LocationName  string
-	BabyName      string
-	MomCondition  string
-	PaymentMethod PaymentMethod
-	PaymentStatus PaymentStatus
+	ID             uuid.UUID
+	CustomerID     *uuid.UUID // nil = guest booking (identity in Guest* fields)
+	GuestName      string
+	GuestPhone     string
+	GuestEmail     string
+	AccessToken    *string // guest management token, nil = none/revoked
+	LocationID     uuid.UUID
+	ServiceID      uuid.UUID
+	StaffID        uuid.UUID
+	StartAt        time.Time
+	EndAt          time.Time
+	Status         BookingStatus
+	PriceIDR       int64
+	BookingFeeIDR  int64
+	PromoCode      string // applied promo code snapshot ('' = none)
+	DiscountIDR    int64  // discount snapshot; net charged = PriceIDR - DiscountIDR
+	HoldExpiresAt  *time.Time
+	Notes          string
+	Place          Place    // 'onsite' (at branch) or 'homecare' (customer address)
+	VisitAddress   string   // required when Place is homecare
+	DistanceKm     *float64 // chosen transport band's upper bound (nil = no fee)
+	DistanceFeeIDR int64    // snapshot of the homecare transport fee
+	Source         string   // 'web', 'walkin', 'whatsapp', 'phone'
+	CreatedByID    *uuid.UUID
+	UpdatedByID    *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	CustomerName   string
+	CustomerPhone  string
+	CustomerEmail  string
+	ServiceName    string
+	StaffName      string
+	LocationName   string
+	BabyName       string
+	MomCondition   string
+	PaymentMethod  PaymentMethod
+	PaymentStatus  PaymentStatus
 }
 
 type BookingLog struct {
@@ -595,9 +598,32 @@ type PromoCode struct {
 	UpdatedAt time.Time
 }
 
-// Net returns the chargeable amount after the snapshot discount.
+// DistanceZone is a homecare transport fee band: a one-way distance range
+// from the branch to the customer's address, priced round-trip.
+type DistanceZone struct {
+	ID        uuid.UUID
+	MinKM     float64
+	MaxKM     float64
+	FeeIDR    int64
+	Active    bool
+	Sort      int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Label renders the band as "6–7 km" (no trailing .0).
+func (z DistanceZone) Label() string {
+	return KmLabel(z.MinKM) + "–" + KmLabel(z.MaxKM) + " km"
+}
+
+// KmLabel trims a distance to its shortest decimal form ("6", "6.5").
+func KmLabel(km float64) string {
+	return strconv.FormatFloat(km, 'f', -1, 64)
+}
+
+// Net returns the chargeable amount: treatment + transport − discount.
 func (b Booking) Net() int64 {
-	if net := b.PriceIDR - b.DiscountIDR; net > 0 {
+	if net := b.PriceIDR + b.DistanceFeeIDR - b.DiscountIDR; net > 0 {
 		return net
 	}
 	return 0

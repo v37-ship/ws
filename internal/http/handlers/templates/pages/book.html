@@ -14,8 +14,35 @@
       {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
       <form method="post" action="/book" id="book-form"
+        @htmx:afterSwap.window="readPromo()"
         x-data="{
           loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'{{t .Lang "book.today"}}', time:'', start:'', staff:'', place:'{{if eq .Place "homecare"}}homecare{{else}}onsite{{end}}',
+          address:'', zone:'', fee:0, price:0, discount:0,
+          get totalLabel(){
+            var total = this.price + this.fee - this.discount;
+            if (total < 0) total = 0;
+            return 'Rp ' + Number(total).toLocaleString('id-ID');
+          },
+          readPromo(){
+            var el = document.querySelector('#promo-box [data-discount]');
+            this.discount = el ? parseInt(el.dataset.discount, 10) || 0 : 0;
+          },
+          get feeLabel(){ return this.fee > 0 ? 'Rp ' + Number(this.fee).toLocaleString('id-ID') : ''; },
+          get mapsLink(){
+            var loc = document.querySelector('input[name=location_id]:checked');
+            var origin = loc && loc.dataset.origin ? loc.dataset.origin : '';
+            var dest = (this.address || '').trim();
+            return 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(dest) + '&travelmode=driving';
+          },
+          setPlace(p){
+            this.place = p;
+            if (p !== 'homecare') { this.zone = ''; this.fee = 0; }
+          },
+          setZone(ev){
+            var opt = ev.target.selectedOptions[0];
+            this.zone = ev.target.value;
+            this.fee = opt && opt.dataset.fee ? parseInt(opt.dataset.fee, 10) : 0;
+          },
           pick(s, st, label){
             if (this.start === s) { this.clearTime(); return; }
             this.start=s; this.staff=st; this.time=label||'';
@@ -39,6 +66,9 @@
             if (kind==='loc') { this.loc=el.value; }
             if (kind==='svc') {
               this.svcLabel=el.dataset.label; this.svcSub=el.dataset.sub;
+              this.price=parseInt(el.dataset.price||'0',10)||0;
+              this.discount=0;
+              var pb=document.getElementById('promo-box'); if(pb) pb.innerHTML='';
               this.staffLabel=''; this.clearTime();
               document.getElementById('staff_id_selected').value='';
             }
@@ -100,6 +130,7 @@
             {{range .Locations}}
             <label class="pill-pick">
               <input type="radio" name="location_id" value="{{.ID}}" required
+                data-origin="{{.Address}}{{if .City}}, {{.City}}{{end}}, Indonesia"
                 {{if eq $.LocationID .ID.String}}checked data-was="1"{{end}}
                 hx-get="/book/services?view=cards" hx-target="#service-wrap" hx-swap="innerHTML"
                 hx-include="this" hx-indicator="#svc-ind"
@@ -113,11 +144,11 @@
           <p class="muted" style="margin:.5rem 0 0; font-size:.85rem;">{{t .Lang "book.place"}}</p>
           <div class="pick-row" role="radiogroup" aria-label="{{t .Lang "book.place"}}">
             <label class="pill-pick">
-              <input type="radio" name="place" value="onsite" {{if ne .Place "homecare"}}checked{{end}} @change="place='onsite'">
+              <input type="radio" name="place" value="onsite" {{if ne .Place "homecare"}}checked{{end}} @change="setPlace('onsite')">
               <span>{{icon "building"}} {{t .Lang "book.onsite"}}</span>
             </label>
             <label class="pill-pick">
-              <input type="radio" name="place" value="homecare" {{if eq .Place "homecare"}}checked{{end}} @change="place='homecare'">
+              <input type="radio" name="place" value="homecare" {{if eq .Place "homecare"}}checked{{end}} @change="setPlace('homecare')">
               <span>{{icon "home"}} {{t .Lang "book.homecare"}}</span>
             </label>
           </div>
@@ -166,12 +197,35 @@
               </span>
             </dd></div>
             <div><dt>{{t .Lang "book.place"}}</dt><dd x-text="place==='homecare' ? '{{t .Lang "book.homecare"}}' : '{{t .Lang "book.onsite"}}'"></dd></div>
+            <div x-show="place==='homecare' && fee > 0"><dt>{{t .Lang "hc.fee"}}</dt><dd x-text="feeLabel"></dd></div>
+            <div class="promo-total" x-show="price > 0"><dt>{{t .Lang "promo.total"}}</dt><dd><strong x-text="totalLabel"></strong></dd></div>
           </dl>
           <span id="promo-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span></span>
           <div id="promo-box" aria-live="polite"></div>
           <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
           <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
-          <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}} <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" :required="place==='homecare'"></textarea></label>
+          <label x-show="place==='homecare'" x-transition>{{t .Lang "book.address"}} <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}" x-model="address" :required="place==='homecare'"></textarea></label>
+          {{if .Zones}}
+          <div class="stack" x-show="place==='homecare'" x-transition style="gap:.5rem;">
+            <a class="muted" style="font-size:.85rem;" x-show="address.trim()" :href="mapsLink" target="_blank" rel="noopener">{{icon "pin"}} {{t .Lang "hc.check"}}</a>
+            <p class="muted" style="margin:0; font-size:.8rem;">{{t .Lang "hc.help"}}</p>
+            <label>{{t .Lang "hc.pick"}}
+              <select name="distance_zone" x-model="zone" :required="place==='homecare'" @change="setZone($event)">
+                <option value="">{{t .Lang "hc.sel"}}</option>
+                {{range .Zones}}<option value="{{.ID}}" data-fee="{{.FeeIDR}}">{{.Label}} · {{formatIDR .FeeIDR}}</option>{{end}}
+              </select>
+            </label>
+            <details style="font-size:.85rem;">
+              <summary style="cursor:pointer;" class="muted">{{t .Lang "hc.tbl"}}</summary>
+              <ul class="muted" style="margin:.4rem 0 0; padding-left:1.1rem;">
+                {{range .Zones}}<li>{{.Label}} — {{formatIDR .FeeIDR}}</li>{{end}}
+              </ul>
+            </details>
+            <p class="muted" style="margin:0; font-size:.8rem;">{{t .Lang "hc.far"}}
+              <a href="{{waLink .Contact.WhatsApp "Halo Wangga Spa! Alamat saya di luar jangkauan online, apakah bisa homecare?"}}" target="_blank" rel="noopener">WhatsApp</a>
+            </p>
+          </div>
+          {{end}}
           <label>{{t .Lang "book.notes"}} <textarea name="notes" rows="2" autocomplete="off" placeholder="{{t .Lang "book.notes_ph"}}">{{.Notes}}</textarea></label>
           {{if .User}}
             <button class="btn big" type="submit" :disabled="!time">{{t .Lang "book.continue"}}</button>

@@ -40,6 +40,7 @@
             <div class="muted" style="font-size:.85rem;">{{slotLabel $.Lang .StartAt}} — {{formatTime .EndAt "15:04"}}</div>
             <div class="muted" style="font-size:.85rem;">{{.LocationName}}{{if eq (printf "%s" .Place) "homecare"}} · {{t $.Lang "book.badge_home"}}{{end}} · {{icon "user"}} {{.StaffName}}</div>
             {{if .VisitAddress}}<div class="muted" style="font-size:.85rem;">{{icon "home"}} {{.VisitAddress}}</div>{{end}}
+            {{if gt .DistanceFeeIDR 0}}<div class="muted" style="font-size:.85rem;">{{icon "pin"}} {{t $.Lang "hc.fee"}}: {{formatIDR .DistanceFeeIDR}}</div>{{end}}
           </div>
           <span class="badge {{.Status}}">{{.Status.Display}}</span>
         </div>

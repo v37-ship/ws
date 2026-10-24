@@ -31,4 +31,9 @@ func TestBookingNet(t *testing.T) {
 	if got := b.Net(); got != 0 {
 		t.Errorf("over-discount net = %d want 0", got)
 	}
+	// Homecare transport is added on top of the (still discounted) treatment.
+	b = domain.Booking{PriceIDR: 250000, DistanceFeeIDR: 25000, DiscountIDR: 50000}
+	if got := b.Net(); got != 225000 {
+		t.Errorf("distance net = %d want 225000", got)
+	}
 }

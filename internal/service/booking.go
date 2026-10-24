@@ -28,6 +28,7 @@ type BookingService struct {
 	catalog  *repo.CatalogRepo
 	users    *repo.UserRepo
 	promos   *repo.PromoRepo
+	zones    *repo.DistanceRepo
 	avail    *AvailabilityService
 	midtrans *payment.Client
 	mailer   *email.Sender
@@ -43,6 +44,7 @@ func NewBookingService(
 	catalog *repo.CatalogRepo,
 	users *repo.UserRepo,
 	promos *repo.PromoRepo,
+	zones *repo.DistanceRepo,
 	avail *AvailabilityService,
 	midtrans *payment.Client,
 	mailer *email.Sender,
@@ -53,12 +55,12 @@ func NewBookingService(
 ) *BookingService {
 	return &BookingService{
 		bookings: bookings, payments: payments, catalog: catalog, users: users, promos: promos,
-		avail: avail, midtrans: midtrans, mailer: mailer, holdTTL: holdTTL, baseURL: baseURL, log: log,
+		zones: zones, avail: avail, midtrans: midtrans, mailer: mailer, holdTTL: holdTTL, baseURL: baseURL, log: log,
 		opts: opts,
 	}
 }
 
-func (s *BookingService) CreatePending(ctx context.Context, customerID, locationID, serviceID, staffID uuid.UUID, startAt time.Time, notes string, place domain.Place, visitAddress string, promoCode string) (*domain.Booking, *domain.Payment, error) {
+func (s *BookingService) CreatePending(ctx context.Context, customerID, locationID, serviceID, staffID uuid.UUID, startAt time.Time, notes string, place domain.Place, visitAddress string, promoCode string, distanceZoneID *uuid.UUID) (*domain.Booking, *domain.Payment, error) {
 	svc, err := s.catalog.ServiceByID(ctx, serviceID)
 	if err != nil {
 		return nil, nil, err
@@ -88,24 +90,30 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 	if err != nil {
 		return nil, nil, err
 	}
+	distanceFee, distanceKm, err := ResolveDistance(ctx, s.zones, place, distanceZoneID)
+	if err != nil {
+		return nil, nil, err
+	}
 	endAt := startAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	holdExp := time.Now().Add(s.holdTTL)
 	b := &domain.Booking{
-		CustomerID:    &customerID,
-		LocationID:    locationID,
-		ServiceID:     serviceID,
-		StaffID:       staffID,
-		StartAt:       startAt.UTC(),
-		EndAt:         endAt.UTC(),
-		Status:        domain.BookingPendingPayment,
-		PriceIDR:      svc.PriceIDR,
-		PromoCode:     quote.Code,
-		DiscountIDR:   quote.Discount,
-		HoldExpiresAt: &holdExp,
-		Notes:         strings.TrimSpace(notes),
-		Place:         place,
-		VisitAddress:  visitAddress,
-		Source:        "web",
+		CustomerID:     &customerID,
+		LocationID:     locationID,
+		ServiceID:      serviceID,
+		StaffID:        staffID,
+		StartAt:        startAt.UTC(),
+		EndAt:          endAt.UTC(),
+		Status:         domain.BookingPendingPayment,
+		PriceIDR:       svc.PriceIDR,
+		PromoCode:      quote.Code,
+		DiscountIDR:    quote.Discount,
+		HoldExpiresAt:  &holdExp,
+		Notes:          strings.TrimSpace(notes),
+		Place:          place,
+		VisitAddress:   visitAddress,
+		DistanceKm:     distanceKm,
+		DistanceFeeIDR: distanceFee,
+		Source:         "web",
 	}
 	if s.ManualPayments() {
 		// Pay-later: the slot is secured now, payment happens online or at
@@ -214,6 +222,7 @@ type StaffBookingRequest struct {
 	PaymentMethod  domain.PaymentMethod  // 'qris' or 'cash'
 	PaymentPurpose domain.PaymentPurpose // 'service' or 'booking_fee' or 'full'
 	PromoCode      string                // optional promo code (validated server-side)
+	DistanceZoneID *uuid.UUID            // homecare transport band (nil = onsite/none)
 	ActorID        uuid.UUID
 }
 
@@ -264,22 +273,28 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	if err != nil {
 		return nil, nil, err
 	}
+	distanceFee, distanceKm, err := ResolveDistance(ctx, s.zones, place, req.DistanceZoneID)
+	if err != nil {
+		return nil, nil, err
+	}
 	b := &domain.Booking{
-		CustomerID:   &req.CustomerID,
-		LocationID:   req.LocationID,
-		ServiceID:    req.ServiceID,
-		StaffID:      req.StaffID,
-		StartAt:      req.StartAt.UTC(),
-		EndAt:        endAt.UTC(),
-		PriceIDR:     svc.PriceIDR,
-		PromoCode:    quote.Code,
-		DiscountIDR:  quote.Discount,
-		Notes:        strings.TrimSpace(req.Notes),
-		Place:        place,
-		VisitAddress: visitAddress,
-		Source:       req.Source,
-		CreatedByID:  &req.ActorID,
-		UpdatedByID:  &req.ActorID,
+		CustomerID:     &req.CustomerID,
+		LocationID:     req.LocationID,
+		ServiceID:      req.ServiceID,
+		StaffID:        req.StaffID,
+		StartAt:        req.StartAt.UTC(),
+		EndAt:          endAt.UTC(),
+		PriceIDR:       svc.PriceIDR,
+		PromoCode:      quote.Code,
+		DiscountIDR:    quote.Discount,
+		Notes:          strings.TrimSpace(req.Notes),
+		Place:          place,
+		VisitAddress:   visitAddress,
+		DistanceKm:     distanceKm,
+		DistanceFeeIDR: distanceFee,
+		Source:         req.Source,
+		CreatedByID:    &req.ActorID,
+		UpdatedByID:    &req.ActorID,
 	}
 
 	orderID := fmt.Sprintf("STAFF-%s", strings.ReplaceAll(uuid.New().String(), "-", "")[:14])
@@ -486,12 +501,13 @@ func (s *BookingService) Reschedule(ctx context.Context, bookingID, staffID uuid
 // CorrectDetailsRequest is an admin correction of booking details that CS
 // cannot change after creation (service/price, place/address, notes).
 type CorrectDetailsRequest struct {
-	ServiceID    uuid.UUID
-	Place        domain.Place
-	VisitAddress string
-	Notes        string
-	Reason       string // mandatory correction justification, logged
-	ActorID      uuid.UUID
+	ServiceID      uuid.UUID
+	Place          domain.Place
+	VisitAddress   string
+	Notes          string
+	DistanceZoneID *uuid.UUID // nil = keep the current band unless the place changes
+	Reason         string     // mandatory correction justification, logged
+	ActorID        uuid.UUID
 }
 
 // CorrectDetails applies an admin correction on any booking, logging old→new.
@@ -529,6 +545,28 @@ func (s *BookingService) CorrectDetails(ctx context.Context, bookingID uuid.UUID
 	if place != b.Place || visitAddress != b.VisitAddress {
 		changes = append(changes, fmt.Sprintf("place %s → %s", b.Place, place))
 	}
+	distanceFee, distanceKm := b.DistanceFeeIDR, b.DistanceKm
+	switch {
+	case place != domain.PlaceHomecare:
+		// Onsite never carries transport.
+		if distanceFee != 0 || distanceKm != nil {
+			changes = append(changes, fmt.Sprintf("transport Rp %d → Rp 0", distanceFee))
+		}
+		distanceFee, distanceKm = 0, nil
+	case req.DistanceZoneID != nil || b.Place != domain.PlaceHomecare:
+		fee, km, err := ResolveDistance(ctx, s.zones, place, req.DistanceZoneID)
+		if err != nil {
+			return false, err
+		}
+		// Same band: keep the booking's snapshot, so a later edit of the
+		// zone table never reprices an unrelated correction.
+		if !sameKm(km, b.DistanceKm) {
+			if fee != distanceFee || !sameKm(km, distanceKm) {
+				changes = append(changes, fmt.Sprintf("transport Rp %d → Rp %d", distanceFee, fee))
+			}
+			distanceFee, distanceKm = fee, km
+		}
+	}
 	notes := strings.TrimSpace(req.Notes)
 	if notes != b.Notes {
 		changes = append(changes, "notes updated")
@@ -538,11 +576,11 @@ func (s *BookingService) CorrectDetails(ctx context.Context, bookingID uuid.UUID
 	}
 	logNotes := strings.TrimSpace(req.Reason) + " [" + strings.Join(changes, "; ") + "]"
 	if err := s.bookings.UpdateDetailsWithLog(ctx, bookingID, serviceID, priceIDR,
-		place, visitAddress, notes, &req.ActorID, logNotes); err != nil {
+		place, visitAddress, notes, distanceKm, distanceFee, &req.ActorID, logNotes); err != nil {
 		return false, err
 	}
 	if p, err := s.payments.ByBookingID(ctx, bookingID); err == nil && p != nil &&
-		p.Status == domain.PaymentPaid && p.AmountIDR > priceIDR {
+		p.Status == domain.PaymentPaid && p.AmountIDR > priceIDR+distanceFee {
 		return true, nil
 	}
 	return false, nil
@@ -729,17 +767,18 @@ func ValidateGuest(name, phone, email string) (string, string, string, error) {
 
 // GuestBookingRequest carries guest identity for account-less bookings.
 type GuestBookingRequest struct {
-	LocationID   uuid.UUID
-	ServiceID    uuid.UUID
-	StaffID      uuid.UUID
-	StartAt      time.Time
-	Notes        string
-	Place        domain.Place
-	VisitAddress string
-	PromoCode    string
-	Name         string
-	Phone        string
-	Email        string
+	LocationID     uuid.UUID
+	ServiceID      uuid.UUID
+	StaffID        uuid.UUID
+	StartAt        time.Time
+	Notes          string
+	Place          domain.Place
+	VisitAddress   string
+	PromoCode      string
+	DistanceZoneID *uuid.UUID
+	Name           string
+	Phone          string
+	Email          string
 }
 
 // CreateGuestPending books without an account: identity snapshots onto the
@@ -771,6 +810,10 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 	if err != nil {
 		return nil, nil, err
 	}
+	distanceFee, distanceKm, err := ResolveDistance(ctx, s.zones, place, req.DistanceZoneID)
+	if err != nil {
+		return nil, nil, err
+	}
 	token, err := NewAccessToken()
 	if err != nil {
 		return nil, nil, err
@@ -778,24 +821,26 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 	endAt := req.StartAt.Add(time.Duration(svc.DurationMin) * time.Minute)
 	holdExp := time.Now().Add(s.holdTTL)
 	b := &domain.Booking{
-		LocationID:    req.LocationID,
-		ServiceID:     req.ServiceID,
-		StaffID:       req.StaffID,
-		StartAt:       req.StartAt.UTC(),
-		EndAt:         endAt.UTC(),
-		Status:        domain.BookingPendingPayment,
-		PriceIDR:      svc.PriceIDR,
-		PromoCode:     quote.Code,
-		DiscountIDR:   quote.Discount,
-		GuestName:     name,
-		GuestPhone:    phone,
-		GuestEmail:    email,
-		AccessToken:   &token,
-		HoldExpiresAt: &holdExp,
-		Notes:         strings.TrimSpace(req.Notes),
-		Place:         place,
-		VisitAddress:  visitAddress,
-		Source:        "web",
+		LocationID:     req.LocationID,
+		ServiceID:      req.ServiceID,
+		StaffID:        req.StaffID,
+		StartAt:        req.StartAt.UTC(),
+		EndAt:          endAt.UTC(),
+		Status:         domain.BookingPendingPayment,
+		PriceIDR:       svc.PriceIDR,
+		PromoCode:      quote.Code,
+		DiscountIDR:    quote.Discount,
+		GuestName:      name,
+		GuestPhone:     phone,
+		GuestEmail:     email,
+		AccessToken:    &token,
+		HoldExpiresAt:  &holdExp,
+		Notes:          strings.TrimSpace(req.Notes),
+		Place:          place,
+		VisitAddress:   visitAddress,
+		DistanceKm:     distanceKm,
+		DistanceFeeIDR: distanceFee,
+		Source:         "web",
 	}
 	if s.ManualPayments() {
 		b.Status = domain.BookingConfirmed

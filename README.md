@@ -216,7 +216,7 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 
 ### 1. Customer (Mom / Parents)
 - Self-registration & login, or **guest checkout** (no account needed — name/phone + email, booking managed via a `?t=` token link for pay, status, and cancel).
-- Book spa appointments (select location, onsite/homecare, service, therapist/bidan, date, and slot).
+- Book spa appointments (select location, onsite/homecare, service, therapist/bidan, date, and slot). Homecare adds a transport fee: open the prebuilt Google Maps link, check the one-way distance from the branch, and pick the matching km band (the fee is added on top of the treatment price; beyond the last band is WhatsApp only).
 - Apply **promo codes** in the wizard (percent or fixed IDR off, validated live; the Midtrans charge uses the net amount).
 - Pay booking fees or full services via Midtrans QRIS.
 - View booking history and status (account bookings only).
@@ -237,7 +237,7 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 - **Service Catalog**: Add/edit services with price, duration, per-day opening hours, and photo (upload or internet link — gallery, wizard, and homepage follow automatically). Booking slots respect the intersection of service hours and therapist hours.
 - **Team**: Add/edit therapists (profile, bio, service capabilities, profile photo upload or link, weekly hours), pause/activate, guarded removal (blocked with guidance when booking history exists), and time-off blockouts — all from the portal Team page.
 - **Reports** (`/portal/reports`): Monthly revenue (gross / refunds / net, QRIS-vs-cash, by service/staff) with month + location filters, print stylesheet, and CSV export. Record refunds from booking detail (validated: never more than paid-minus-refunded); refunds deduct in the month recorded (cash basis).
-- **Promo codes, hero banners, food menu**: Full CRUD at `/portal/promos`, `/portal/site` (homepage slideshow photos), and `/portal/food`. Promo codes are immutable — delete and recreate, never edit.
+- **Promo codes, hero banners, food menu, transport bands**: Full CRUD at `/portal/promos`, `/portal/site` (homepage slideshow photos), `/portal/food`, and `/portal/distance` (homecare km → fee bands; bookings keep the fee they were created with). Promo codes are immutable — delete and recreate, never edit.
 
 ### 3. Admin — `/admin`
 - Everything CS can do.

@@ -141,10 +141,12 @@ func (s *Server) BookPage(w http.ResponseWriter, r *http.Request) {
 		// Single-branch shop: pre-answer the required location radio.
 		locID = locs[0].ID.String()
 	}
+	zones, _ := s.distance.ListActive(r.Context())
 	data := pageData{
 		"Locations":  locs,
 		"LocationID": locID,
 		"Place":      place,
+		"Zones":      zones,
 		"Date":       time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
 		"Days":       nextDays(14, i18n.Resolve(r)),
 	}
@@ -308,11 +310,12 @@ func (s *Server) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	place := domain.Place(r.FormValue("place"))
 	visitAddress := r.FormValue("visit_address")
 	promoCode := r.FormValue("promo_code")
+	zoneID := parseZoneID(r.FormValue("distance_zone"))
 	if u == nil {
 		b, _, err := s.book.CreateGuestPending(r.Context(), service.GuestBookingRequest{
 			LocationID: lid, ServiceID: sid, StaffID: staffID, StartAt: startAt,
 			Notes: r.FormValue("notes"), Place: place, VisitAddress: visitAddress,
-			PromoCode: promoCode, Name: r.FormValue("guest_name"),
+			PromoCode: promoCode, DistanceZoneID: zoneID, Name: r.FormValue("guest_name"),
 			Phone: r.FormValue("guest_phone"), Email: r.FormValue("guest_email"),
 		})
 		if err != nil {
@@ -336,7 +339,7 @@ func (s *Server) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, _, err := s.book.CreatePending(r.Context(), u.ID, lid, sid, staffID, startAt,
-		r.FormValue("notes"), place, visitAddress, promoCode)
+		r.FormValue("notes"), place, visitAddress, promoCode, zoneID)
 	if err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			http.Error(w, "That slot was just taken. Pick another time.", http.StatusConflict)
@@ -682,10 +685,12 @@ func (s *Server) PortalNewBookingForm(w http.ResponseWriter, r *http.Request) {
 	}
 	customerID := r.URL.Query().Get("customer_id")
 	today := time.Now().In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02")
+	zones, _ := s.distance.ListActive(r.Context())
 	s.render(w, r, "portal_booking_new.html", pageData{
 		"Locations":       locs,
 		"CustomerID":      customerID,
 		"PrefillCustomer": s.prefillCustomer(r.Context(), customerID),
+		"Zones":           zones,
 		"Date":            today,
 	})
 }
@@ -749,12 +754,14 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 		startAt, err = time.ParseInLocation("2006-01-02T15:04", startAtStr, loc)
 		if err != nil {
 			locs, _ := s.catalog.ListLocations(r.Context(), true)
+			zones, _ := s.distance.ListActive(r.Context())
 			s.render(w, r, "portal_booking_new.html", pageData{
 				"Locations": locs, "Error": "Please select an available time slot",
 				"CustomerID":      r.FormValue("customer_id"),
 				"PrefillCustomer": s.prefillCustomer(r.Context(), r.FormValue("customer_id")),
 				"LocationID":      r.FormValue("location_id"),
 				"PromoCode":       r.FormValue("promo_code"),
+				"Zones":           zones,
 				"Date":            r.FormValue("date"), "Notes": notes,
 			})
 			return
@@ -764,16 +771,19 @@ func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 	b, _, err := s.book.CreateStaffBooking(r.Context(), service.StaffBookingRequest{
 		CustomerID: custID, LocationID: locID, ServiceID: svcID, StaffID: staffID,
 		StartAt: startAt, Notes: notes, Place: place, VisitAddress: visitAddress, Source: source,
-		PaymentMethod: payMethod, PaymentPurpose: payPurpose, PromoCode: r.FormValue("promo_code"), ActorID: u.ID,
+		PaymentMethod: payMethod, PaymentPurpose: payPurpose, PromoCode: r.FormValue("promo_code"),
+		DistanceZoneID: parseZoneID(r.FormValue("distance_zone")), ActorID: u.ID,
 	})
 	if err != nil {
 		locs, _ := s.catalog.ListLocations(r.Context(), true)
+		zones, _ := s.distance.ListActive(r.Context())
 		s.render(w, r, "portal_booking_new.html", pageData{
 			"Locations": locs, "Error": err.Error(),
 			"CustomerID":      r.FormValue("customer_id"),
 			"PrefillCustomer": s.prefillCustomer(r.Context(), r.FormValue("customer_id")),
 			"LocationID":      r.FormValue("location_id"),
 			"PromoCode":       r.FormValue("promo_code"),
+			"Zones":           zones,
 			"Date":            r.FormValue("date"), "Notes": notes,
 		})
 		return
@@ -806,6 +816,11 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		refundable = pay.AmountIDR - refundedTotal
 	}
 	msgs, _ := s.waOutbox.ListByBooking(r.Context(), b.ID, 6)
+	zones, _ := s.distance.ListActive(r.Context())
+	mapsOrigin := ""
+	if loc, err := s.catalog.GetLocation(r.Context(), b.LocationID); err == nil && loc != nil {
+		mapsOrigin = mapsOriginString(loc.Address, loc.City)
+	}
 	waPhone := b.CustomerPhone
 	if b.IsGuest() {
 		waPhone = b.GuestPhone
@@ -815,9 +830,11 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 		receiptURL = "/portal/bookings/" + b.ID.String() + "/receipt"
 	}
 	s.render(w, r, "portal_booking_detail.html", pageData{
-		"Booking":   b,
-		"StaffList": staffList,
-		"Services":  services,
+		"Booking":    b,
+		"StaffList":  staffList,
+		"Services":   services,
+		"Zones":      zones,
+		"MapsOrigin": mapsOrigin,
 		"AllStatuses": []domain.BookingStatus{
 			domain.BookingPendingPayment, domain.BookingConfirmed, domain.BookingCheckedIn,
 			domain.BookingInService, domain.BookingCompleted, domain.BookingCancelled,
@@ -930,12 +947,13 @@ func (s *Server) PortalCorrectBooking(w http.ResponseWriter, r *http.Request) {
 	}
 	svcID, _ := uuid.Parse(r.FormValue("service_id"))
 	priceBelowPaid, err := s.book.CorrectDetails(r.Context(), id, service.CorrectDetailsRequest{
-		ServiceID:    svcID,
-		Place:        domain.Place(r.FormValue("place")),
-		VisitAddress: r.FormValue("visit_address"),
-		Notes:        r.FormValue("notes"),
-		Reason:       r.FormValue("reason"),
-		ActorID:      *actorID,
+		ServiceID:      svcID,
+		Place:          domain.Place(r.FormValue("place")),
+		VisitAddress:   r.FormValue("visit_address"),
+		Notes:          r.FormValue("notes"),
+		DistanceZoneID: parseZoneID(r.FormValue("distance_zone")),
+		Reason:         r.FormValue("reason"),
+		ActorID:        *actorID,
 	})
 	if err != nil {
 		if htmx.IsRequest(r) {

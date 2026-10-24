@@ -50,6 +50,7 @@ func main() {
 	payments := repo.NewPaymentRepo(pool)
 	paySettingsRepo := repo.NewPaymentSettingsRepo(pool)
 	promos := repo.NewPromoRepo(pool)
+	distances := repo.NewDistanceRepo(pool)
 	careers := repo.NewCareerRepo(pool)
 	testimonials := repo.NewTestimonialRepo(pool)
 	foods := repo.NewFoodRepo(pool)
@@ -64,7 +65,7 @@ func main() {
 	midtrans := payment.NewClient(cfg.MidtransServer, cfg.MidtransIsProd)
 	waSvc := service.NewWaService(waOutbox, whatsapp.NewClient(cfg.WAAPIURL, cfg.WAAPIKey, cfg.WAInstance), log, cfg.WAEnabled, cfg.WASendRate)
 	waSvc.RecoverSending(ctx)
-	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log,
+	bookSvc := service.NewBookingService(bookings, payments, catalogRepo, users, promos, distances, availSvc, midtrans, mailer, cfg.BookingHoldTTL, cfg.BaseURL, log,
 		service.BookingOptions{
 			PaymentMode: cfg.PaymentMode,
 			Wa:          waSvc,
@@ -79,6 +80,7 @@ func main() {
 	heroSvc := service.NewHeroService(heroes)
 	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
+	distanceSvc := service.NewDistanceService(distances)
 	if cfg.WAEnabled {
 		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL, "customer_messages", cfg.WACustomer)
 	} else {
@@ -106,8 +108,12 @@ func main() {
 		log.Error("seed food", "err", err)
 		os.Exit(1)
 	}
+	if err := distanceSvc.SeedDistanceZones(ctx); err != nil {
+		log.Error("seed distance zones", "err", err)
+		os.Exit(1)
+	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, paySettingsSvc, waSvc, waOutbox)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSvc, waOutbox)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

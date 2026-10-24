@@ -43,10 +43,10 @@
           {{end}}
           <div><dt>{{icon "smile"}} {{t .Lang "p.det.baby"}}</dt><dd>{{if .Booking.BabyName}}{{.Booking.BabyName}}{{else}}<em class="muted">{{t .Lang "p.det.none"}}</em>{{end}}</dd></div>
           <div><dt>{{icon "heart"}} {{t .Lang "p.det.momc"}}</dt><dd><small>{{if .Booking.MomCondition}}{{.Booking.MomCondition}}{{else}}{{t .Lang "p.det.std"}}{{end}}</small></dd></div>
-          <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">{{icon "home"}} Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">{{icon "pin"}} {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · {{icon "home"}} {{.Booking.VisitAddress}}{{end}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.svc"}}</dt><dd>{{.Booking.ServiceName}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <span class="badge">{{icon "home"}} Homecare</span>{{end}}<br><small class="muted" style="font-weight:400;">{{icon "pin"}} {{.Booking.LocationName}}{{if .Booking.VisitAddress}} · {{icon "home"}} {{.Booking.VisitAddress}}{{if eq (printf "%s" .Booking.Place) "homecare"}} <a href="{{mapsLink $.MapsOrigin .Booking.VisitAddress}}" target="_blank" rel="noopener" title="Google Maps">{{icon "pin"}}</a>{{end}}{{end}}</small></dd></div>
           <div><dt>{{t .Lang "p.det.staff"}}</dt><dd>{{.Booking.StaffName}}</dd></div>
           <div><dt>{{t .Lang "book.when"}}</dt><dd><small>{{slotLabel .Lang .Booking.StartAt}} - {{formatTime .Booking.EndAt "15:04"}} WIB</small></dd></div>
-          <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}{{if gt .Booking.DiscountIDR 0}}<br><small class="muted" style="font-weight:400;">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</small>{{end}}<br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
+          <div><dt>{{t .Lang "p.det.pay"}}</dt><dd>{{formatIDR .Booking.PriceIDR}}{{if gt .Booking.DistanceFeeIDR 0}}<br><small class="muted" style="font-weight:400;">{{t .Lang "hc.fee"}}{{if .Booking.DistanceKm}} (≤ {{formatKm .Booking.DistanceKm}} km){{end}}: {{formatIDR .Booking.DistanceFeeIDR}}</small>{{end}}{{if gt .Booking.DiscountIDR 0}}<br><small class="muted" style="font-weight:400;">{{t .Lang "promo.disc"}} ({{.Booking.PromoCode}}): −{{formatIDR .Booking.DiscountIDR}}</small>{{end}}<br><small class="muted" style="font-weight:400;">{{t .Lang "promo.total"}}: <strong>{{formatIDR .Booking.Net}}</strong></small><br><small class="muted" style="font-weight:400;">{{.Booking.PaymentMethod}} · <span class="badge {{.Booking.PaymentStatus}}">{{.Booking.PaymentStatus}}</span> · {{.Booking.Source}}</small></dd></div>
           {{if .Booking.Notes}}
           <div><dt>{{t .Lang "p.det.notes"}}</dt><dd><small>{{.Booking.Notes}}</small></dd></div>
           {{end}}
@@ -314,6 +314,14 @@
             <label>{{t .Lang "book.address"}}
               <textarea name="visit_address" rows="2" autocomplete="street-address" placeholder="{{t .Lang "book.address_ph"}}">{{.Booking.VisitAddress}}</textarea>
             </label>
+            {{if .Zones}}
+            <label>{{t .Lang "hc.pick"}}
+              <select name="distance_zone">
+                <option value="">{{t .Lang "hc.sel"}}</option>
+                {{range .Zones}}<option value="{{.ID}}" {{if and $.Booking.DistanceKm (eq (formatKm $.Booking.DistanceKm) (formatKm .MaxKM))}}selected{{end}}>{{.Label}} — {{formatIDR .FeeIDR}}</option>{{end}}
+              </select>
+            </label>
+            {{end}}
             <label>{{t .Lang "p.det.notes"}}
               <textarea name="notes" rows="2" autocomplete="off">{{.Booking.Notes}}</textarea>
             </label>

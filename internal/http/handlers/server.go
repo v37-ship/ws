@@ -46,6 +46,7 @@ type Server struct {
 	hero        *service.HeroService
 	gallery     *service.GalleryService
 	promo       *service.PromoService
+	distance    *service.DistanceService
 	paySettings *service.PaymentSettingsService
 	wa          *service.WaService
 	waOutbox    *repo.WaRepo
@@ -67,6 +68,7 @@ func New(
 	hero *service.HeroService,
 	gallery *service.GalleryService,
 	promo *service.PromoService,
+	distance *service.DistanceService,
 	paySettings *service.PaymentSettingsService,
 	waSvc *service.WaService,
 	waOutbox *repo.WaRepo,
@@ -144,6 +146,26 @@ func New(
 				return -1
 			}, phone)
 			return "https://wa.me/" + digits + "?text=" + url.QueryEscape(msg)
+		},
+		"formatKm": func(v any) string {
+			switch km := v.(type) {
+			case float64:
+				return domain.KmLabel(km)
+			case *float64:
+				if km == nil {
+					return ""
+				}
+				return domain.KmLabel(*km)
+			default:
+				return ""
+			}
+		},
+		"mapsLink": func(origin, destination string) string {
+			if strings.TrimSpace(destination) == "" {
+				return ""
+			}
+			return "https://www.google.com/maps/dir/?api=1&origin=" + url.QueryEscape(origin) +
+				"&destination=" + url.QueryEscape(destination) + "&travelmode=driving"
 		},
 		"serviceImg": func(name string) string {
 			return service.KeywordServiceImage(name)
@@ -231,7 +253,7 @@ func New(
 	}
 	return &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
-		paySettings: paySettings, wa: waSvc, waOutbox: waOutbox,
+		distance: distance, paySettings: paySettings, wa: waSvc, waOutbox: waOutbox,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
@@ -656,6 +678,12 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/promos", s.PortalCreatePromo)
 		pr.Post("/promos/{id}/toggle", s.PortalTogglePromo)
 		pr.Post("/promos/{id}/delete", s.PortalDeletePromo)
+
+		pr.Get("/distance", s.PortalDistance)
+		pr.Post("/distance", s.PortalCreateDistance)
+		pr.Post("/distance/{id}", s.PortalUpdateDistance)
+		pr.Post("/distance/{id}/toggle", s.PortalToggleDistance)
+		pr.Post("/distance/{id}/delete", s.PortalDeleteDistance)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
 	})
 

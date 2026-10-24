@@ -229,6 +229,19 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   `VisitAddress` is required for homecare. `?place=homecare` pre-checks the
   wizard's Homecare radio (homepage Homecare card links there). Key prefix:
   `hc.*`.
+- Homecare transport fee: the customer opens a prebuilt Google Maps
+  directions link (branch address → their address, no geocoding/route API)
+  and picks a distance band; the server maps the band to a fee from
+  `distance_zones` and never trusts a posted amount. Bands are one-way
+  distance rounded up, fees cover the round trip (poster: 0–1 km Rp5k,
+  2–3 Rp10k, 4–5 Rp20k, 6–7 Rp25k, 8–9 Rp30k, 10–12 Rp50k; seeded once by
+  `SeedDistanceZones`, editable at `/portal/distance`). `PriceIDR` stays the
+  treatment price (promos/promo min-spend still use it); the fee is a
+  booking snapshot (`distance_fee_idr`, `distance_km` = band upper bound) and
+  `Booking.Net()` = price + transport − discount. No active bands = feature
+  off (no picker, fee 0). Beyond the last band is WhatsApp only; admins may
+  override the band in the correction form with a logged reason. Key prefix:
+  `p.dz.*`, `p.nav.dz`.
 - Contact/social links follow the `CONTACT_*` pattern: env default in
   `config.go` → `Contact` map in `render()` → footer template; document in
   `.env.example`, `docker-compose.yml`, `README.md` (precedent:

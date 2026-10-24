@@ -32,8 +32,9 @@ func (r *BookingRepo) Create(ctx context.Context, b *domain.Booking) error {
 		id, customer_id, location_id, service_id, staff_id, start_at, end_at, status,
 		price_idr, booking_fee_idr, hold_expires_at, notes, source, created_by_id, updated_by_id,
 		place, visit_address, promo_code, discount_idr,
-		guest_name, guest_phone, guest_email, access_token
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+		guest_name, guest_phone, guest_email, access_token,
+		distance_km, distance_fee_idr
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
 	RETURNING created_at, updated_at`
 	return r.pool.QueryRow(ctx, q,
 		b.ID, b.CustomerID, b.LocationID, b.ServiceID, b.StaffID,
@@ -41,12 +42,13 @@ func (r *BookingRepo) Create(ctx context.Context, b *domain.Booking) error {
 		b.HoldExpiresAt, b.Notes, b.Source, b.CreatedByID, b.UpdatedByID,
 		b.Place, b.VisitAddress, b.PromoCode, b.DiscountIDR,
 		b.GuestName, b.GuestPhone, b.GuestEmail, b.AccessToken,
+		b.DistanceKm, b.DistanceFeeIDR,
 	).Scan(&b.CreatedAt, &b.UpdatedAt)
 }
 
 func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, error) {
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.distance_km, b.distance_fee_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
 		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
@@ -62,7 +64,7 @@ func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, 
 	var b domain.Booking
 	err := r.pool.QueryRow(ctx, q, id).Scan(
 		&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-		&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
+		&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.DistanceKm, &b.DistanceFeeIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
 		&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 		&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 		&b.ServiceName, &b.StaffName, &b.LocationName,
@@ -80,7 +82,7 @@ func (r *BookingRepo) ByID(ctx context.Context, id uuid.UUID) (*domain.Booking, 
 
 func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]domain.Booking, error) {
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.distance_km, b.distance_fee_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
 		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
@@ -99,7 +101,7 @@ func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) 
 
 func (r *BookingRepo) ListUpcoming(ctx context.Context, limit int) ([]domain.Booking, error) {
 	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.distance_km, b.distance_fee_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
 		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
@@ -131,7 +133,7 @@ type FilterParams struct {
 func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domain.Booking, error) {
 	var sb strings.Builder
 	sb.WriteString(`SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
+		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.distance_km, b.distance_fee_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
 		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
@@ -214,7 +216,7 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 		var b domain.Booking
 		if err := rows.Scan(
 			&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
+			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.DistanceKm, &b.DistanceFeeIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
 			&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 			&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 			&b.ServiceName, &b.StaffName, &b.LocationName,
@@ -239,7 +241,7 @@ func (r *BookingRepo) scanList(ctx context.Context, q string, arg any) ([]domain
 		var b domain.Booking
 		if err := rows.Scan(
 			&b.ID, &b.CustomerID, &b.LocationID, &b.ServiceID, &b.StaffID, &b.StartAt, &b.EndAt,
-			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
+			&b.Status, &b.PriceIDR, &b.BookingFeeIDR, &b.HoldExpiresAt, &b.Notes, &b.Source, &b.Place, &b.VisitAddress, &b.PromoCode, &b.DiscountIDR, &b.DistanceKm, &b.DistanceFeeIDR, &b.GuestName, &b.GuestPhone, &b.GuestEmail, &b.AccessToken,
 			&b.CreatedByID, &b.UpdatedByID, &b.CreatedAt, &b.UpdatedAt,
 			&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 			&b.ServiceName, &b.StaffName, &b.LocationName,
@@ -304,7 +306,7 @@ func (r *BookingRepo) RescheduleWithLog(ctx context.Context, id uuid.UUID, staff
 
 // UpdateDetailsWithLog corrects service/price/place/address/notes in one
 // admin action, recording the old→new change as an audit log entry.
-func (r *BookingRepo) UpdateDetailsWithLog(ctx context.Context, id, serviceID uuid.UUID, priceIDR int64, place domain.Place, visitAddress, notes string, actorID *uuid.UUID, logNotes string) error {
+func (r *BookingRepo) UpdateDetailsWithLog(ctx context.Context, id, serviceID uuid.UUID, priceIDR int64, place domain.Place, visitAddress, notes string, distanceKm *float64, distanceFeeIDR int64, actorID *uuid.UUID, logNotes string) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -312,8 +314,9 @@ func (r *BookingRepo) UpdateDetailsWithLog(ctx context.Context, id, serviceID uu
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx, `
-		UPDATE bookings SET service_id=$2, price_idr=$3, place=$4, visit_address=$5, notes=$6, updated_by_id=$7, updated_at=now()
-		WHERE id=$1`, id, serviceID, priceIDR, place, visitAddress, notes, actorID)
+		UPDATE bookings SET service_id=$2, price_idr=$3, place=$4, visit_address=$5, notes=$6,
+			distance_km=$7, distance_fee_idr=$8, updated_by_id=$9, updated_at=now()
+		WHERE id=$1`, id, serviceID, priceIDR, place, visitAddress, notes, distanceKm, distanceFeeIDR, actorID)
 	if err != nil {
 		return err
 	}

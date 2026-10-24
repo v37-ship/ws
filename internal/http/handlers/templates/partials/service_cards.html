@@ -4,6 +4,7 @@
   <label class="pick-card">
     <input type="radio" name="service_id" value="{{.ID}}" required
       data-label="{{.DisplayName $.Lang}}" data-sub="{{formatIDR .PriceIDR}} · {{.DurationMin}} min"
+      data-price="{{.PriceIDR}}"
       hx-get="/book/staff?view=cards" hx-target="#staff-wrap" hx-swap="innerHTML"
       hx-include="input[name='location_id']:checked" hx-indicator="#stf-ind"
       hx-on::after-request="document.getElementById('slots-wrap').innerHTML=''"
