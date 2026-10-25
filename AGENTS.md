@@ -199,6 +199,12 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   cost a full debug cycle; customer picker `name="q"` is asserted by
   `TestTemplatesExecute`). Accept both names server-side when two forms
   share an endpoint.
+- Alpine `@htmx:*` hooks **never fire**: HTML attribute names are
+  case-insensitive, so `@htmx:afterSwap.window` reaches the DOM as
+  `@htmx:afterswap.window` and listens for an event htmx does not dispatch
+  (`htmx:afterSwap`). Register the listener in JS (Alpine `init()`) or use
+  htmx's kebab `hx-on::after-swap`. Precedent: the booking wizard's promo
+  quote never updated the total.
 - `renderAuto` serves a fragment for `HX-Request` and a full page otherwise
   (filter/search endpoints). Toasts go over `HX-Trigger: {"toast": ...}`
   (consumed by `app.js`); redirects use `HX-Redirect`, refreshes

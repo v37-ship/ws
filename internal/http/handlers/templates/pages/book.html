@@ -14,7 +14,6 @@
       {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 
       <form method="post" action="/book" id="book-form"
-        @htmx:afterSwap.window="readPromo()"
         x-data="{
           loc:'{{.LocationID}}', svcLabel:'', svcSub:'', staffLabel:'', dayLabel:'{{t .Lang "book.today"}}', time:'', start:'', staff:'', place:'{{if eq .Place "homecare"}}homecare{{else}}onsite{{end}}',
           address:'', zone:'', fee:0, price:0, discount:0, visitDone:false, zonesOn:{{if .Zones}}true{{else}}false{{end}},
@@ -24,6 +23,17 @@
             var total = this.price + this.fee - this.discount;
             if (total < 0) total = 0;
             return 'Rp ' + Number(total).toLocaleString('id-ID');
+          },
+          init(){
+            // HTML attribute names are lowercased by the parser, so an
+            // @htmx:afterSwap.window hook would listen for 'htmx:afterswap'
+            // and never fire. Register in JS to keep the camelCase event.
+            this._onSwap = () => this.readPromo();
+            window.addEventListener('htmx:afterSwap', this._onSwap);
+            this.readPromo();
+          },
+          destroy(){
+            if (this._onSwap) window.removeEventListener('htmx:afterSwap', this._onSwap);
           },
           readPromo(){
             var el = document.querySelector('#promo-box [data-discount]');
@@ -237,10 +247,10 @@
             <div><dt>{{t .Lang "book.place"}}</dt><dd x-text="place==='homecare' ? '{{t .Lang "book.homecare"}}' : '{{t .Lang "book.onsite"}}'"></dd></div>
             <div x-show="place==='homecare' && address.trim()"><dt>{{t .Lang "book.address"}}</dt><dd x-text="address"></dd></div>
             <div x-show="place==='homecare' && fee > 0"><dt>{{t .Lang "hc.fee"}}</dt><dd x-text="feeLabel"></dd></div>
+            <div id="promo-box" aria-live="polite"></div>
             <div class="promo-total" x-show="price > 0"><dt>{{t .Lang "promo.total"}}</dt><dd><strong x-text="totalLabel"></strong></dd></div>
           </dl>
           <span id="promo-ind" class="htmx-indicator"><span class="spinner" aria-hidden="true"></span></span>
-          <div id="promo-box" aria-live="polite"></div>
           <input type="hidden" name="start_at" id="start_at" :value="start" value="{{.StartAt}}">
           <input type="hidden" name="staff_id_selected" id="staff_id_selected" :value="staff" value="{{.StaffIDSelected}}">
           <label>{{t .Lang "book.notes"}} <textarea name="notes" rows="2" autocomplete="off" placeholder="{{t .Lang "book.notes_ph"}}">{{.Notes}}</textarea></label>

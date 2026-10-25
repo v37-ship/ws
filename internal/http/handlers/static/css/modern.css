@@ -664,7 +664,11 @@ html[data-theme="dark"] .food-prices .fp-l { color: #ff8585; }
   .hero-bleed.hero-big .hero-fold { grid-template-rows: 1fr; }
   .hero-bleed.hero-big .hero-inner { transform: none; }
 }
-/* Promo total band: distinct highlighted summary in the review step */
+/* Promo total band: distinct highlighted summary in the review step.
+   The promo preview is swapped into #promo-box, which lives inside the
+   review <dl>; display:contents lets its row join that grid so the discount
+   reads above the total instead of below it. */
+#promo-box { display: contents; }
 .review > div.promo-total {
   background: linear-gradient(120deg, rgba(233,30,99,.10), rgba(14,165,160,.10));
   border: 1px solid var(--line);
