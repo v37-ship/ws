@@ -12,6 +12,9 @@
   {{else if .Manual}}
     <p class="muted">{{t .Lang "pay.qr.due"}}</p>
   {{else}}
+    {{/* pay.html states the promise for the manual flow; the gateway flow has
+         no static line there, so it lives here while the payment is pending. */}}
+    <p class="muted">{{t .Lang "pay.conf"}}</p>
     <p class="muted">{{t .Lang "pay.wait"}}</p>
   {{end}}
 {{else}}

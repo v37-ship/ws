@@ -241,6 +241,8 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, hcBook) {
 					t.Errorf("home.html (%s): homecare booking CTA lost", lang)
 				}
+				// No Locations data in this render, so the location loop emits
+				// nothing and the mom pill appears exactly once.
 				if got := strings.Count(out, `<span class="pill mint">`+momPill+`</span>`); got != 1 {
 					t.Errorf("home.html (%s): homecare mom pill appears %d times, want 1", lang, got)
 				}
@@ -303,6 +305,58 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+	// The pay page promises the slot is confirmed while payment is pending.
+	// pay.html carries the promise for the manual (qris_manual) flow and
+	// pay_status.html for the gateway flow, so each render shows it once and it
+	// is gone once the payment is paid.
+	payLine := map[string]string{
+		"en": "Your slot is confirmed",
+		"id": "Slot Anda sudah terkonfirmasi",
+	}
+	countPayLine := func(name string, data pageData, lang string) int {
+		t.Helper()
+		var buf bytes.Buffer
+		if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
+			t.Errorf("execute %s (%s): %v", name, lang, err)
+			return -1
+		}
+		return strings.Count(buf.String(), payLine[lang])
+	}
+	for _, lang := range []string{"en", "id"} {
+		contact := pageData{
+			"WhatsApp": "62800", "Email": "a@b.c",
+			"Address": "addr", "Hours": "hours", "Maps": "https://maps.example/",
+			"Instagram": "https://instagram.example/", "TikTok": "https://tiktok.example/", "Facebook": "https://facebook.example/",
+		}
+		manual := pageData{
+			"Lang":    lang,
+			"Contact": contact,
+			"Manual":  true,
+			"Booking": &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour), Status: domain.BookingConfirmed},
+			"Payment": &domain.Payment{Status: domain.PaymentPending, AmountIDR: 150000, OrderID: "WGG-TEST"},
+		}
+		if got := countPayLine("pay.html", manual, lang); got != 1 {
+			t.Errorf("pay.html (%s, manual): slot-confirmed line appears %d times, want 1", lang, got)
+		}
+		gateway := pageData{
+			"Lang":    lang,
+			"Contact": contact,
+			"Booking": &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour), Status: domain.BookingPendingPayment},
+			"Payment": &domain.Payment{Status: domain.PaymentPending, AmountIDR: 150000, OrderID: "WGG-TEST"},
+		}
+		if got := countPayLine("pay.html", gateway, lang); got != 1 {
+			t.Errorf("pay.html (%s, gateway): slot-confirmed line appears %d times, want 1", lang, got)
+		}
+		paid := pageData{
+			"Lang":    lang,
+			"Contact": contact,
+			"Booking": &domain.Booking{Status: domain.BookingConfirmed},
+			"Payment": &domain.Payment{Status: domain.PaymentPaid},
+		}
+		if got := countPayLine("pay_status.html", paid, lang); got != 0 {
+			t.Errorf("pay_status.html (%s): slot-confirmed line must be gone once paid, appears %d times", lang, got)
 		}
 	}
 }

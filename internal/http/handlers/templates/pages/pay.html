@@ -71,6 +71,9 @@
                 <span class="pay-amount-label">{{t .Lang "pay.qr.amt"}}</span>
                 <strong class="pay-amount-num">{{formatIDR .Payment.AmountIDR}}</strong>
               </div>
+              {{/* qris_manual confirms the slot at booking, so state the promise here;
+                   pay_status.html only repeats it for the gateway flow. */}}
+              <p class="muted pay-hint">{{t .Lang "pay.conf"}}</p>
               <div id="pay-status" class="pay-status"
                 hx-get="/bookings/{{.Booking.ID}}/status{{if .Token}}?t={{.Token}}{{end}}"
                 hx-trigger="every 5s"

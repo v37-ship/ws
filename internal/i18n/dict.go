@@ -281,6 +281,7 @@ var dict = map[string]map[string]string{
 		"pay.qr.sent":  "Receipt uploaded:",
 		"pay.qr.later": "You can pay now or at the counter after your session.",
 		"pay.qr.due":   "Not paid yet — scan the QRIS below.",
+		"pay.conf":     "Your slot is confirmed — pay now by QRIS or at the counter after your session.",
 		// ---- Phase 2: legacy slot/service/therapist partials ----
 		"slots.title":  "Available slots",
 		"slots.hint":   "Select a time, then continue to payment.",
@@ -1260,6 +1261,7 @@ var dict = map[string]map[string]string{
 		"pay.qr.sent":  "Bukti terunggah:",
 		"pay.qr.later": "Bisa bayar sekarang atau di kasir setelah sesi.",
 		"pay.qr.due":   "Belum dibayar — scan QRIS di bawah.",
+		"pay.conf":     "Slot Anda sudah terkonfirmasi — bayar sekarang via QRIS atau di kasir setelah perawatan.",
 		// ---- Phase 2: legacy slot/service/therapist partials ----
 		"slots.title":  "Slot tersedia",
 		"slots.hint":   "Pilih waktu, lalu lanjut ke pembayaran.",
