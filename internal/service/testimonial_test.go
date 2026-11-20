@@ -1,10 +1,88 @@
 package service
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"spa-booking/internal/domain"
+
+	"github.com/google/uuid"
 )
+
+// fakeTestimonialStore records Create so the submit rules run without a
+// database (same shape as the waStore fake).
+type fakeTestimonialStore struct{ created []domain.Testimonial }
+
+func (f *fakeTestimonialStore) Create(_ context.Context, t *domain.Testimonial) error {
+	f.created = append(f.created, *t)
+	return nil
+}
+
+func (f *fakeTestimonialStore) ListApproved(context.Context, int) ([]domain.Testimonial, error) {
+	return nil, nil
+}
+
+func (f *fakeTestimonialStore) ListAll(context.Context) ([]domain.Testimonial, error) {
+	return nil, nil
+}
+
+func (f *fakeTestimonialStore) SetStatus(context.Context, uuid.UUID, domain.TestimonialStatus) error {
+	return nil
+}
+
+func (f *fakeTestimonialStore) Delete(context.Context, uuid.UUID) error { return nil }
+
+func (f *fakeTestimonialStore) Count(context.Context) (int, error) { return 0, nil }
+
+func (f *fakeTestimonialStore) TouchCreatedAt(context.Context, uuid.UUID, int) error { return nil }
+
+// TestSubmitGuestLandsPending pins the counter QR card flow: a review with no
+// customer account is accepted and always waits for moderation.
+func TestSubmitGuestLandsPending(t *testing.T) {
+	st := &fakeTestimonialStore{}
+	svc := &TestimonialService{repo: st}
+	in := &domain.Testimonial{
+		Name: "Sari", Rating: 5,
+		Message: "Bidannya sabat banget, ruangan tenang dan bersih sekali.",
+	}
+	if err := svc.Submit(context.Background(), in); err != nil {
+		t.Fatalf("guest submit = %v", err)
+	}
+	if in.CustomerID != nil {
+		t.Errorf("guest CustomerID = %v, want nil", in.CustomerID)
+	}
+	if in.Status != domain.TestimonialPending {
+		t.Errorf("guest status = %q, want %q", in.Status, domain.TestimonialPending)
+	}
+	if len(st.created) != 1 {
+		t.Fatalf("Create calls = %d, want 1", len(st.created))
+	}
+	if got := st.created[0]; got.Status != domain.TestimonialPending || got.CustomerID != nil {
+		t.Errorf("stored %+v, want pending with nil CustomerID", got)
+	}
+}
+
+// TestSubmitGuestNameRequired pins that a guest cannot submit without typing a
+// name (there is no account to fall back to).
+func TestSubmitGuestNameRequired(t *testing.T) {
+	st := &fakeTestimonialStore{}
+	svc := &TestimonialService{repo: st}
+	err := svc.Submit(context.Background(), &domain.Testimonial{
+		Name: "S", Rating: 5,
+		Message: "Bidannya sabat banget, ruangan tenang dan bersih sekali.",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("short guest name err = %v, want ErrValidation", err)
+	}
+	if !strings.Contains(err.Error(), "name must be 2-80 characters") {
+		t.Errorf("err = %q, want name message", err)
+	}
+	if len(st.created) != 0 {
+		t.Errorf("Create calls = %d, want 0 on invalid input", len(st.created))
+	}
+}
 
 func TestValidateTestimonial(t *testing.T) {
 	good := &domain.Testimonial{

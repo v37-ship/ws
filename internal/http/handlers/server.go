@@ -563,6 +563,9 @@ func (s *Server) Routes(r chi.Router) {
 
 	loginLimiter := middleware.NewRateLimiter(20, time.Minute)
 	bookLimiter := middleware.NewRateLimiter(30, time.Minute)
+	// Guests review from the counter QR card: 30/min is the same budget as a
+	// booking, and nothing about the form requires an account.
+	reviewLimiter := middleware.NewRateLimiter(30, time.Minute)
 
 	r.Get("/", s.Home)
 	r.Get("/services", s.ServicesPage)
@@ -607,8 +610,14 @@ func (s *Server) Routes(r chi.Router) {
 		return "receipt:" + req.RemoteAddr
 	})).Post("/bookings/{id}/receipt", s.UploadBookingReceipt)
 
-	r.With(middleware.RequireAuth).Get("/testimonials/new", s.TestimonialNewForm)
-	r.With(middleware.RequireAuth).Post("/testimonials/new", s.CreateTestimonial)
+	// The review form is open to guests (counter QR card): rate-limited, not
+	// auth-gated. Guests land in pending moderation like everyone else.
+	r.With(middleware.RateLimit(reviewLimiter, func(req *http.Request) string {
+		return "review-form:" + req.RemoteAddr
+	})).Get("/testimonials/new", s.TestimonialNewForm)
+	r.With(middleware.RateLimit(reviewLimiter, func(req *http.Request) string {
+		return "review-submit:" + req.RemoteAddr
+	})).Post("/testimonials/new", s.CreateTestimonial)
 	r.With(middleware.RequireAuth).Get("/account", s.AccountForm)
 	r.With(middleware.RequireAuth).Post("/account", s.UpdateAccount)
 

@@ -16,7 +16,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestimonialNewForm renders the customer review form (login required).
+// TestimonialNewForm renders the customer review form (guests welcome — the
+// counter QR card points logged-out customers here).
 func (s *Server) TestimonialNewForm(w http.ResponseWriter, r *http.Request) {
 	u := middleware.UserFrom(r.Context())
 	name, avatar := "", ""
@@ -69,13 +70,11 @@ func (s *Server) snapshotPhoto(r *http.Request, u *domain.User) (string, string,
 	return "", "", ""
 }
 
-// CreateTestimonial saves a customer review as pending moderation.
+// CreateTestimonial saves a customer review as pending moderation. Guests may
+// submit (name comes from the form, CustomerID stays nil); logged-in customers
+// fall back to their account name.
 func (s *Server) CreateTestimonial(w http.ResponseWriter, r *http.Request) {
 	u := middleware.UserFrom(r.Context())
-	if u == nil {
-		http.Redirect(w, r, "/login?next=/testimonials/new", http.StatusSeeOther)
-		return
-	}
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		if err := r.ParseForm(); err != nil {
 			http.Redirect(w, r, "/testimonials/new?error="+url.QueryEscape("Could not read form"), http.StatusSeeOther)
@@ -87,7 +86,7 @@ func (s *Server) CreateTestimonial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
-	if name == "" {
+	if name == "" && u != nil {
 		name = u.FullName
 	}
 	rating, _ := strconv.Atoi(r.FormValue("rating"))
@@ -98,9 +97,12 @@ func (s *Server) CreateTestimonial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t := &domain.Testimonial{
-		CustomerID: &u.ID, Name: name, Age: age,
+		Name: name, Age: age,
 		PhotoPath: photoPath, PhotoURL: photoURL,
 		Rating: rating, Message: r.FormValue("message"),
+	}
+	if u != nil {
+		t.CustomerID = &u.ID
 	}
 	if err := s.tm.Submit(r.Context(), t); err != nil {
 		http.Redirect(w, r, "/testimonials/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)

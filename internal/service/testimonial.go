@@ -13,8 +13,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// testimonialStore is the persistence surface the service needs (an interface
+// so tests can fake it, like waStore).
+type testimonialStore interface {
+	Create(ctx context.Context, t *domain.Testimonial) error
+	ListApproved(ctx context.Context, limit int) ([]domain.Testimonial, error)
+	ListAll(ctx context.Context) ([]domain.Testimonial, error)
+	SetStatus(ctx context.Context, id uuid.UUID, status domain.TestimonialStatus) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	Count(ctx context.Context) (int, error)
+	TouchCreatedAt(ctx context.Context, id uuid.UUID, daysAgo int) error
+}
+
 type TestimonialService struct {
-	repo *repo.TestimonialRepo
+	repo testimonialStore
 }
 
 func NewTestimonialService(r *repo.TestimonialRepo) *TestimonialService {
