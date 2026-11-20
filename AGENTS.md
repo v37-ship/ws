@@ -57,7 +57,11 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   `/login?next=...`; `RequireStaff`/`RequireAdmin` return 403 for the wrong
   role. `requirePortalAdmin()` enforces admin-only corrections inside the
   shared `/portal` routes (all portal routes admit CS too).
-- Rate limits per IP: login/register 20/min, book/apply 30/min → HTTP 429.
+- Rate limits per IP: login/register 20/min, book/apply 30/min, review form +
+  submit 30/min → HTTP 429.
+- `/testimonials/new` (GET+POST) is guest-open behind that 30/min review
+  limiter; submissions always land `pending` — moderation is the spam gate, not
+  auth.
 - Single app replica only (native Postgres sessions, no Redis).
 
 ## Payments & mail
@@ -245,6 +249,13 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   tracker is first-party and survives ad blockers).
 - Verify with `curl https://wangga.biz.id/` (compare `app.css?v=` or
   content markers), plus `docker logs traefik --since 10m` on the VPS.
+- `/robots.txt`, `/sitemap.xml`, and `/llms.txt` are app-served (routes in
+  `internal/http/handlers/server.go`, bodies in `seo.go`); Cloudflare's managed
+  robots.txt must be disabled by the owner in the dashboard or it shadows the
+  app's copy.
+- Boot guard: `config.Validate` refuses to start when `APP_ENV=production` and
+  `BASE_URL` is still the `http://localhost:8080` default (every canonical,
+  og:url, sitemap, and llms.txt link would be wrong).
 - Backups: `scripts/backup-vps.sh` via VPS crontab 03:15 (pg_dump spa+umami,
   tar uploads) into `~/backups`, 14 days kept — restore = drop schema +
   `psql` the dump + `git pull`.
