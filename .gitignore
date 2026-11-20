@@ -14,3 +14,19 @@ bin/
 .idea/
 
 uploads/
+
+# agent scratch: SDD ledgers and per-plan worktrees
+.superpowers/
+.worktrees/
+
+# working copies of art that is already committed under static/img
+/QRIS_wangga.jpeg
+/layout_*.png
+*.Zone.Identifier
+*Zone.Identifier
+
+# proprietary third-party skills — local only, do not redistribute
+.claude/skills/docx-documents/
+.claude/skills/pdf-processing/
+.claude/skills/presentations-pptx/
+

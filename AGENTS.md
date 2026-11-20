@@ -16,12 +16,12 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
-  validation), `internal/i18n` (EN+ID maps, ~795 keys each), `internal/email`
+  validation), `internal/i18n` (EN+ID maps, 967 keys each), `internal/email`
   (SMTP sender), `internal/payment` (Midtrans QRIS client),
   `internal/whatsapp` (Evolution client, phone normalization, message copy).
 - `internal/http/handlers` — `Routes()` + `render`/`renderPartial`/`renderAuto`
-  + `templates/` (54 files: layouts 3, pages 11, partials 12, admin 9,
-  portal 19) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
+  + `templates/` (60 files: layouts 3, pages 12, partials 12, admin 11,
+  portal 22) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
   `app.css`/`modern.css`, `svc-*.svg`).
 - `internal/http/htmx` (`IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`,
   `Retarget`, `Reswap`), `internal/http/middleware` (`LoadUser`,
@@ -363,3 +363,34 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   `git diff`, recent log before committing; stage only intended files.
 - Never commit `.env` or secrets. `uploads/` and local DB volumes are not
   transferable artifacts.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `v37-ship/ws` (`gh issue create`, `gh issue list`).
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical defaults: `needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` at the root plus `docs/adr/`.
+See `docs/agents/domain.md`.
+
+### Subagent-driven development
+
+Plans live in `/home/hone/.opencode/plan/<slug>.md`, one per work item, written
+before any code. Execute one with `subagent-driven-development` from a worktree
+off `main` (`.worktrees/<slug>`, merged back fast-forward) — never on `main`,
+because `deploy-vps.sh` pulls `main`.
+
+Model tiers (OpenCode Go): orchestrator `opencode-go/glm-5.3`; implementers
+`opencode-go/deepseek-v4.1-flash`; task reviewers `opencode-go/deepseek-v4-pro`;
+final whole-branch review `opencode-go/glm-5.3`. An implementer never reviews
+its own work. The per-plan ledger is `.superpowers/sdd/<plan>/progress.md`
+(git-ignored) — after a compaction, trust it and `git log`, not memory.
+
