@@ -30,8 +30,10 @@ func seoFixtures() (string, []domain.Location, []locationServices) {
 	groups := []locationServices{{
 		Location: locs[0],
 		Services: []domain.Service{
-			{Name: "Baby Massage", NameID: "Pijat Bayi", DurationMin: 45, PriceIDR: 150000},
-			{Name: "Mom Massage", DurationMin: 60, PriceIDR: 200000},
+			{Name: "Baby Massage", NameID: "Pijat Bayi", DurationMin: 45, PriceIDR: 150000, Active: true},
+			{Name: "Mom Massage", DurationMin: 60, PriceIDR: 200000, Active: true},
+			// Paused catalog entry: not bookable, so never advertised with a price.
+			{Name: "Waxing", DurationMin: 30, PriceIDR: 90000, Active: false},
 		},
 	}}
 	return hours, locs, groups
@@ -106,7 +108,7 @@ func TestSEOBodies(t *testing.T) {
 				"/book",
 				"distance band, shown before you book",
 			},
-			absent: privatePathMarkers,
+			absent: append(privatePathMarkers, "Waxing", "Rp 90.000"),
 		},
 	}
 
@@ -119,7 +121,7 @@ func TestSEOBodies(t *testing.T) {
 			}
 			for _, gone := range tc.absent {
 				if strings.Contains(tc.body, gone) {
-					t.Errorf("%s body leaks private marker %q", tc.name, gone)
+					t.Errorf("%s body must not contain %q", tc.name, gone)
 				}
 			}
 			if strings.TrimSpace(tc.body) == "" {

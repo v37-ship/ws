@@ -218,11 +218,11 @@ func (s *Server) siteStructuredBlocks(locs []domain.Location) []map[string]any {
 	return siteStructuredData(s.cfg.BaseURL, s.cfg.ContactHours, s.cfg.ContactWhatsApp, locs, s.sameAsLinks())
 }
 
-// sameAsLinks lists the public social profiles; unset config values drop out
-// rather than serialising empty strings.
+// sameAsLinks lists the public social profiles and the Google review page;
+// unset config values drop out rather than serialising empty strings.
 func (s *Server) sameAsLinks() []string {
 	var out []string
-	for _, u := range []string{s.cfg.ContactIG, s.cfg.ContactTikTok, s.cfg.ContactFB} {
+	for _, u := range []string{s.cfg.ContactIG, s.cfg.ContactTikTok, s.cfg.ContactFB, s.cfg.GoogleReviewURL} {
 		if u = strings.TrimSpace(u); u != "" {
 			out = append(out, u)
 		}

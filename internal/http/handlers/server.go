@@ -282,6 +282,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	// Canonical/Open Graph URLs need the public origin on every page. Trim the
 	// trailing slash so BASE_URL="…/" cannot produce "//" in a canonical link.
 	data["BaseURL"] = strings.TrimRight(s.cfg.BaseURL, "/")
+	// Single source of truth for the logo: the JSON-LD image and the Open Graph
+	// preview must never drift apart.
+	data["LogoPath"] = seoLogoPath
 	// Portal/admin pages containing portal_nav get the sticky-header hamburger.
 	if _, ok := data["HasDrawer"]; !ok {
 		data["HasDrawer"] = strings.HasPrefix(name, "portal_") || name == "admin_cs.html"

@@ -171,6 +171,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["HeroBanners"] = []domain.HeroBanner{{ImageURL: "https://example.com/a.jpg"}, {ImageURL: "https://example.com/b.jpg"}}
 				// The head meta + JSON-LD the Home handler wires for the page.
 				data["BaseURL"] = seoTestBaseURL
+				data["LogoPath"] = seoLogoPath
 				data["SEO"] = pageData{
 					"Title":       "Wangga Spa Baby, Mom, & Woman",
 					"Description": i18n.T(lang, "seo.desc"),
@@ -182,6 +183,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				)
 			case "services.html":
 				data["BaseURL"] = seoTestBaseURL
+				data["LogoPath"] = seoLogoPath
 				data["SEO"] = pageData{
 					"Title":       "Services — Wangga Spa Baby, Mom, & Woman",
 					"Description": i18n.T(lang, "seo.desc"),
@@ -427,6 +429,21 @@ func TestTemplatesBothLanguages(t *testing.T) {
 		}
 		if got := countPayLine("pay.html", manual, lang); got != 1 {
 			t.Errorf("pay.html (%s, manual): slot-confirmed line appears %d times, want 1", lang, got)
+		}
+		// A customer who already claimed the transfer sees the wait state, not
+		// the "pay now by QRIS or at the counter" promise: the QR block (and the
+		// pay.conf line inside it) is hidden.
+		reportedAt := time.Now()
+		claimed := pageData{
+			"Lang":    lang,
+			"Contact": contact,
+			"Manual":  true,
+			"Claimed": true,
+			"Booking": &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour), Status: domain.BookingConfirmed},
+			"Payment": &domain.Payment{Status: domain.PaymentPending, AmountIDR: 150000, OrderID: "WGG-TEST", CustomerReportedAt: &reportedAt},
+		}
+		if got := countPayLine("pay.html", claimed, lang); got != 0 {
+			t.Errorf("pay.html (%s, claimed): slot-confirmed promise must be hidden, appears %d times", lang, got)
 		}
 		gateway := pageData{
 			"Lang":    lang,

@@ -107,12 +107,21 @@ func llmsTXTBody(baseURL, hours, waPhone string, locs []domain.Location, groups 
 	b.WriteString("## Services\n\n")
 	wroteServices := false
 	for _, g := range groups {
-		if len(g.Services) == 0 {
+		// Paused entries are not bookable, so they must not be advertised with a
+		// price. Filtered here (not only in the handler query) so the body can
+		// never leak an inactive row, matching servicesStructuredData.
+		active := make([]domain.Service, 0, len(g.Services))
+		for _, svc := range g.Services {
+			if svc.Active {
+				active = append(active, svc)
+			}
+		}
+		if len(active) == 0 {
 			continue
 		}
 		wroteServices = true
 		b.WriteString("### " + g.Location.Name + "\n\n")
-		for _, svc := range g.Services {
+		for _, svc := range active {
 			b.WriteString("- " + serviceFactLine(svc) + "\n")
 		}
 		b.WriteString("\n")
@@ -208,6 +217,9 @@ func (s *Server) LLMSTxt(w http.ResponseWriter, r *http.Request) {
 	}
 	groups := make([]locationServices, 0, len(locs))
 	for _, l := range locs {
+		// activeOnly=false is deliberate: llmsTXTBody skips paused rows itself,
+		// exactly like servicesStructuredData, so the pure renderer owns the
+		// "never advertise an inactive treatment" rule.
 		svcs, err := s.catalog.ListServices(r.Context(), l.ID, false)
 		if err != nil {
 			s.log.Error("llms.txt: list services", "err", err)

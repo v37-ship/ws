@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"spa-booking/internal/config"
 	"spa-booking/internal/domain"
 	"spa-booking/internal/i18n"
 )
@@ -45,6 +46,25 @@ func marshalSD(t *testing.T, v any) string {
 		t.Fatalf("marshal structured data: %v", err)
 	}
 	return string(b)
+}
+
+// TestSameAsLinks pins the social list: the configured profiles plus the
+// Google review page, with unset values dropped instead of serialised empty.
+func TestSameAsLinks(t *testing.T) {
+	s := &Server{cfg: config.Config{
+		ContactIG:       " https://www.instagram.com/wanggababymomwoman/ ",
+		GoogleReviewURL: "https://g.page/r/CTLPrFudX25eEBM/review",
+	}}
+	want := []string{
+		"https://www.instagram.com/wanggababymomwoman/",
+		"https://g.page/r/CTLPrFudX25eEBM/review",
+	}
+	if got := s.sameAsLinks(); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("sameAsLinks() = %v, want %v", got, want)
+	}
+	if got := (&Server{}).sameAsLinks(); len(got) != 0 {
+		t.Errorf("sameAsLinks() with empty config = %v, want none", got)
+	}
 }
 
 func TestSiteStructuredData(t *testing.T) {
