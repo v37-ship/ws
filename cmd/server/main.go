@@ -30,6 +30,10 @@ func main() {
 		log.Error("config", "err", err)
 		os.Exit(1)
 	}
+	if err := config.Validate(cfg); err != nil {
+		log.Error("config", "err", err)
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 	if err := db.Migrate(cfg.DatabaseURL); err != nil {

@@ -565,6 +565,9 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/services", s.ServicesPage)
 	r.Get("/food", s.FoodPage)
 	r.Get("/gallery", s.GalleryPage)
+	r.Get("/robots.txt", s.RobotsTXT)
+	r.Get("/sitemap.xml", s.SitemapXML)
+	r.Get("/llms.txt", s.LLMSTxt)
 	r.Post("/lang", s.SetLanguage)
 	r.Get("/careers", s.CareersPage)
 	r.With(middleware.RateLimit(bookLimiter, func(req *http.Request) string {

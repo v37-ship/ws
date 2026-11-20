@@ -122,6 +122,16 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
+// Validate rejects a configuration that would ship broken absolute URLs.
+// Production must never serve the development default BaseURL: it feeds every
+// canonical, og:url, sitemap and llms.txt link.
+func Validate(cfg Config) error {
+	if cfg.AppEnv == "production" && cfg.BaseURL == "http://localhost:8080" {
+		return fmt.Errorf("BASE_URL must be the public site URL when APP_ENV=production (got %q)", cfg.BaseURL)
+	}
+	return nil
+}
+
 func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
