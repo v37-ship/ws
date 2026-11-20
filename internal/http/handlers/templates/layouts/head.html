@@ -242,6 +242,15 @@ if (typeof window.__wanggaHeroToggle !== "function") {
 <script src="{{static "js/alpine.min.js"}}" defer></script>
 <script src="{{static "js/app.js"}}" defer></script>
 {{with .Analytics}}{{if and .URL .SiteID}}<script defer src="{{.URL}}/script.js" data-website-id="{{.SiteID}}"></script>{{end}}{{end}}
+{{if .SEO}}
+<link rel="canonical" href="{{.BaseURL}}{{.SEO.Path}}">
+<meta name="description" content="{{.SEO.Description}}">
+<meta property="og:title" content="{{.SEO.Title}}">
+<meta property="og:description" content="{{.SEO.Description}}">
+<meta property="og:url" content="{{.BaseURL}}{{.SEO.Path}}">
+<meta property="og:image" content="{{.BaseURL}}/static/img/logo.png">
+{{end}}
+{{if .JSONLD}}{{.JSONLD}}{{end}}
 {{end}}
 
 {{define "toast-region"}}

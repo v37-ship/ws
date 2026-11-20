@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"spa-booking/internal/config"
 	"spa-booking/internal/domain"
+	"spa-booking/internal/i18n"
 	"spa-booking/internal/service"
 
 	"github.com/google/uuid"
@@ -167,6 +169,28 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			switch name {
 			case "home.html":
 				data["HeroBanners"] = []domain.HeroBanner{{ImageURL: "https://example.com/a.jpg"}, {ImageURL: "https://example.com/b.jpg"}}
+				// The head meta + JSON-LD the Home handler wires for the page.
+				data["BaseURL"] = seoTestBaseURL
+				data["SEO"] = pageData{
+					"Title":       "Wangga Spa Baby, Mom, & Woman",
+					"Description": i18n.T(lang, "seo.desc"),
+					"Path":        "/",
+				}
+				data["JSONLD"] = jsonldHTML(
+					siteStructuredData(seoTestBaseURL, "Setiap Hari 11:00–21:00 WIB", seoTestWhatsApp, sdLocations(), nil),
+					faqStructuredData(lang),
+				)
+			case "services.html":
+				data["BaseURL"] = seoTestBaseURL
+				data["SEO"] = pageData{
+					"Title":       "Services — Wangga Spa Baby, Mom, & Woman",
+					"Description": i18n.T(lang, "seo.desc"),
+					"Path":        "/services",
+				}
+				data["JSONLD"] = jsonldHTML(
+					siteStructuredData(seoTestBaseURL, "Setiap Hari 11:00–21:00 WIB", seoTestWhatsApp, sdLocations(), nil),
+					servicesStructuredData(seoTestBaseURL, sdGroups()),
+				)
 			case "account.html":
 				data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 			case "portal_food_edit.html":
@@ -245,6 +269,70 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				// nothing and the mom pill appears exactly once.
 				if got := strings.Count(out, `<span class="pill mint">`+momPill+`</span>`); got != 1 {
 					t.Errorf("home.html (%s): homecare mom pill appears %d times, want 1", lang, got)
+				}
+			}
+			if name == "home.html" || name == "services.html" {
+				// Head meta + structured data: canonical URL, description, and
+				// the Open Graph preview all come from the SEO pageData block.
+				wantCanonical := seoTestBaseURL + "/"
+				if name == "services.html" {
+					wantCanonical = seoTestBaseURL + "/services"
+				}
+				if !contains(out, `<script type="application/ld+json">`) {
+					t.Errorf("%s (%s): missing JSON-LD block", name, lang)
+				}
+				if !contains(out, `rel="canonical" href="`+wantCanonical+`"`) {
+					t.Errorf("%s (%s): missing canonical %s", name, lang, wantCanonical)
+				}
+				if !contains(out, `<meta name="description" content="`+i18n.T(lang, "seo.desc")+`"`) {
+					t.Errorf("%s (%s): meta description must carry seo.desc", name, lang)
+				}
+				if !contains(out, `<meta property="og:title"`) {
+					t.Errorf("%s (%s): missing og:title", name, lang)
+				}
+				if !contains(out, `<meta property="og:description" content="`+i18n.T(lang, "seo.desc")+`"`) {
+					t.Errorf("%s (%s): missing og:description", name, lang)
+				}
+				if !contains(out, `<meta property="og:url" content="`+wantCanonical+`"`) {
+					t.Errorf("%s (%s): missing og:url %s", name, lang, wantCanonical)
+				}
+				if !contains(out, `<meta property="og:image" content="`+seoTestBaseURL+`/static/img/logo.png"`) {
+					t.Errorf("%s (%s): missing og:image", name, lang)
+				}
+			}
+			if name == "home.html" {
+				// The FAQ is visible copy first and machine data second: every
+				// question and answer must render as text outside any script.
+				body := stripScripts(out)
+				if !contains(body, "<h2>"+i18n.T(lang, "faq.title")+"</h2>") {
+					t.Errorf("home.html (%s): FAQ heading missing from the body", lang)
+				}
+				for n := 1; n <= 5; n++ {
+					q := i18n.T(lang, fmt.Sprintf("faq.q%d", n))
+					a := i18n.T(lang, fmt.Sprintf("faq.a%d", n))
+					if !contains(body, q) {
+						t.Errorf("home.html (%s): faq.q%d not visible outside scripts", lang, n)
+					}
+					if !contains(body, a) {
+						t.Errorf("home.html (%s): faq.a%d not visible outside scripts", lang, n)
+					}
+					if !contains(out, `"name":"`+q+`"`) {
+						t.Errorf("home.html (%s): faq.q%d missing from JSON-LD", lang, n)
+					}
+					if !contains(out, `"text":"`+a+`"`) {
+						t.Errorf("home.html (%s): faq.a%d missing from JSON-LD", lang, n)
+					}
+				}
+				if got := strings.Count(out, `"@type":"Question"`); got != 5 {
+					t.Errorf("home.html (%s): JSON-LD has %d questions, want 5", lang, got)
+				}
+				if got := strings.Count(body, "<details"); got != 5 {
+					t.Errorf("home.html (%s): %d FAQ <details> elements, want 5", lang, got)
+				}
+				// Search and AI crawlers must not receive a description that
+				// echoes a dictionary key.
+				if contains(out, `<meta name="description" content="seo.desc"`) {
+					t.Errorf("home.html (%s): meta description is a missing key", lang)
 				}
 			}
 			if lang == "id" && name == "portal_bookings.html" && !contains(out, "Manajemen Booking") {

@@ -45,11 +45,17 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 	openJobs, _ := s.career.ListJobs(r.Context(), true)
 	testimonials, _ := s.tm.ListApproved(r.Context(), 12)
 	banners, _ := s.hero.ListActive(r.Context())
-	s.render(w, r, "home.html", pageData{
+	lang := i18n.Resolve(r)
+	data := pageData{
 		"Locations": locs, "PreviewServices": preview,
 		"OpenJobCount": len(openJobs), "Testimonials": testimonials,
 		"HeroBanners": banners,
-	})
+	}
+	// Head meta + the business/FAQ graph read the same dictionary copy as the
+	// visible page, so crawlers and visitors never see different answers.
+	data["SEO"] = seoHead(lang, seoBrandName, "/")
+	data["JSONLD"] = jsonldHTML(s.siteStructuredBlocks(locs), faqStructuredData(lang))
+	s.render(w, r, "home.html", data)
 }
 
 func (s *Server) LoginForm(w http.ResponseWriter, r *http.Request) {
@@ -593,7 +599,11 @@ func (s *Server) ServicesPage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	s.render(w, r, "services.html", pageData{"LocationGroups": groups, "Hours": summaries})
+	lang := i18n.Resolve(r)
+	data := pageData{"LocationGroups": groups, "Hours": summaries}
+	data["SEO"] = seoHead(lang, i18n.T(lang, "svc.title")+" — "+seoBrandName, "/services")
+	data["JSONLD"] = jsonldHTML(s.siteStructuredBlocks(locs), servicesStructuredData(s.cfg.BaseURL, groups))
+	s.render(w, r, "services.html", data)
 }
 
 func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {

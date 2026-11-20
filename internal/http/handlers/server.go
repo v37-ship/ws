@@ -279,6 +279,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	token := s.ensureCSRF(w, r)
 	data["CSRF"] = token
 	data["Request"] = r
+	// Canonical/Open Graph URLs need the public origin on every page. Trim the
+	// trailing slash so BASE_URL="…/" cannot produce "//" in a canonical link.
+	data["BaseURL"] = strings.TrimRight(s.cfg.BaseURL, "/")
 	// Portal/admin pages containing portal_nav get the sticky-header hamburger.
 	if _, ok := data["HasDrawer"]; !ok {
 		data["HasDrawer"] = strings.HasPrefix(name, "portal_") || name == "admin_cs.html"
