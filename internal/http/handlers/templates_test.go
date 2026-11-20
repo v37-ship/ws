@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,6 +226,24 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			}
 			if (name == "home.html" || name == "login.html") && contains(out, "theme-btn nav-toggle") {
 				t.Errorf("%s (%s): public page must not have drawer hamburger", name, lang)
+			}
+			if name == "home.html" {
+				// One heading per subject: the homecare section-head carries
+				// hc.title/hc.sub, so the panel below must not repeat them
+				// (only the pills and the booking CTA stay in the panel).
+				hcTitle, hcBook, momPill := "Homecare visits", "Book homecare", "Mom care"
+				if lang == "id" {
+					hcTitle, hcBook, momPill = "Homecare ke rumah", "Booking homecare", "Perawatan Bunda"
+				}
+				if got := strings.Count(out, hcTitle); got != 1 {
+					t.Errorf("home.html (%s): homecare heading appears %d times, want 1", lang, got)
+				}
+				if !contains(out, hcBook) {
+					t.Errorf("home.html (%s): homecare booking CTA lost", lang)
+				}
+				if got := strings.Count(out, `<span class="pill mint">`+momPill+`</span>`); got != 1 {
+					t.Errorf("home.html (%s): homecare mom pill appears %d times, want 1", lang, got)
+				}
 			}
 			if lang == "id" && name == "portal_bookings.html" && !contains(out, "Manajemen Booking") {
 				t.Errorf("portal_bookings.html (id): missing Indonesian title")
