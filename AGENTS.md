@@ -385,8 +385,9 @@ See `docs/agents/domain.md`.
 
 Plans live in `/home/hone/.opencode/plan/<slug>.md`, one per work item, written
 before any code. Execute one with `subagent-driven-development` from a worktree
-off `main` (`.worktrees/<slug>`, merged back fast-forward) — never on `main`,
-because `deploy-vps.sh` pulls `main`.
+off `main` (created with OpenCode's worktree tools, which place it outside the
+repo under `~/.local/share/opencode/worktree/`) on branch `sdd/<slug>`, merged
+back fast-forward — never on `main`, because `deploy-vps.sh` pulls `main`.
 
 Model tiers (OpenCode Go): orchestrator `opencode-go/glm-5.3`; implementers
 `opencode-go/deepseek-v4.1-flash`; task reviewers `opencode-go/deepseek-v4-pro`;
