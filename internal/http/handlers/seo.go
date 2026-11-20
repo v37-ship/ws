@@ -10,11 +10,6 @@ import (
 	"spa-booking/internal/domain"
 )
 
-// seoWhatsApp is the WhatsApp/phone contact quoted in the public fact sheet.
-// It mirrors the CONTACT_WHATSAPP default in internal/config: llms.txt is one
-// static-ish file, not per-request page copy, so the value is fixed here.
-const seoWhatsApp = "628211347294"
-
 // seoPublicPaths is the sitemap inventory. Public pages only: no auth'd URLs,
 // no ?t= guest tokens, no uploads. /testimonials/new belongs here because the
 // submission form becomes guest-accessible in this same branch.
@@ -66,8 +61,9 @@ func sitemapXMLBody(baseURL string) string {
 
 // llmsTXTBody renders the plain-English fact sheet for AI assistants. Prices,
 // names, and durations come from the passed catalog groups; nothing is
-// invented. Addresses come from the passed locations.
-func llmsTXTBody(baseURL, hours string, locs []domain.Location, groups []locationServices) string {
+// invented. Addresses come from the passed locations, the phone from the
+// caller (config CONTACT_WHATSAPP).
+func llmsTXTBody(baseURL, hours, waPhone string, locs []domain.Location, groups []locationServices) string {
 	base := strings.TrimRight(baseURL, "/")
 	var b strings.Builder
 	b.WriteString("# Wangga Spa — Baby, Mom & Woman Spa\n\n")
@@ -153,7 +149,9 @@ func llmsTXTBody(baseURL, hours string, locs []domain.Location, groups []locatio
 	b.WriteString("WhatsApp messages follow the chosen language.\n\n")
 
 	b.WriteString("## Contact\n\n")
-	b.WriteString("- WhatsApp and phone: https://wa.me/" + seoWhatsApp + "\n")
+	if waPhone != "" {
+		b.WriteString("- WhatsApp and phone: https://wa.me/" + waPhone + "\n")
+	}
 	return b.String()
 }
 
@@ -220,5 +218,5 @@ func (s *Server) LLMSTxt(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-	_, _ = io.WriteString(w, llmsTXTBody(s.cfg.BaseURL, s.cfg.ContactHours, locs, groups))
+	_, _ = io.WriteString(w, llmsTXTBody(s.cfg.BaseURL, s.cfg.ContactHours, s.cfg.ContactWhatsApp, locs, groups))
 }

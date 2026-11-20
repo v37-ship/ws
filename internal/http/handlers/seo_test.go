@@ -14,6 +14,11 @@ const seoTestBaseURL = "https://wangga.biz.id"
 // they name staff-only areas or guest payment tokens.
 var privatePathMarkers = []string{"/portal", "/admin", "/bookings", "/uploads/", "?t="}
 
+// seoTestWhatsApp is the fixture phone threaded into llmsTXTBody; the body
+// must render whatever the handler passes (config CONTACT_WHATSAPP), never a
+// value baked into seo.go.
+const seoTestWhatsApp = "628211347294"
+
 func seoFixtures() (string, []domain.Location, []locationServices) {
 	hours := "Setiap Hari 11:00–21:00 WIB"
 	locs := []domain.Location{{
@@ -81,12 +86,14 @@ func TestSEOBodies(t *testing.T) {
 		},
 		{
 			name: "llms.txt",
-			body: llmsTXTBody(seoTestBaseURL, hours, locs, groups),
+			body: llmsTXTBody(seoTestBaseURL, hours, seoTestWhatsApp, locs, groups),
 			contains: []string{
 				"Wangga Spa",
 				"Studio Kayu Putih No.32",
 				"Jakarta Timur",
-				"https://www.google.com/maps/search/",
+				// Derived per location, not a hardcoded place URL: the
+				// encoded address+city must be in the query.
+				"https://www.google.com/maps/search/?api=1&query=Studio+Kayu+Putih+No.32%2C+Jakarta+Timur",
 				"Baby Massage (Pijat Bayi)",
 				"Rp 150.000",
 				"45 min",
@@ -145,6 +152,21 @@ func TestRobotsTXTNoBlanketDisallow(t *testing.T) {
 	want := []string{"/portal", "/admin", "/bookings", "/uploads/"}
 	if strings.Join(disallows, ",") != strings.Join(want, ",") {
 		t.Errorf("robots.txt Disallow set = %v, want %v", disallows, want)
+	}
+}
+
+// TestLLMSTXTBodyUsesPassedPhone pins the fix for the baked-in contact: the
+// phone line must render the caller's value (config CONTACT_WHATSAPP), and a
+// different passed number must displace the production one.
+func TestLLMSTXTBodyUsesPassedPhone(t *testing.T) {
+	hours, locs, groups := seoFixtures()
+	const phone = "620000000001"
+	body := llmsTXTBody(seoTestBaseURL, hours, phone, locs, groups)
+	if !strings.Contains(body, "https://wa.me/"+phone) {
+		t.Errorf("llms.txt does not render the passed phone %q", phone)
+	}
+	if strings.Contains(body, seoTestWhatsApp) {
+		t.Errorf("llms.txt leaked a phone number not passed by the caller")
 	}
 }
 
