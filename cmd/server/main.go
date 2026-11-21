@@ -63,6 +63,8 @@ func main() {
 	waOutbox := repo.NewWaRepo(pool)
 	waSettingsRepo := repo.NewWaSettingsRepo(pool)
 	tvTokens := repo.NewTVTokenRepo(pool)
+	tvPairings := repo.NewTVPairingRepo(pool)
+	tvDevices := repo.NewTVDeviceRepo(pool)
 
 	waSettingsSvc := service.NewWaSettingsService(waSettingsRepo, service.WaConfig{
 		CustomerEnabled: cfg.WACustomer,
@@ -137,7 +139,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSettingsSvc, waSvc, waOutbox, digestSvc, tvTokens)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSettingsSvc, waSvc, waOutbox, digestSvc, tvTokens, tvPairings, tvDevices)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

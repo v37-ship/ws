@@ -198,6 +198,14 @@ func tvRows(bookings []domain.Booking) []tvRow {
 // TVView is the public kiosk page. The token is the credential, so this route
 // stays outside every auth middleware.
 func (s *Server) TVView(w http.ResponseWriter, r *http.Request) {
+	// A bare /tv is the pairing entry (ruling #7): the screen shows a code and
+	// waits for the counter. A PRESENTED ?t= keeps the shipped token path —
+	// including the invalid page for a bad token, which deliberately does not
+	// softly re-open pairing for URLs someone minted.
+	if !r.URL.Query().Has("t") {
+		s.tvPairingStart(w, r)
+		return
+	}
 	tok, ok := s.tvTokenFrom(r)
 	if !ok {
 		s.render(w, r, "tv_invalid.html", pageData{})

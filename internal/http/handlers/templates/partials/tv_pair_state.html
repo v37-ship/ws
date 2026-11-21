@@ -1,0 +1,11 @@
+{{define "tv_pair_state.html"}}
+{{/* The pairing poll's fragment. Pending keeps the screen waiting; expired
+     clears the stale pending cookie (in the handler) and offers a start-over
+     link, so a dead code can never loop the screen. */}}
+{{if eq .State "expired"}}
+<p class="tv-pair-note">{{t .Lang "tv.pr.exp"}}</p>
+<a class="tv-pair-again" href="/tv">{{t .Lang "tv.pr.again"}}</a>
+{{else}}
+<p class="tv-pair-note">{{icon "clock"}} {{t .Lang "tv.pr.wait"}}</p>
+{{end}}
+{{end}}

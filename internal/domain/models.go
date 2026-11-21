@@ -1,6 +1,9 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"strconv"
 	"strings"
 	"time"
@@ -665,6 +668,81 @@ func (t TVToken) TokenOK(tok string) bool {
 		n |= int(a[i]) ^ int(c[i])
 	}
 	return n == 0
+}
+
+// TVPairing is one waiting-room pairing handshake: the code the TV shows, the
+// pending key that identifies the screen (its HttpOnly cookie), and the device
+// the handshake eventually mints. LocationID is bound at code entry (the branch
+// the CS picked), so it is empty while the pairing waits; DeviceID is set when
+// the device is created and linked (ruling #6).
+type TVPairing struct {
+	ID         uuid.UUID
+	PendingKey string
+	Code       string
+	LocationID *uuid.UUID
+	DeviceID   *uuid.UUID
+	ExpiresAt  time.Time
+	ConsumedAt time.Time
+	CreatedAt  time.Time
+}
+
+// Live reports whether the code may still be claimed: unconsumed and before
+// its expiry. The repo enforces the same predicate atomically in Consume; this
+// is the read-side twin the pair-state poll uses, so a code dies on screen the
+// same way it dies in the database.
+func (p TVPairing) Live() bool {
+	return p.ConsumedAt.IsZero() && p.ExpiresAt.After(time.Now())
+}
+
+// TVDevice is one paired waiting-room screen. Only the hash of its secret is
+// ever stored (ruling #9: a 30-day credential does not get the plaintext
+// tv_tokens treatment); revoking sets RevokedAt, which kills the screen on its
+// next poll.
+type TVDevice struct {
+	ID         uuid.UUID
+	SecretHash string
+	Label      string
+	LocationID uuid.UUID
+	PairedBy   *uuid.UUID
+	PairedAt   *time.Time
+	LastSeen   *time.Time
+	RevokedAt  *time.Time
+}
+
+// Active reports whether the device may still open the kiosk.
+func (d TVDevice) Active() bool { return d.RevokedAt == nil }
+
+// SecretOK verifies a presented device secret: sha256(secret) is compared with
+// the stored hash in constant time. Revocation is Active()'s call, not this
+// one (the TVToken.TokenOK split).
+func (d TVDevice) SecretOK(secret string) bool {
+	if d.SecretHash == "" || secret == "" {
+		return false
+	}
+	sum := sha256.Sum256([]byte(secret))
+	return subtle.ConstantTimeCompare([]byte(d.SecretHash), []byte(hex.EncodeToString(sum[:]))) == 1
+}
+
+// TVDeviceCookie packs the tv_device cookie value: the device id, a dot, then
+// the secret. The id selects the row (ByID) and the secret proves it; keeping
+// both in one value means a stolen device id alone authenticates nothing.
+func TVDeviceCookie(id uuid.UUID, secret string) string {
+	return id.String() + "." + secret
+}
+
+// ParseTVDeviceCookie splits a tv_device cookie back into its parts. The id
+// must parse and the secret must be non-empty; anything else fails closed so a
+// malformed cookie can never authenticate the zero device.
+func ParseTVDeviceCookie(v string) (uuid.UUID, string, bool) {
+	idPart, secret, ok := strings.Cut(v, ".")
+	if !ok || idPart == "" || secret == "" {
+		return uuid.Nil, "", false
+	}
+	id, err := uuid.Parse(idPart)
+	if err != nil {
+		return uuid.Nil, "", false
+	}
+	return id, secret, true
 }
 
 // Label renders the band as "6–7 km" (no trailing .0).

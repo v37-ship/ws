@@ -53,6 +53,8 @@ type Server struct {
 	waOutbox    *repo.WaRepo
 	digest      *service.DigestService
 	tvTokens    *repo.TVTokenRepo
+	tvPairings  *repo.TVPairingRepo
+	tvDevices   *repo.TVDeviceRepo
 	tpl         *template.Template
 	csrfSecure  bool
 }
@@ -78,6 +80,8 @@ func New(
 	waOutbox *repo.WaRepo,
 	digest *service.DigestService,
 	tvTokens *repo.TVTokenRepo,
+	tvPairings *repo.TVPairingRepo,
+	tvDevices *repo.TVDeviceRepo,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -260,8 +264,8 @@ func New(
 	return &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
 		distance: distance, paySettings: paySettings, waSettings: waSettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
-		tvTokens: tvTokens,
-		tpl:      tpl, csrfSecure: cfg.CSRFSecure,
+		tvTokens: tvTokens, tvPairings: tvPairings, tvDevices: tvDevices,
+		tpl: tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
 
@@ -578,10 +582,19 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/services", s.ServicesPage)
 	r.Get("/food", s.FoodPage)
 	r.Get("/gallery", s.GalleryPage)
-	// Waiting-room TV: public, but token-gated inside the handlers. The token
-	// is the credential; the kiosk never holds a staff session.
-	r.Get("/tv", s.TVView)
+	// Waiting-room TV: public, but credential-gated inside the handlers (a ?t=
+	// kiosk token, or — from the pairing plan — the device cookie). The kiosk
+	// never holds a staff session.
+	//
+	// Creating a pairing row is an unauthenticated write (ruling #10), so the
+	// entry GET carries the login limiter's scale (6/min per IP). A presenter
+	// with a ?t= token spends the same budget but never writes.
+	tvPairLimiter := middleware.NewRateLimiter(6, time.Minute)
+	r.With(middleware.RateLimit(tvPairLimiter, func(req *http.Request) string {
+		return "tvpair:" + req.RemoteAddr
+	})).Get("/tv", s.TVView)
 	r.Get("/tv/queue", s.TVQueuePartial)
+	r.Get("/tv/pair-state", s.TVPairState)
 	r.Get("/robots.txt", s.RobotsTXT)
 	r.Get("/sitemap.xml", s.SitemapXML)
 	r.Get("/llms.txt", s.LLMSTxt)

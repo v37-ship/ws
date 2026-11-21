@@ -69,29 +69,31 @@ func runRoute(h http.Handler, req *http.Request) *httptest.ResponseRecorder {
 	return rec
 }
 
-// A bare /tv (no ?t=) is the common case of someone typing the address or a
-// stale bookmark: it must answer a minimal page and never touch the database.
-func TestTVRouteWithoutTokenShowsInvalidPage(t *testing.T) {
+// A bare /tv (no ?t=) is the pairing entry (ruling #7): the screen mints a
+// code and never touches the kiosk-token lookup. The invalid page is reserved
+// for a presented-but-bad ?t= token.
+func TestTVRouteWithoutTokenStartsPairing(t *testing.T) {
 	h := newRouteTestServer(t)
 	calls := ""
 	swapTVActive(t, nil, repo.ErrNotFound, &calls)
+	swapTVPairingCreate(t, nil, nil)
 
 	rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=en", nil))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (minimal page, not an error)", rec.Code)
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	out := rec.Body.String()
-	for _, want := range []string{"Display not available", "No schedule data is shown here."} {
+	for _, want := range []string{"Pair this screen", `hx-get="/tv/pair-state"`} {
 		if !contains(out, want) {
-			t.Errorf("invalid page missing %q", want)
+			t.Errorf("pairing screen missing %q", want)
 		}
 	}
 	if calls != "" {
 		t.Errorf("no token must not reach the lookup seam, got %q", calls)
 	}
 	if contains(out, "/tv?t=") || contains(out, tvTestToken) {
-		t.Error("invalid page must not echo a kiosk link or token")
+		t.Error("pairing screen must not echo a kiosk link or token")
 	}
 }
 

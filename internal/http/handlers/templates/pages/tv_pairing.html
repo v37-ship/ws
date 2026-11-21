@@ -1,0 +1,31 @@
+{{define "tv_pairing.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "tv.pr.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+  <link rel="stylesheet" href="{{static "css/tv.css"}}">
+  <meta name="robots" content="noindex">
+</head>
+<body class="tv-body">
+  {{/* The pairing face of the kiosk: no credential, no queue, no booking data
+       — just this screen's code and a slow poll that flips it into the live
+       view once the counter claims the code. */}}
+  <main class="tv-pair-shell">
+    <header class="tv-pair-head">
+      <p class="tv-brand">Wangga Spa</p>
+      <p class="tv-live">{{t .Lang "tv.pr.title"}}</p>
+    </header>
+    <section class="tv-pair-card">
+      {{icon "tv"}}
+      <p class="tv-pair-hint">{{t .Lang "tv.pr.hint"}}</p>
+      <p class="tv-pair-code">{{.Code}}</p>
+      <div id="tv-pair-state" class="tv-pair-state"
+           hx-get="/tv/pair-state" hx-trigger="every 4s" hx-swap="innerHTML">
+        {{template "tv_pair_state.html" .}}
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}
