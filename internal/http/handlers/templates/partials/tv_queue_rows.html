@@ -1,0 +1,64 @@
+{{define "tv_queue_rows.html"}}
+{{if .TvError}}
+<section class="tv-band tv-band-alert" role="status">
+  <p class="tv-empty">{{t .Lang "tv.err"}}</p>
+</section>
+{{else}}
+<section class="tv-band tv-band-now" aria-labelledby="tv-now-h">
+  <h2 class="tv-band-title" id="tv-now-h">{{t .Lang "tv.now.h"}}</h2>
+  {{if .Now}}
+  <ul class="tv-rows">
+    {{range .Now}}
+    <li class="tv-row" data-status="{{.StatusLabel}}">
+      <span class="tv-time">{{.TimeLabel}}</span>
+      <span class="tv-name">{{.NameRedacted}}</span>
+      <span class="tv-svc">{{.ServiceName}}</span>
+      <span class="tv-staff">{{icon "user"}} {{.StaffFirst}}</span>
+      <span class="tv-badge">{{t $.Lang .StatusLabel}}</span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="tv-empty">{{t .Lang "tv.now.empty"}}</p>
+  {{end}}
+</section>
+
+<section class="tv-band tv-band-next" aria-labelledby="tv-next-h">
+  <h2 class="tv-band-title" id="tv-next-h">{{t .Lang "tv.next.h"}}</h2>
+  {{if .Next}}
+  <ul class="tv-rows">
+    {{range .Next}}
+    <li class="tv-row" data-status="{{.StatusLabel}}">
+      <span class="tv-time">{{.TimeLabel}}</span>
+      <span class="tv-name">{{.NameRedacted}}</span>
+      <span class="tv-svc">{{.ServiceName}}</span>
+      <span class="tv-staff">{{icon "user"}} {{.StaffFirst}}</span>
+      <span class="tv-badge">{{t $.Lang .StatusLabel}}</span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="tv-empty">{{t .Lang "tv.nxt.empty"}}</p>
+  {{end}}
+</section>
+
+<section class="tv-day" aria-labelledby="tv-day-h">
+  <h2 class="tv-day-title" id="tv-day-h">{{t .Lang "tv.day.h"}}</h2>
+  {{if .Day}}
+  <ul class="tv-day-rows">
+    {{range .Day}}
+    <li class="tv-day-row" data-status="{{.StatusLabel}}">
+      <span class="tv-time">{{.TimeLabel}}</span>
+      <span class="tv-name">{{.NameRedacted}}</span>
+      <span class="tv-svc">{{.ServiceName}}</span>
+      <span class="tv-staff">{{.StaffFirst}}</span>
+      <span class="tv-badge">{{t $.Lang .StatusLabel}}</span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="tv-empty">{{t .Lang "tv.day.empty"}}</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

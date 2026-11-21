@@ -1,0 +1,242 @@
+/* ---------------------------------------------------------------------------
+   Waiting-room TV (kiosk) — /tv
+
+   A dedicated file (not a modern.css block) because the kiosk is a different
+   medium, not a portal variant: no header/sidebar/footer, a full-viewport
+   layout, queue rows >= 28px so they read from across a room, and a light
+   palette pinned regardless of the OS theme (a wall screen must not turn
+   dark-mode low-contrast because the host laptop is in dark mode). It loads
+   after head.html's app.css/modern.css, so the few shared tokens
+   (--font-display, --accent-deep) are still available.
+   --------------------------------------------------------------------------- */
+
+body.tv-body,
+html[data-theme="dark"] body.tv-body,
+html:not([data-theme]) body.tv-body {
+  color-scheme: light;
+  min-height: 100vh;
+  color: #2a2430;
+  background:
+    radial-gradient(ellipse 70% 45% at 90% -10%, rgba(32, 197, 181, 0.14), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(255, 176, 32, 0.12), transparent 55%),
+    #fff9f5;
+  font-size: clamp(16px, 1.05vw, 20px);
+}
+
+.tv-shell {
+  min-height: 100vh;
+  padding: clamp(1.25rem, 2.4vw, 2.75rem);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: clamp(1rem, 2vh, 1.75rem);
+}
+
+.tv-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: clamp(0.75rem, 1.4vh, 1.25rem);
+  border-bottom: 3px solid rgba(255, 77, 141, 0.25);
+}
+
+.tv-brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-deep, #e91e63);
+  font-size: clamp(0.9rem, 1.2vw, 1.25rem);
+}
+
+.tv-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.tv-live {
+  color: #6d6475;
+  font-size: clamp(0.85rem, 1.1vw, 1.15rem);
+  text-align: right;
+}
+
+.tv-live-wrap {
+  display: grid;
+  gap: clamp(0.9rem, 2vh, 1.75rem);
+  align-content: start;
+}
+
+/* Bands ------------------------------------------------------------------- */
+
+.tv-band {
+  border-radius: var(--radius, 1.35rem);
+  padding: clamp(0.9rem, 1.8vh, 1.5rem) clamp(1rem, 2vw, 2rem);
+  box-shadow: 0 10px 30px rgba(42, 36, 48, 0.06);
+}
+
+.tv-band-now {
+  background: linear-gradient(135deg, #fff5e6, #ffe8c7);
+  border-left: 12px solid #ffb020;
+}
+
+.tv-band-next {
+  background: #ffffff;
+  border-left: 12px solid #20c5b5;
+}
+
+.tv-band-alert {
+  background: #fff1f1;
+  border-left: 12px solid #d64545;
+}
+
+.tv-band-title,
+.tv-day-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  font-size: clamp(1.15rem, 1.8vw, 1.9rem);
+}
+
+.tv-band-title {
+  margin-bottom: clamp(0.4rem, 1vh, 0.9rem);
+}
+
+.tv-band-now .tv-band-title { color: #b45309; }
+.tv-band-next .tv-band-title { color: #0ea5a0; }
+.tv-day-title { margin-bottom: clamp(0.5rem, 1.2vh, 1rem); }
+
+/* Queue rows -------------------------------------------------------------- */
+
+.tv-rows {
+  display: grid;
+  gap: clamp(0.35rem, 0.9vh, 0.8rem);
+}
+
+.tv-row {
+  display: grid;
+  grid-template-columns:
+    minmax(5.5rem, 0.7fr)
+    minmax(9rem, 1.25fr)
+    minmax(10rem, 1.6fr)
+    minmax(7rem, 1fr)
+    auto;
+  align-items: center;
+  gap: clamp(0.75rem, 1.5vw, 1.75rem);
+  padding: clamp(0.5rem, 1vh, 0.9rem) 0;
+  border-top: 1px solid rgba(42, 36, 48, 0.08);
+  font-size: clamp(1.75rem, 2.4vw, 2.6rem); /* >= 28px: the readable-from-the-couch floor */
+  line-height: 1.15;
+}
+
+.tv-row:first-child { border-top: 0; }
+
+.tv-time {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #2a2430;
+}
+
+.tv-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-svc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-staff {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #6d6475;
+  font-size: 0.8em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tv-staff .ic { width: 1em; height: 1em; }
+
+.tv-badge {
+  justify-self: end;
+  padding: 0.2em 0.65em;
+  border-radius: 999px;
+  font-size: 0.62em;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Status colours mirror app.css's .badge palette, keyed off the row's
+   data-status (the view-model carries the label's dictionary key). */
+.tv-row[data-status="tv.st.conf"] .tv-badge,
+.tv-day-row[data-status="tv.st.conf"] .tv-badge { background: #ddf8f4; color: #0ea5a0; }
+.tv-row[data-status="tv.st.arr"] .tv-badge,
+.tv-day-row[data-status="tv.st.arr"] .tv-badge { background: #e0f2fe; color: #0369a1; }
+.tv-row[data-status="tv.st.svc"] .tv-badge,
+.tv-day-row[data-status="tv.st.svc"] .tv-badge { background: #fef3c7; color: #b45309; }
+.tv-row[data-status="tv.st.done"] .tv-badge,
+.tv-day-row[data-status="tv.st.done"] .tv-badge { background: #dcfce7; color: #15803d; }
+
+/* Day list ---------------------------------------------------------------- */
+
+.tv-day-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 40rem), 1fr));
+  gap: 0 clamp(1.5rem, 3vw, 3rem);
+}
+
+.tv-day-row {
+  display: grid;
+  grid-template-columns:
+    minmax(4.5rem, 0.55fr)
+    minmax(7rem, 1.1fr)
+    minmax(8rem, 1.4fr)
+    minmax(6rem, 0.8fr)
+    auto;
+  align-items: center;
+  gap: clamp(0.6rem, 1.2vw, 1.4rem);
+  padding: clamp(0.4rem, 0.8vh, 0.7rem) 0;
+  border-top: 1px solid rgba(42, 36, 48, 0.08);
+  font-size: clamp(1.35rem, 1.6vw, 1.8rem);
+  line-height: 1.15;
+}
+
+.tv-day-row .tv-badge { font-size: 0.7em; }
+
+.tv-empty {
+  font-size: clamp(1.1rem, 1.5vw, 1.5rem);
+  color: #6d6475;
+  padding: 0.4rem 0;
+}
+
+/* Narrow hosts (an admin previewing the TV on a laptop) ------------------- */
+
+@media (max-width: 900px) {
+  .tv-head { flex-direction: column; align-items: flex-start; }
+  .tv-live { text-align: left; }
+  .tv-row,
+  .tv-day-row {
+    grid-template-columns: minmax(4.5rem, auto) 1fr auto;
+    grid-template-areas:
+      "time name badge"
+      "time svc staff";
+    row-gap: 0.15rem;
+    font-size: clamp(1.35rem, 4.4vw, 1.9rem);
+  }
+  .tv-row .tv-time,
+  .tv-day-row .tv-time { grid-area: time; }
+  .tv-row .tv-name,
+  .tv-day-row .tv-name { grid-area: name; }
+  .tv-row .tv-svc,
+  .tv-day-row .tv-svc { grid-area: svc; }
+  .tv-row .tv-staff,
+  .tv-day-row .tv-staff { grid-area: staff; justify-self: end; }
+  .tv-row .tv-badge,
+  .tv-day-row .tv-badge { grid-area: badge; }
+}

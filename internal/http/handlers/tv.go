@@ -47,26 +47,6 @@ func (s *Server) tvTokenFrom(r *http.Request) (*domain.TVToken, bool) {
 	return tok, true
 }
 
-// TVView is the public kiosk page. It is deliberately not behind any auth
-// middleware: the token is the credential, and a staff session must never be
-// required on shared hardware.
-func (s *Server) TVView(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.tvTokenFrom(r); !ok {
-		s.render(w, r, "tv_invalid.html", pageData{})
-		return
-	}
-	// Placeholder shell: the redacted queue view (and its layouts) land in the
-	// next tasks; the token gate is what this route proves today.
-	s.render(w, r, "tv_view.html", nil)
-}
-
-// TVQueuePartial is the kiosk's polling endpoint (30s, mirroring the portal
-// dashboard). A bad token answers the same minimal page as the page route so a
-// revoked TV goes dark instead of silently freezing on old rows.
-func (s *Server) TVQueuePartial(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.tvTokenFrom(r); !ok {
-		s.render(w, r, "tv_invalid.html", pageData{})
-		return
-	}
-	s.renderPartial(w, r, "tv_placeholder.html", nil)
-}
+// TVView and TVQueuePartial live in tv_queue.go: they need the redacted
+// view-model builder, and keeping the kiosk data path in one file makes the
+// "no PII leaves this package" boundary obvious.

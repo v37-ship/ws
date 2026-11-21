@@ -70,7 +70,14 @@ Goose + Midtrans QRIS.
   its branch. Missing/unknown/revoked all render `tv_invalid.html` (minimal, no
   data, noindex). Management is admin-only at `/admin/tv` (generate, display
   the full URL, revoke); a revoke kills the TV on its next poll. The token is
-  never an auth substitute anywhere else.
+  never an auth substitute anywhere else. The queue view is built server-side
+  from redacted view-models (`tvRow`: WIB time, first name + last initial,
+  service, therapist first name, status) in `tv_queue.go` — templates never
+  see a `domain.Booking`. `tvStatusKeys` is both the status whitelist
+  (confirmed/checked_in/in_service/completed) and the label set, and
+  `place='homecare'` never appears; a hostile-fixture render test pins the
+  whole page. Kiosk styles live in `static/css/tv.css` (fullscreen layout,
+  >=28px rows, pinned light).
 - Single app replica only (native Postgres sessions, no Redis).
 
 ## Payments & mail

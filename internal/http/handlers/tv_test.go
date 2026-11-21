@@ -121,12 +121,14 @@ func TestTVRouteRevokedTokenShowsInvalidPage(t *testing.T) {
 	}
 }
 
-// A live token renders the (placeholder) kiosk shell with a 200 on both the
-// page and the poll endpoint that Task 2 will fill in.
+// A live token renders the kiosk shell with a 200 on both the page and the
+// poll endpoint.
 func TestTVRouteValidTokenShowsShell(t *testing.T) {
 	h := newRouteTestServer(t)
 	tok := tvFixture()
 	swapTVActive(t, &tok, nil, nil)
+	swapTVClock(t, tvQueueNow)
+	swapTVQueue(t, nil, nil, nil)
 
 	for _, path := range []string{"/tv?lang=en&t=" + tvTestToken, "/tv/queue?lang=en&t=" + tvTestToken} {
 		rec := runRoute(h, httptest.NewRequest(http.MethodGet, path, nil))
@@ -134,8 +136,14 @@ func TestTVRouteValidTokenShowsShell(t *testing.T) {
 			t.Fatalf("%s: status = %d, want 200", path, rec.Code)
 		}
 		out := rec.Body.String()
-		if !contains(out, "tv-shell") {
-			t.Errorf("%s: valid token did not render the kiosk shell", path)
+		// The page carries the shell; the poll answers only the band + rows
+		// fragment (that is what gets swapped into #tv-live).
+		want := "tv-shell"
+		if strings.HasPrefix(path, "/tv/queue") {
+			want = "tv-band"
+		}
+		if !contains(out, want) {
+			t.Errorf("%s: valid token did not render %q", path, want)
 		}
 		if contains(out, "Display not available") {
 			t.Errorf("%s: valid token rendered the invalid page", path)

@@ -79,6 +79,10 @@ func TestTemplatesExecute(t *testing.T) {
 		switch name {
 		case "home.html":
 			data["HeroBanners"] = []domain.HeroBanner{{ImageURL: "https://example.com/a.jpg"}, {ImageURL: "https://example.com/b.jpg"}}
+		case "tv_view.html":
+			for k, v := range tvSweepData("id") {
+				data[k] = v
+			}
 		case "account.html":
 			data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 		case "portal_food_edit.html":
@@ -161,7 +165,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"services_partial.html", "staff_partial.html", "slots_partial.html",
 		"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
-		"promo_preview.html", "tv_placeholder.html",
+		"promo_preview.html", "tv_queue_rows.html",
 	}
 	for _, name := range partials {
 		var buf bytes.Buffer
@@ -226,6 +230,10 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					siteStructuredData(seoTestBaseURL, "Setiap Hari 11:00–21:00 WIB", seoTestWhatsApp, sdLocations(), nil),
 					servicesStructuredData(seoTestBaseURL, sdGroups()),
 				)
+			case "tv_view.html":
+				for k, v := range tvSweepData(lang) {
+					data[k] = v
+				}
 			case "account.html":
 				data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 			case "portal_food_edit.html":
@@ -423,6 +431,27 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					t.Errorf("admin_tv.html (%s): missing the full kiosk URL", lang)
 				}
 			}
+			if name == "tv_view.html" {
+				want := map[string]string{"en": "Now serving", "id": "Sedang dilayani"}[lang]
+				if !contains(out, want) {
+					t.Errorf("tv_view.html (%s): missing the now-band heading %q", lang, want)
+				}
+				if !contains(out, "Sari W.") || !contains(out, "Pijat Balinese") {
+					t.Errorf("tv_view.html (%s): queue rows are not rendered", lang)
+				}
+				// t() echoes a missing key, so a literal key is a translation
+				// leak. data-status carries the key by design, hence the
+				// element-text shape of the check.
+				for _, key := range []string{
+					"tv.title", "tv.live", "tv.now.h", "tv.next.h", "tv.day.h",
+					"tv.now.empty", "tv.nxt.empty", "tv.day.empty",
+					"tv.st.conf", "tv.st.arr", "tv.st.svc", "tv.st.done",
+				} {
+					if contains(out, ">"+key+"<") {
+						t.Errorf("tv_view.html (%s): missing translation for %s", lang, key)
+					}
+				}
+			}
 			if lang == "en" && name == "admin_cs.html" && !contains(out, "Customer Service (CS) Management") {
 				t.Errorf("admin_cs.html (en): missing English title")
 			}
@@ -455,13 +484,16 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				"services_partial.html", "staff_partial.html", "slots_partial.html",
 				"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 				"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
-				"customer_search_rows.html",
+				"customer_search_rows.html", "tv_queue_rows.html",
 			} {
 				// The queue row only renders its action controls when it has a
 				// booking; feed the sweep every conditional block.
 				data := pageData{"Lang": lang}
 				if name == "portal_queue_rows.html" {
 					data = queueSweepData(lang)
+				}
+				if name == "tv_queue_rows.html" {
+					data = tvSweepData(lang)
 				}
 				if name == "portal_booking_rows.html" {
 					// Empty page + pager data renders the empty state and every
@@ -592,7 +624,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"services_partial.html", "staff_partial.html", "slots_partial.html",
 		"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
-		"customer_search_rows.html", "promo_preview.html",
+		"customer_search_rows.html", "promo_preview.html", "tv_queue_rows.html",
 	}
 	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
@@ -623,6 +655,10 @@ func TestNoEmojiIcons(t *testing.T) {
 			switch name {
 			case "home.html":
 				data["HeroBanners"] = []domain.HeroBanner{{ImageURL: "https://example.com/a.jpg"}, {ImageURL: "https://example.com/b.jpg"}}
+			case "tv_view.html":
+				for k, v := range tvSweepData(lang) {
+					data[k] = v
+				}
 			case "account.html":
 				data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 			case "portal_food_edit.html":
@@ -689,6 +725,9 @@ func TestNoEmojiIcons(t *testing.T) {
 			data := pageData{"Lang": lang}
 			if name == "portal_queue_rows.html" {
 				data = queueSweepData(lang)
+			}
+			if name == "tv_queue_rows.html" {
+				data = tvSweepData(lang)
 			}
 			var buf bytes.Buffer
 			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
