@@ -384,15 +384,22 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
 				"customer_search_rows.html",
 			} {
+				// The queue row only renders its action controls when it has a
+				// booking; feed the sweep every conditional block.
+				data := pageData{"Lang": lang}
+				if name == "portal_queue_rows.html" {
+					data = queueSweepData(lang)
+				}
 				var buf bytes.Buffer
-				if err := s.tpl.ExecuteTemplate(&buf, name, pageData{"Lang": lang}); err != nil {
+				if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 					t.Errorf("execute partial %s (%s): %v", name, lang, err)
 					continue
 				}
 				out := buf.String()
 				for _, key := range []string{
 					"slots.title", "slots.hint", "svc2.service", "pay.wait", "pay.status",
-					"book.legend", "book.no_slots", "p.q.mt", "p.br.mt",
+					"book.legend", "book.no_slots", "p.q.mt", "p.br.mt", "p.clm.n",
+					"p.clm.mt", "p.det.cff",
 				} {
 					if contains(out, `"`+key+`"`) || contains(out, ">"+key+"<") {
 						t.Errorf("partial %s (%s): missing translation for key %s", name, lang, key)
@@ -582,8 +589,14 @@ func TestNoEmojiIcons(t *testing.T) {
 			check(name, lang, buf.String())
 		}
 		for _, name := range partials {
+			// Feed the queue row its conditional blocks; an empty render would
+			// only scan the empty-state cell.
+			data := pageData{"Lang": lang}
+			if name == "portal_queue_rows.html" {
+				data = queueSweepData(lang)
+			}
 			var buf bytes.Buffer
-			if err := s.tpl.ExecuteTemplate(&buf, name, pageData{"Lang": lang}); err != nil {
+			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 				t.Errorf("execute partial %s (%s): %v", name, lang, err)
 				continue
 			}

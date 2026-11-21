@@ -51,7 +51,7 @@
         <div class="num" style="color:#dc2626;">{{.Stats.Unpaid}}</div>
         <div class="label">{{t .Lang "p.dash.unpaid"}}</div>
       </a>
-      <a class="stat-card" href="/portal/bookings?payment=claim" style="text-decoration:none; color:inherit;">
+      <a class="stat-card" href="/portal?payment=claim" style="text-decoration:none; color:inherit;">
         <div class="num" style="color:#7c3aed;">{{.Stats.Claims}}</div>
         <div class="label">{{t .Lang "p.dash.claim"}}</div>
       </a>
@@ -59,12 +59,12 @@
 
     <div class="panel stack">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-        <h2>{{t .Lang "p.dash.q"}} ({{.TodayStr}})</h2>
-        <span class="muted"><span class="htmx-indicator spinner" aria-hidden="true"></span> {{t .Lang "p.dash.auto"}} <a href="/portal" hx-get="/portal/queue" hx-target="#live-queue" hx-swap="innerHTML">{{t .Lang "p.dash.ref"}}</a></span>
+        <h2>{{t .Lang "p.dash.q"}} ({{.TodayStr}}){{if .ClaimsMode}} <span class="badge">{{t .Lang "p.bk.claim"}}</span>{{end}}</h2>
+        <span class="muted"><span class="htmx-indicator spinner" aria-hidden="true"></span> {{t .Lang "p.dash.auto"}} <a href="/portal{{if .ClaimsMode}}?payment=claim{{end}}" hx-get="/portal/queue{{if .ClaimsMode}}?payment=claim{{end}}" hx-target="#live-queue" hx-swap="innerHTML">{{t .Lang "p.dash.ref"}}</a></span>
       </div>
 
       <div style="overflow-x:auto;" class="table-cards" id="live-queue-wrap"
-        hx-get="/portal/queue" hx-trigger="every 30s" hx-target="#live-queue" hx-swap="innerHTML">
+        hx-get="/portal/queue{{if .ClaimsMode}}?payment=claim{{end}}" hx-trigger="every 30s" hx-target="#live-queue" hx-swap="innerHTML">
         <table class="table">
           <thead>
             <tr>

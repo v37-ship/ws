@@ -655,9 +655,21 @@ func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
 	unpaid, claims, _ := s.book.PaymentCounts(r.Context())
 	stats.Unpaid = unpaid
 	stats.Claims = claims
+	// Claims fast lane: the stat card opens /portal?payment=claim, which filters
+	// the queue to claimed-unpaid rows. The stat cards above stay whole-day.
+	filter, claimsMode := queueFilter(r, nowWIB)
+	queue := bookings
+	if claimsMode {
+		queue, err = s.book.ListFiltered(r.Context(), filter)
+		if err != nil {
+			http.Error(w, "failed to load queue", http.StatusInternalServerError)
+			return
+		}
+	}
 	s.render(w, r, "portal_dashboard.html", pageData{
 		"TodayStr":      i18n.DateLong(i18n.Resolve(r), nowWIB),
-		"TodayBookings": bookings,
+		"TodayBookings": queue,
+		"ClaimsMode":    claimsMode,
 		"Stats":         stats,
 	})
 }
@@ -697,16 +709,42 @@ func normalizeBookingSort(v string) string {
 	}
 }
 
+// queueFilter maps the queue's query string to the list filter used by both
+// the dashboard's first render and the 30s poll, so the two cannot disagree on
+// what the queue shows. Claims mode reuses the bookings list's payment=claim
+// predicate (pending payment with a customer-reported transfer) instead of
+// inventing a second definition of "claimed".
+func queueFilter(r *http.Request, now time.Time) (repo.FilterParams, bool) {
+	filter := repo.FilterParams{
+		Date: now.In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
+	}
+	if r.URL.Query().Get("payment") == "claim" {
+		filter.Payment = "claim"
+		return filter, true
+	}
+	return filter, false
+}
+
+// queueBookings is the queue's single data dependency. It is a variable so the
+// handler test can pin the filter the handler asks for and what ClaimsMode
+// renders without a database (the repos are concrete pgx types, no interface
+// seam); production always uses the live service call below.
+var queueBookings = func(s *Server, r *http.Request, f repo.FilterParams) ([]domain.Booking, error) {
+	return s.book.ListFiltered(r.Context(), f)
+}
+
 // PortalQueuePartial serves today's live queue rows for HTMX polling.
 func (s *Server) PortalQueuePartial(w http.ResponseWriter, r *http.Request) {
 	nowWIB := time.Now().In(time.FixedZone("WIB", 7*3600))
-	bookings, err := s.book.ListFiltered(r.Context(), repo.FilterParams{Date: nowWIB.Format("2006-01-02")})
+	filter, claimsMode := queueFilter(r, nowWIB)
+	bookings, err := queueBookings(s, r, filter)
 	if err != nil {
 		http.Error(w, "failed to load queue", http.StatusInternalServerError)
 		return
 	}
 	s.renderPartial(w, r, "portal_queue_rows.html", pageData{
 		"TodayBookings": bookings,
+		"ClaimsMode":    claimsMode,
 		"TodayStr":      i18n.DateLong(i18n.Resolve(r), nowWIB),
 	})
 }

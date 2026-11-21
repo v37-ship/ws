@@ -23,12 +23,46 @@
     <small>{{formatIDR .PriceIDR}}</small>
   </td>
   <td>
+    {{$status := printf "%s" .Status}}
     <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
       <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.q.mg"}}</a>
+      {{if or (eq $status "confirmed") (eq $status "checked_in") (eq $status "in_service") (eq $status "pending_payment")}}
+      <form method="post" action="/portal/bookings/{{.ID}}/status" hx-post="/portal/bookings/{{.ID}}/status" hx-swap="none" style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        {{if eq $status "confirmed"}}
+        <button type="submit" name="status" value="checked_in" class="btn btn-sm" style="background:#0284c7;" hx-disabled-elt="this">{{icon "pin"}} {{t $.Lang "p.det.ci"}}</button>
+        {{end}}
+        {{if or (eq $status "confirmed") (eq $status "checked_in")}}
+        <button type="submit" name="status" value="in_service" class="btn btn-sm" style="background:#d97706;" hx-disabled-elt="this">{{icon "play"}} {{t $.Lang "p.det.sta"}}</button>
+        {{end}}
+        {{if or (eq $status "in_service") (eq $status "checked_in")}}
+        <button type="submit" name="status" value="completed" class="btn btn-sm" style="background:#16a34a;" hx-confirm="{{t $.Lang "p.det.cff"}}" hx-disabled-elt="this">{{icon "check-circle"}} {{t $.Lang "p.det.fin"}}</button>
+        {{end}}
+        {{if or (eq $status "confirmed") (eq $status "pending_payment")}}
+        <button type="submit" name="status" value="no_show" class="btn secondary on-light btn-sm" hx-confirm="{{t $.Lang "p.det.cfn"}}" hx-disabled-elt="this">{{icon "alert"}} {{t $.Lang "p.det.nos"}}</button>
+        <button type="submit" name="status" value="cancelled" class="btn secondary on-light btn-sm" style="color:var(--danger);" hx-confirm="{{t $.Lang "p.det.cfc"}}" hx-disabled-elt="this">{{icon "x-circle"}} {{t $.Lang "p.det.cx"}}</button>
+        {{end}}
+      </form>
+      {{end}}
     </div>
+    {{if $.ClaimsMode}}
+    <div style="display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:0.4rem;">
+      <a href="/portal/bookings/{{.ID}}/receipt" target="_blank" rel="noopener" class="btn secondary on-light btn-sm" title="{{t $.Lang "p.pay.view"}}">{{icon "image"}} {{t $.Lang "p.pay.rcpt"}}</a>
+      <form method="post" action="/portal/bookings/{{.ID}}/payment/confirm" hx-post="/portal/bookings/{{.ID}}/payment/confirm" hx-swap="none">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="method" value="qris_static">
+        <input type="hidden" name="note" value="{{t $.Lang "p.clm.n"}}">
+        <button class="btn btn-sm" type="submit" hx-disabled-elt="this">{{icon "check-circle"}} {{t $.Lang "p.pay.paid"}}</button>
+      </form>
+      <form method="post" action="/portal/bookings/{{.ID}}/payment/reject" hx-post="/portal/bookings/{{.ID}}/payment/reject" hx-swap="none">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button class="btn secondary on-light btn-sm" type="submit" style="color:var(--danger);" hx-disabled-elt="this">{{icon "x-circle"}} {{t $.Lang "p.pay.reject"}}</button>
+      </form>
+    </div>
+    {{end}}
   </td>
 </tr>
 {{else}}
-<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.q.mt"}}</td></tr>
+<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">{{if $.ClaimsMode}}{{t $.Lang "p.clm.mt"}}{{else}}{{t $.Lang "p.q.mt"}}{{end}}</td></tr>
 {{end}}
 {{end}}
