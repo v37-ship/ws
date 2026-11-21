@@ -17,7 +17,7 @@
   </td>
   <td>{{.ServiceName}}</td>
   <td>{{icon "user"}} {{.StaffName}}{{if eq (printf "%s" .Place) "homecare"}} {{icon "home"}}{{end}}</td>
-  <td><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
+  <td class="q-status"><span class="badge {{.Status}}">{{.Status.Display}}</span></td>
   <td>
     <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>
     <small>{{formatIDR .PriceIDR}}</small>

@@ -32,6 +32,17 @@
     {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
     {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
 
+    {{/* Jump nav: the page is a long scroll of cards, so the top keeps one row
+         of anchor chips. Payment and refunds only appear when their panels do;
+         a link to a section that is not rendered would be a dead click. */}}
+    <nav class="jump-nav" aria-label="{{t .Lang "p.jn.l"}}">
+      <a href="#bk-status">{{t .Lang "p.jn.st"}}</a>
+      {{if .Payment}}<a href="#bk-payment">{{t .Lang "p.pay.title"}}</a>{{end}}
+      <a href="#bk-wa">{{t .Lang "p.pay.wa"}}</a>
+      {{if or (gt .Refundable 0) (.Refunds)}}<a href="#bk-refund">{{t .Lang "p.jn.rf"}}</a>{{end}}
+      <a href="#bk-log">{{t .Lang "p.jn.lg"}}</a>
+    </nav>
+
     <div class="detail-grid">
       <!-- Booking & Customer Info -->
       <div class="panel">
@@ -54,7 +65,7 @@
       </div>
 
       <!-- Status Actions -->
-      <div class="panel stack">
+      <div class="panel stack" id="bk-status">
           <h2>{{t .Lang "p.det.act"}}</h2>
           <p class="muted">{{t .Lang "p.det.asub"}}</p>
 
@@ -104,7 +115,7 @@
         </div>
 
         {{if .Payment}}
-        <div class="panel stack">
+        <div class="panel stack" id="bk-payment">
           <h2>{{icon "cash"}} {{t .Lang "p.pay.title"}}</h2>
           <dl class="review">
             <div><dt>{{t .Lang "p.pay.am"}}</dt><dd><strong>{{formatIDR .Payment.AmountIDR}}</strong></dd></div>
@@ -158,7 +169,7 @@
         </div>
         {{end}}
 
-        <div class="panel stack">
+        <div class="panel stack" id="bk-wa">
           <h2>{{icon "chat"}} {{t .Lang "p.pay.wa"}}</h2>
           <small class="muted">
             {{t .Lang "p.pay.mode"}}: {{if .WAEnabled}}{{t .Lang "p.pay.live"}}{{else}}{{t .Lang "p.pay.mock"}}{{end}}
@@ -210,7 +221,7 @@
         </div>
         <!-- Refund Section -->
         {{if or (gt .Refundable 0) (.Refunds)}}
-        <div class="panel stack">
+        <div class="panel stack" id="bk-refund">
           <h2>{{t .Lang "r.rf.title"}}</h2>
           {{if gt .Refundable 0}}
           <p class="muted">{{t .Lang "r.rf.max"}} {{formatIDR .Refundable}}{{if gt .RefundedTotal 0}} · {{t .Lang "r.rf.done"}} {{formatIDR .RefundedTotal}}{{end}}</p>
@@ -350,7 +361,7 @@
     </div>
 
     <!-- Audit Log -->
-    <div class="panel stack">
+    <div class="panel stack" id="bk-log">
       <h2>{{t .Lang "p.det.au"}}</h2>
       <table class="table">
         <thead>

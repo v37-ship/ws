@@ -27,7 +27,9 @@
       </div>
     </div>
 
-    <div class="stats-grid">
+    {{/* Today's story: one frame, five counters, read left→right as the day's
+         arc — booked → in the building → done. */}}
+    <div class="stats-grid dash-story">
       <div class="stat-card">
         <div class="num">{{.Stats.TodayTotal}}</div>
         <div class="label">{{t .Lang "p.dash.today"}}</div>
@@ -48,11 +50,16 @@
         <div class="num" style="color:#16a34a;">{{.Stats.Completed}}</div>
         <div class="label">{{t .Lang "p.dash.done"}}</div>
       </div>
-      <a class="stat-card" href="/portal/bookings?payment=unpaid" style="text-decoration:none; color:inherit;">
+    </div>
+
+    {{/* Follow-ups are chores, not part of that arc: they keep their own tinted
+         cards below and link into the filtered list. */}}
+    <div class="stats-grid dash-alerts">
+      <a class="stat-card dash-alert is-unpaid" href="/portal/bookings?payment=unpaid">
         <div class="num" style="color:#dc2626;">{{.Stats.Unpaid}}</div>
         <div class="label">{{t .Lang "p.dash.unpaid"}}</div>
       </a>
-      <a class="stat-card" href="/portal?payment=claim" style="text-decoration:none; color:inherit;">
+      <a class="stat-card dash-alert is-claim" href="/portal?payment=claim">
         <div class="num" style="color:#7c3aed;">{{.Stats.Claims}}</div>
         <div class="label">{{t .Lang "p.dash.claim"}}</div>
       </a>

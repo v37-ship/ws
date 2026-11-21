@@ -8,9 +8,14 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
-  <main>
-    <h1 class="page-title">{{t .Lang "a.home.title"}}</h1>
-    <nav class="admin-nav" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+  {{/* Setup hub: title → what this page is for → the links, one aligned card
+       grid. The same .admin-nav is a plain breadcrumb on the item pages. */}}
+  <main class="admin-hub">
+    <header class="admin-hub-head">
+      <h1 class="page-title">{{t .Lang "a.home.title"}}</h1>
+      <p class="muted">{{t .Lang "a.home.sub"}}</p>
+    </header>
+    <nav class="admin-nav" aria-label="{{t .Lang "a.home.title"}}">
       <a class="btn" href="/portal">{{icon "hospital"}} {{t .Lang "a.home.portal"}}</a>
       <a class="btn secondary on-light" href="/admin/cs">{{icon "crown"}} {{t .Lang "a.home.cs"}}</a>
       <a class="btn secondary on-light" href="/admin/locations">{{t .Lang "a.home.loc"}}</a>
@@ -24,7 +29,6 @@
       <a class="btn secondary on-light" href="/portal/bookings">{{t .Lang "a.home.leg"}}</a>
       <a class="btn secondary on-light" href="/admin/password">{{icon "key"}} {{t .Lang "a.home.pw"}}</a>
     </nav>
-    <p class="muted">{{t .Lang "a.home.sub"}}</p>
   </main>
   {{template "footer" .}}
 </body>

@@ -503,6 +503,33 @@ input:focus, select:focus, textarea:focus {
 .badge.in_service { background: #fef3c7; color: #b45309; }
 .badge.completed { background: #dcfce7; color: #15803d; }
 .badge.no_show { background: #f1f5f9; color: #475569; }
+/* The queue's status column is read from across the desk, so it gets a size up
+   from the generic badge, a 1px ring, and a state dot. Active states are solid
+   (in service, done) — the two a glance across the room must catch — while
+   waiting states stay tinted so nothing shouts before the room does. */
+.q-status .badge {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.86rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 30%, transparent);
+}
+.q-status .badge::before {
+  content: "";
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-right: 0.45em;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 0.05em;
+}
+.q-status .badge.pending, .q-status .badge.pending_payment { background: #fef3c7; color: #92400e; }
+.q-status .badge.confirmed { background: #ccfbf1; color: #0f766e; }
+.q-status .badge.checked_in { background: #dbeafe; color: #1d4ed8; }
+.q-status .badge.in_service { background: #b45309; color: #fff; }
+.q-status .badge.completed { background: #15803d; color: #fff; }
+.q-status .badge.cancelled, .q-status .badge.expired { background: #fee2e2; color: #991b1b; }
 
 .portal-tabs { display: flex; gap: 0.5rem; border-bottom: 2px solid var(--line); margin-bottom: 1.5rem; flex-wrap: wrap; }
 .portal-tab { padding: 0.6rem 1rem; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; }
@@ -553,6 +580,25 @@ input:focus, select:focus, textarea:focus {
   html[data-side="mini"] .portal-side .portal-tab.active { border-left-color: var(--accent-deep); }
   html[data-side="mini"] .side-toggle { margin: 0 auto; }
 }
+
+/* Booking detail jump nav: the page is a long scroll of cards, so the top keeps
+   one row of anchor chips. The scroll margin parks the section heading below
+   the sticky header instead of under it. */
+.jump-nav { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.jump-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.32rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.jump-nav a:hover, .jump-nav a:focus-visible { color: var(--accent-deep); border-color: var(--accent-deep); text-decoration: none; }
+[id^="bk-"] { scroll-margin-top: 6rem; }
 
 /* Booking detail is a dashboard of independent cards. Keep card widths
    stable as the portal grows: add columns instead of stretching a single
@@ -673,6 +719,80 @@ input:focus, select:focus, textarea:focus {
 .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow-soft); }
 .stat-card .num { font-size: 2rem; font-weight: 800; font-family: var(--font-display); color: var(--accent-deep); line-height: 1.1; }
 .stat-card .label { font-size: 0.85rem; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+/* Dashboard glance strip: one frame for the five counters so they read as the
+   day's arc (booked → in the building → done) instead of five loose boxes. The
+   cells keep their own tinted numbers; only the chrome is shared. */
+.stats-grid.dash-story {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  padding: 0.35rem 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 0.9rem;
+  overflow: hidden;
+}
+.dash-story .stat-card {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem 1.15rem;
+}
+.dash-story .stat-card + .stat-card { border-left: 1px solid var(--line); }
+/* Follow-ups are chores, not part of that arc: they keep their own tinted rail
+   and lift on hover so they read as actions ("go fix this"). */
+.stats-grid.dash-alerts {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  max-width: 34rem;
+}
+.dash-alert {
+  position: relative;
+  display: block;
+  padding-left: 1.4rem;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-alert:hover, .dash-alert:focus-visible { transform: translateY(-1px); box-shadow: var(--shadow); text-decoration: none; }
+.dash-alert::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: #dc2626;
+}
+.dash-alert.is-claim::before { background: #7c3aed; }
+.dash-alert .num { font-size: 1.9rem; }
+@media (max-width: 720px) {
+  /* Phones: one frame for five counters would wrap into a ragged last row, so
+     each number keeps its own card in a two-column stack and the day's "done"
+     counter takes the full width underneath. */
+  .stats-grid.dash-story {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .dash-story .stat-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-soft);
+    padding: 1rem;
+  }
+  .dash-story .stat-card + .stat-card { border-left: 1px solid var(--line); }
+  .dash-story .stat-card:last-child { grid-column: 1 / -1; }
+  .stats-grid.dash-alerts { max-width: none; }
+}
 .btn-wa { display: inline-flex; align-items: center; gap: 0.4rem; background: #25d366; color: #fff !important; font-weight: 700; border-radius: 999px; padding: 0.55rem 1.1rem; border: none; cursor: pointer; text-decoration: none; }
 .btn-wa:hover { background: #20ba5a; color: #fff; text-decoration: none; }
 .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.85rem; border-radius: 8px; }
@@ -689,6 +809,24 @@ input:focus, select:focus, textarea:focus {
   word-break: break-all;
 }
 .admin-nav { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+/* Admin hub: setup links as one aligned grid inside a card, matching the
+   portal's panels, instead of a ragged wrapped row. The same .admin-nav is a
+   plain breadcrumb on the item pages, so every change is scoped to .admin-hub. */
+.admin-hub { display: grid; gap: 1.25rem; }
+.admin-hub-head { display: grid; gap: 0.3rem; }
+.admin-hub-head .page-title, .admin-hub-head .muted { margin: 0; }
+.admin-hub .admin-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.admin-hub .admin-nav .btn { justify-content: flex-start; text-align: left; }
 .stack { display: grid; gap: 1rem; }
 .page-title {
   font-family: var(--font-display);
