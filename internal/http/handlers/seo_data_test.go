@@ -132,7 +132,7 @@ func TestSiteStructuredData(t *testing.T) {
 }
 
 // TestShareCardIsThePreviewImage keeps one card behind every consumer: the
-// embedded asset really is 1200x630 (so the og:image:width/height tags cannot
+// embedded asset really matches the og:image:width/height tags (so they cannot
 // lie) and the LocalBusiness JSON-LD names the same file as the og meta.
 func TestShareCardIsThePreviewImage(t *testing.T) {
 	const wantPath = "/static/img/share-card.jpg"
@@ -152,8 +152,8 @@ func TestShareCardIsThePreviewImage(t *testing.T) {
 	if format != "jpeg" {
 		t.Errorf("share card format = %s, want jpeg", format)
 	}
-	if cfg.Width != 1200 || cfg.Height != 630 {
-		t.Errorf("share card is %dx%d, want 1200x630 (og:image:width/height)", cfg.Width, cfg.Height)
+	if cfg.Width != 1080 || cfg.Height != 773 {
+		t.Errorf("share card is %dx%d, want 1080x773 (og:image:width/height)", cfg.Width, cfg.Height)
 	}
 }
 
