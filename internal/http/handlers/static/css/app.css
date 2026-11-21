@@ -103,6 +103,38 @@ input:where([type="button"], [type="reset"], [type="submit"]),
    horizontally (Chrome's UA default is `both`). */
 textarea { resize: vertical; }
 
+/* Replaces preflight's WebKit date/time normalisation, which the fields that
+   use it here (walk-in booking date, baby DOB, promo validity window, staff
+   hours, the schedule datetime-local picks) relied on for height: an empty
+   date/time value keeps a full line box in iOS Safari, the value keeps the
+   field's alignment, and the `::-webkit-datetime-edit*` internals stop
+   adding their own padding. Upstream's neighbouring
+   `::-webkit-calendar-picker-indicator { line-height:1 }` exists for Chrome
+   `<datalist>` markers only; this app has no datalist, so it stays out. */
+::-webkit-date-and-time-value {
+  min-height: 1lh; /* preflight: an empty date/time input is one line tall, not short */
+  text-align: inherit; /* preflight: iOS Safari lets the field's text alignment through */
+}
+::-webkit-datetime-edit { display: inline-flex; } /* preflight: height does not change when the field is `display:block` (macOS Safari) */
+::-webkit-datetime-edit-fields-wrapper { padding: 0; } /* preflight: drop the fields wrapper's excess padding */
+::-webkit-datetime-edit,
+::-webkit-datetime-edit-year-field,
+::-webkit-datetime-edit-month-field,
+::-webkit-datetime-edit-day-field,
+::-webkit-datetime-edit-hour-field,
+::-webkit-datetime-edit-minute-field,
+::-webkit-datetime-edit-second-field,
+::-webkit-datetime-edit-millisecond-field,
+::-webkit-datetime-edit-meridiem-field {
+  padding-block: 0; /* preflight: drop each segment field's block padding for consistent height */
+}
+
+/* Replaces preflight `:-moz-ui-invalid { box-shadow:none }`: Firefox paints a
+   red glow on any interacted-with `:invalid` field (the wizard's required
+   date/time and selects) before submit; validation feedback is the app's own
+   server-rendered `.error` line, so the UA glow is noise. */
+:-moz-ui-invalid { box-shadow: none; }
+
 /* Replaces preflight `code, pre { mono; font-size:1em }`: payment references
    and report cells render in the mono stack at body size, not UA 13px. */
 code, pre {
