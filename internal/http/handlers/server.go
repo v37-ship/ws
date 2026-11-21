@@ -287,7 +287,8 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	data["LogoPath"] = seoLogoPath
 	// Portal/admin pages containing portal_nav get the sticky-header hamburger.
 	if _, ok := data["HasDrawer"]; !ok {
-		data["HasDrawer"] = strings.HasPrefix(name, "portal_") || name == "admin_cs.html"
+		data["HasDrawer"] = strings.HasPrefix(name, "portal_") ||
+			name == "admin_cs.html" || name == "admin_payments.html"
 	}
 	data["Contact"] = pageData{
 		"WhatsApp":  s.cfg.ContactWhatsApp,
@@ -725,7 +726,11 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/staff", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/portal/schedule", http.StatusSeeOther)
 		})
-		ar.Get("/bookings", s.AdminBookings)
+		// Bookings management lives in the staff portal now; the old read-only
+		// admin table was a strict subset of the paginated portal list.
+		ar.Get("/bookings", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/portal/bookings", http.StatusSeeOther)
+		})
 		ar.Get("/payments", s.AdminPayments)
 		ar.Post("/payments/qris", s.AdminUploadQRIS)
 		ar.Post("/payments/qris/reset", s.AdminResetQRIS)

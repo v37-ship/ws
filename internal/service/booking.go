@@ -763,10 +763,6 @@ func (s *BookingService) ListMine(ctx context.Context, customerID uuid.UUID) ([]
 	return s.bookings.ListByCustomer(ctx, customerID)
 }
 
-func (s *BookingService) ListAdmin(ctx context.Context) ([]domain.Booking, error) {
-	return s.bookings.ListUpcoming(ctx, 100)
-}
-
 func (s *BookingService) Cancel(ctx context.Context, bookingID uuid.UUID, actorID *uuid.UUID, isStaff bool, reason string) error {
 	b, err := s.bookings.ByID(ctx, bookingID)
 	if err != nil {

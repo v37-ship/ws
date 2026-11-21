@@ -25,6 +25,18 @@ func TestTemplatesParse(t *testing.T) {
 	}
 }
 
+// The admin bookings table is retired (its URL forwards to /portal/bookings),
+// so the template must leave the embedded set rather than linger unreachable.
+func TestLegacyAdminBookingsTemplateRetired(t *testing.T) {
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("parse templates: %v", err)
+	}
+	if s.tpl.Lookup("admin_bookings.html") != nil {
+		t.Error("admin_bookings.html is still embedded; /admin/bookings redirects to /portal/bookings")
+	}
+}
+
 // TestTemplatesExecute renders every full-page template with empty data.
 // html/template applies contextual escaping at execution time, so parse-only
 // tests miss errors like stray quotes inside attribute values.
@@ -38,7 +50,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"register.html", "services.html", "testimonial_new.html", "account.html",
 		"food.html", "gallery.html",
 		"admin_home.html", "admin_payments.html", "admin_locations.html",
-		"admin_bookings.html", "admin_testimonials.html", "admin_whatsapp.html",
+		"admin_testimonials.html", "admin_whatsapp.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
@@ -154,7 +166,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 		for _, name := range []string{
 			"home.html", "services.html", "book.html", "bookings.html", "login.html",
 			"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
-			"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_bookings.html", "admin_testimonials.html", "admin_whatsapp.html",
+			"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_testimonials.html", "admin_whatsapp.html",
 			"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 			"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
@@ -506,7 +518,7 @@ func TestNoEmojiIcons(t *testing.T) {
 	pages := []string{
 		"home.html", "services.html", "book.html", "bookings.html", "login.html",
 		"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
-		"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_bookings.html", "admin_testimonials.html", "admin_whatsapp.html",
+		"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_testimonials.html", "admin_whatsapp.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 		"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 		"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",

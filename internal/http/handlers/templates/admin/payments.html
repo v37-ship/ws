@@ -8,6 +8,8 @@
 <body>
   {{template "header" .}}
   {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "admin_payments" "User" .User "Lang" $.Lang}}
   <main class="stack" style="max-width:720px; margin:0 auto;">
     <div>
       <a href="/admin" class="muted">&larr; {{t .Lang "a.home.title"}}</a>
@@ -42,6 +44,7 @@
       {{end}}
     </div>
   </main>
+  </div>
   {{template "footer" .}}
 </body>
 </html>

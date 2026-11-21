@@ -99,26 +99,6 @@ func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) 
 	return r.scanList(ctx, q, customerID)
 }
 
-func (r *BookingRepo) ListUpcoming(ctx context.Context, limit int) ([]domain.Booking, error) {
-	const q = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
-		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.distance_km, b.distance_fee_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
-		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
-		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
-		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
-		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
-		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
-		FROM bookings b
-		LEFT JOIN users u ON u.id = b.customer_id
-		LEFT JOIN services sv ON sv.id = b.service_id
-		LEFT JOIN staff st ON st.id = b.staff_id
-		LEFT JOIN locations l ON l.id = b.location_id
-		LEFT JOIN payments p ON p.booking_id = b.id
-		WHERE b.start_at >= now() - interval '1 day'
-		ORDER BY b.start_at ASC
-		LIMIT $1`
-	return r.scanList(ctx, q, limit)
-}
-
 // ListActiveFrom returns future confirmed bookings (the ones an H-1 reminder
 // could still target), soonest first. Used to re-schedule reminders after the
 // reminder hour changes.

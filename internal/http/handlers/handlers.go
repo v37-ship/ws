@@ -555,15 +555,6 @@ func (s *Server) AdminCreateLocation(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/locations", http.StatusSeeOther)
 }
 
-func (s *Server) AdminBookings(w http.ResponseWriter, r *http.Request) {
-	list, err := s.book.ListAdmin(r.Context())
-	if err != nil {
-		http.Error(w, "error", http.StatusInternalServerError)
-		return
-	}
-	s.render(w, r, "admin_bookings.html", pageData{"Bookings": list})
-}
-
 type PortalStats struct {
 	TodayTotal int
 	Confirmed  int
