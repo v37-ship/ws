@@ -200,9 +200,10 @@ func TestTVQueueOnlyLayoutRendersNoMarketing(t *testing.T) {
 	}
 
 	// The queue shell is translated too (the i18n sweep only renders the
-	// default shell).
+	// default shell). tv.title and tv.live render ONLY here — assert both
+	// so a missing key cannot leak into the kiosk untested.
 	en := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=en&t="+tvTestToken+"&layout=queue", nil))
-	if body := en.Body.String(); !contains(body, "Waiting-room queue") || !contains(body, "Up next") {
+	if body := en.Body.String(); !contains(body, "Waiting-room queue") || !contains(body, "Up next") || !contains(body, "Updates automatically") {
 		t.Errorf("queue layout (en) is missing its translated copy")
 	}
 }
