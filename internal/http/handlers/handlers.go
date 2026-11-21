@@ -597,20 +597,20 @@ func (s *Server) ServicesPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "services.html", data)
 }
 
-// Failure copy for portal form actions. English, like every .Error string:
-// the dictionary translates chrome, not diagnostics.
+// Failure copy for staff form actions (portal and admin). English, like every
+// .Error string: the dictionary translates chrome, not diagnostics.
 const (
 	failSession = "Your session expired. Refresh the page and try again."
 	failAdmin   = "Only an admin can do that."
 	failForm    = "Could not read the form. Refresh the page and try again."
 )
 
-// staffFail ends a portal form action that cannot continue (stale CSRF token,
-// staff-only guard, unreadable body). HTMX controls get an error toast and the
-// original status; the app's HTMX config ignores non-2xx swaps, so a bare
-// http.Error here would render nothing and the button would look dead. Plain
-// form posts get the portal shell and a way back instead of a naked browser
-// error page.
+// staffFail ends a staff form action that cannot continue (stale CSRF token,
+// staff-only guard, unreadable body) — portal or admin, same contract. HTMX
+// controls get an error toast and the original status; the app's HTMX config
+// ignores non-2xx swaps, so a bare http.Error here would render nothing and the
+// button would look dead. Plain form posts get the portal shell and a way back
+// instead of a naked browser error page.
 func (s *Server) staffFail(w http.ResponseWriter, r *http.Request, code int, msg string) {
 	if htmx.IsRequest(r) {
 		s.toast(w, "error", msg)

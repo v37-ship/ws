@@ -232,6 +232,26 @@ func TestTVPairingStartIsRateLimited(t *testing.T) {
 	}
 }
 
+// The poll is an anonymous read every 4s, so a forged or stale pending cookie
+// (or a plain browser tab on the endpoint) must not get unbounded DB hits. The
+// house limiter already guards the pairing-start GET at 6/min; the poll's
+// budget is 30/min per IP — twice the ~15/min a live 4s poll costs, so a real
+// handshake (and a second screen behind one NAT) always fits, while a hammer
+// is cut off before it reaches the repo.
+func TestTVPairStatePollIsRateLimited(t *testing.T) {
+	h := newRouteTestServer(t)
+	for i := 1; i <= 30; i++ {
+		rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv/pair-state?lang=id", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("poll %d: status = %d, want 200", i, rec.Code)
+		}
+	}
+	thirtyFirst := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv/pair-state?lang=id", nil))
+	if thirtyFirst.Code != http.StatusTooManyRequests {
+		t.Errorf("31st poll status = %d, want 429", thirtyFirst.Code)
+	}
+}
+
 // The poll's pending state is a tiny fragment: no redirect, no device cookie,
 // and it echoes the value the screen shows (wait, do not re-pair).
 func TestTVPairStatePending(t *testing.T) {

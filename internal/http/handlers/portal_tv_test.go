@@ -399,6 +399,43 @@ func TestPortalTVPairLabelFallsBackToBranchAndDate(t *testing.T) {
 	}
 }
 
+// The fallback label is STORED at pair time, so it has to read naturally in the
+// language the counter used: ID months come from the dictionary (Okt, not Oct),
+// never a baked English layout. The old label stays as-is — a later language
+// switch does not rewrite history.
+func TestPortalTVPairFallbackLabelIsLocalized(t *testing.T) {
+	prev := tvClock
+	// 2026-10-21 10:00 WIB: "Oct" in English, "Okt" in Indonesian.
+	tvClock = func() time.Time { return time.Date(2026, 10, 21, 3, 0, 0, 0, time.UTC) }
+	t.Cleanup(func() { tvClock = prev })
+
+	for _, tc := range []struct{ lang, want string }{
+		{"en", "TV · Kayu Putih · 21 Oct 2026"},
+		{"id", "TV · Kayu Putih · 21 Okt 2026"},
+	} {
+		t.Run(tc.lang, func(t *testing.T) {
+			h := newRouteTestServer(t)
+			swapTVLocations(t, []domain.Location{tvPortalLocation()}, nil)
+			swapTVPairingConsume(t, tvPairingFixturePtr(), nil)
+			saved := swapTVDeviceCreate(t, nil)
+			swapTVPairingLink(t, nil)
+
+			req := tvPortalUserRequest(t, http.MethodPost, "/portal/tv/pair?lang="+tc.lang,
+				&domain.User{ID: uuid.New(), Role: domain.RoleCS}, url.Values{
+					"code":        {"482913"},
+					"location_id": {tvPortalLocID.String()},
+				})
+			req.Header.Set("HX-Request", "true")
+			if rec := runRoute(h, req); rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204", rec.Code)
+			}
+			if got := (*saved).Label; got != tc.want {
+				t.Errorf("fallback = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // Brute force: ten entries a minute per user get through (and fail on the
 // code), the eleventh is refused before it touches the handshake.
 func TestPortalTVPairIsRateLimitedPerUser(t *testing.T) {

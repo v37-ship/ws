@@ -175,6 +175,14 @@ func main() {
 			} else if n > 0 {
 				log.Info("tv pairing sweep", "deleted", n)
 			}
+			// A device the portal linked but that never polled again is a
+			// phantom credential on the counter's list. The repo's own predicate
+			// carries a full-day grace, so an actively-pairing screen is safe.
+			if n, err := tvDevices.SweepPhantoms(context.Background()); err != nil {
+				log.Warn("tv device phantom sweep", "err", err)
+			} else if n > 0 {
+				log.Info("tv device phantom sweep", "deleted", n)
+			}
 		}
 	}()
 

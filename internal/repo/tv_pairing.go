@@ -214,3 +214,28 @@ func (r *TVDeviceRepo) Revoke(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// tvDevicePhantomSweepSQL deletes screens that never finished the handshake:
+// the portal linked the device (so the row exists) but the TV's final poll never
+// landed, leaving a credential that can never authenticate and a line on the
+// counter's list that can never be used.
+//
+// The grace window is a full DAY, not the pairing sweep's ten minutes: a screen
+// being paired right now has last_seen NULL until its first /tv load (the
+// handshake is one 4s poll away, but a human can sit on the code for five
+// minutes and a flaky wifi can stretch that), so anything shorter risks deleting
+// a device a TV is actively using. A day is still a hard bound on the orphan
+// surface. Revoked rows are left alone: revocation is the audit trail, not a
+// phantom.
+const tvDevicePhantomSweepSQL = `DELETE FROM tv_devices
+WHERE last_seen IS NULL AND revoked_at IS NULL AND paired_at < now() - interval '1 day'`
+
+// SweepPhantoms is called by the app's one-minute ticker right after the pairing
+// sweep. The count is the only thing worth logging.
+func (r *TVDeviceRepo) SweepPhantoms(ctx context.Context) (int64, error) {
+	tag, err := r.pool.Exec(ctx, tvDevicePhantomSweepSQL)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -150,7 +151,13 @@ func (s *Server) PortalTVPair(w http.ResponseWriter, r *http.Request) {
 	// the form's maxlength: a crafted POST must not bloat the list either.
 	label := strings.TrimSpace(r.FormValue("label"))
 	if label == "" {
-		label = "TV · " + locName + " · " + tvClock().In(tvWIB).Format("02 Jan 2006")
+		// Localized at creation, like every other stored snapshot: the date is
+		// built from the dictionary's short month (MonthShort) in the language
+		// the counter used, not a baked English layout. The stored label does
+		// not re-render on a later language switch — that is by design.
+		now := tvClock().In(tvWIB)
+		label = "TV · " + locName + " · " + fmt.Sprintf("%02d %s %d",
+			now.Day(), i18n.MonthShort(lang, now.Month()), now.Year())
 	} else if runes := []rune(label); len(runes) > 60 {
 		label = string(runes[:60])
 	}

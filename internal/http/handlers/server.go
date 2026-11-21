@@ -594,7 +594,13 @@ func (s *Server) Routes(r chi.Router) {
 		return "tvpair:" + req.RemoteAddr
 	})).Get("/tv", s.TVView)
 	r.Get("/tv/queue", s.TVQueuePartial)
-	r.Get("/tv/pair-state", s.TVPairState)
+	// The pair-state poll is an anonymous read every 4s, so a forged or stale
+	// pending cookie must not get unbounded DB hits. 30/min per IP is twice the
+	// ~15/min a live poll costs: a real handshake always fits, a hammer does not.
+	tvStateLimiter := middleware.NewRateLimiter(30, time.Minute)
+	r.With(middleware.RateLimit(tvStateLimiter, func(req *http.Request) string {
+		return "tvstate:" + req.RemoteAddr
+	})).Get("/tv/pair-state", s.TVPairState)
 	r.Get("/robots.txt", s.RobotsTXT)
 	r.Get("/sitemap.xml", s.SitemapXML)
 	r.Get("/llms.txt", s.LLMSTxt)

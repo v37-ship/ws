@@ -17,12 +17,12 @@ Goose + Midtrans QRIS.
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
-  validation), `internal/i18n` (EN+ID maps, 967 keys each), `internal/email`
+  validation), `internal/i18n` (EN+ID maps, 1060 keys each), `internal/email`
   (SMTP sender), `internal/payment` (Midtrans QRIS client),
   `internal/whatsapp` (Evolution client, phone normalization, message copy).
 - `internal/http/handlers` — `Routes()` + `render`/`renderPartial`/`renderAuto`
-  + `templates/` (60 files: layouts 3, pages 12, partials 12, admin 11,
-  portal 22) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
+  + `templates/` (73 files: layouts 3, pages 15, partials 20, admin 11,
+  portal 24) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
   `app.css`/`modern.css`, `svc-*.svg`).
 - `internal/http/htmx` (`IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`,
   `Retarget`, `Reswap`), `internal/http/middleware` (`LoadUser`,
@@ -108,11 +108,17 @@ Goose + Midtrans QRIS.
   screen on its next poll. Pairing rows are written by anonymous GETs, so `/tv`
   is rate-limited 6/min per IP and the 1-minute ticker sweeps `tv_pairings` —
   expired at once, consumed after a 10-minute grace so the TV's final poll can
-  still read its pairing — keeping that write surface bounded. Migration 024 is
-  additive and `tv_tokens` is untouched. The queue view is built server-side
-  from redacted view-models (`tvRow`: WIB time, first name + last initial,
-  service, therapist first name, status) in `tv_queue.go` — templates never
-  see a `domain.Booking`. `tvStatusKeys` is both the status whitelist
+  still read its pairing — keeping that write surface bounded. The same ticker
+  runs `tvDevices.SweepPhantoms`: a linked device whose `last_seen` is still
+  NULL a full day after `paired_at` is a screen that never finished its final
+  poll (its credential can never authenticate), so the row goes; the day-long
+  grace is what keeps an actively-pairing screen safe. The 4s `/tv/pair-state`
+  poll carries its own 30/min per-IP limiter — an anonymous read with a forged
+  pending cookie must not get unbounded DB hits, and 30/min is twice what a
+  live poll costs. Migration 024 is additive and `tv_tokens` is untouched. The
+  queue view is built server-side from redacted view-models (`tvRow`: WIB time,
+  first name + last initial, service, therapist first name, status) in
+  `tv_queue.go` — templates never see a `domain.Booking`. `tvStatusKeys` is both the status whitelist
   (confirmed/checked_in/in_service/completed) and the label set, and
   `place='homecare'` never appears; a hostile-fixture render test pins the
   whole page. Kiosk styles live in `static/css/tv.css` (fullscreen layout,
@@ -266,7 +272,11 @@ Goose + Midtrans QRIS.
   `Reswap: none` (the last good DOM survives; a 30s poll keeps its old rows
   instead of blanking). Non-HTMX requests render `portal_error.html`
   **deliberately at 200** for 403/500 — it softens status-based monitoring on
-  purpose, so future agents must not "fix" it back to the real code.
+  purpose, so future agents must not "fix" it back to the real code. Coverage
+  is every staff POST, portal **and** admin (a stale CSRF token or expired
+  session on an admin form is the same dead button; the shared shell's way-back
+  link still points at `/portal`). Public/customer POSTs are deliberately
+  outside the contract: they answer inline errors or redirect with `?error=`.
 - `hx-include` submits elements under their **`name` attribute**: the input
   name must equal the query param the endpoint reads (`promo_try` vs `code`
   cost a full debug cycle; customer picker `name="q"` is asserted by

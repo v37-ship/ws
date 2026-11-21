@@ -147,7 +147,7 @@ are per-IP rate-limited (20/20/30/30 per minute → 429).
 
 ## Assets, uploads, integrations
 
-- Templates (54 files: layouts 3, pages 11, partials 12, admin 9, portal 19)
+- Templates (73 files: layouts 3, pages 15, partials 20, admin 11, portal 24)
   + `static/` are embedded (`//go:embed`); `staticVersion` (sha256 of all
   static assets, 12 hex chars) appends `?v=` — versioned URLs serve
   immutable long-cache; unversioned serve normally. Rebuild to ship

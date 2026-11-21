@@ -70,6 +70,40 @@ func TestTVPairingSweepDeletesOnlyDeadRows(t *testing.T) {
 	}
 }
 
+// TestTVDevicePhantomSweepSparesEveryLiveScreen pins the phantom sweep: a
+// device whose last_seen is still NULL a full day after pairing is a screen
+// that never finished its final poll (its credential can never authenticate),
+// so the row goes. The grace is a DAY, not minutes: a TV being paired right now
+// has no last_seen until its first /tv load, and deleting it mid-handshake
+// would leave the counter looking at a device that just vanished.
+func TestTVDevicePhantomSweepSparesEveryLiveScreen(t *testing.T) {
+	q := tvDevicePhantomSweepSQL
+	if strings.Contains(q, ";") {
+		t.Fatalf("phantom sweep must be one statement, got:\n%s", q)
+	}
+	for _, want := range []string{
+		"DELETE FROM tv_devices",
+		"last_seen IS NULL",
+		"paired_at < now() - interval '1 day'",
+	} {
+		if !strings.Contains(q, want) {
+			t.Errorf("phantom sweep SQL missing %q:\n%s", want, q)
+		}
+	}
+	// A screen that has polled at all is alive and must never be swept, however
+	// old its pairing; and a revoked row is the audit trail, not a phantom.
+	if strings.Contains(q, "last_seen <") {
+		t.Errorf("phantom sweep must only take last_seen IS NULL rows:\n%s", q)
+	}
+	if !strings.Contains(q, "revoked_at IS NULL") {
+		t.Errorf("phantom sweep must leave revoked rows (the trail) alone:\n%s", q)
+	}
+	// The grace window is the guard against a mid-handshake delete.
+	if strings.Contains(q, "interval '10 minutes'") || strings.Contains(q, "interval '1 hour'") {
+		t.Errorf("phantom sweep grace must be a full day, got:\n%s", q)
+	}
+}
+
 // TestTVDeviceTouchLastSeenIsThrottled pins the reason the 30s poll can stamp
 // liveness at all: the UPDATE carries its own threshold predicate, so a second
 // stamp inside the window matches zero rows instead of rewriting the row every
