@@ -26,7 +26,7 @@ func portalPrintData(lang string) pageData {
 // Without it a phone has to pan a six-column table sideways to reach the
 // Book/History buttons.
 func TestPortalCustomersTableBecomesCardsOnPhones(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestPortalCustomersTableBecomesCardsOnPhones(t *testing.T) {
 // the dashboard queue is today's agenda, so the page needs a print control
 // whose label comes from the dictionary in both languages.
 func TestPortalDashboardPrintsDayAgenda(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}

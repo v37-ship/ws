@@ -1,0 +1,73 @@
+{{define "admin_tv.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "a.tv.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "admin_tv" "User" .User "Lang" .Lang}}
+    <main class="stack" style="max-width:860px; margin:0 auto;">
+      <div>
+        <a href="/admin" class="muted">&larr; {{t .Lang "a.home.title"}}</a>
+        <h1 class="page-title" style="margin:0.25rem 0;">{{icon "tv"}} {{t .Lang "a.tv.title"}}</h1>
+        <p class="muted">{{t .Lang "a.tv.sub"}}</p>
+      </div>
+
+      {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+      {{if .Success}}<p style="color:var(--ok); font-weight:700;">{{.Success}}</p>{{end}}
+
+      <form method="post" action="/admin/tv/generate" class="panel stack">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <h2>{{t .Lang "a.tv.new"}}</h2>
+        <label>{{t .Lang "a.tv.label"}}
+          <input type="text" name="label" maxlength="60" placeholder="TV Lobby">
+        </label>
+        <label>{{t .Lang "a.tv.loc"}}
+          <select name="location_id" required>
+            {{range .Locations}}
+            <option value="{{.ID}}">{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
+        <button class="btn" type="submit">{{icon "plus"}} {{t .Lang "a.tv.gen"}}</button>
+      </form>
+
+      <div class="panel stack">
+        <h2>{{t .Lang "a.tv.list"}}</h2>
+        {{if .Tokens}}
+        {{range .Tokens}}
+        <div class="stack" style="border-top:1px solid var(--line, #ddd); padding-top:0.75rem;">
+          <div style="display:flex; gap:0.5rem; justify-content:space-between; flex-wrap:wrap; align-items:baseline;">
+            <strong>{{if .Label}}{{.Label}}{{else}}—{{end}}</strong>
+            <span class="muted">{{index $.LocNames .LocationID.String}}</span>
+            <span class="muted">{{t $.Lang "a.tv.col"}} {{if .CreatedAt}}{{formatTime .CreatedAt "02 Jan 2006 15:04"}}{{else}}-{{end}}</span>
+          </div>
+          <label>{{t $.Lang "a.tv.url"}}
+            <input type="text" readonly value="{{$.BaseURL}}/tv?t={{.Token}}" onclick="this.select()">
+          </label>
+          <p class="muted">{{t $.Lang "a.tv.urlx"}}</p>
+          <label>{{t $.Lang "a.tv.rot"}}
+            <input type="text" readonly value="{{$.BaseURL}}/tv?t={{.Token}}&layout=rotate" onclick="this.select()">
+          </label>
+          <p class="muted">{{t $.Lang "a.tv.rotx"}}</p>
+          <form method="post" action="/admin/tv/revoke/{{.ID}}"
+                onsubmit="return confirm('{{t $.Lang "a.tv.revx"}}')">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button class="btn secondary on-light" type="submit">{{icon "x-circle"}} {{t $.Lang "a.tv.rev"}}</button>
+          </form>
+        </div>
+        {{end}}
+        {{else}}
+        <p class="muted">{{t .Lang "a.tv.none"}}</p>
+        {{end}}
+      </div>
+    </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

@@ -52,6 +52,7 @@ type Server struct {
 	wa          *service.WaService
 	waOutbox    *repo.WaRepo
 	digest      *service.DigestService
+	tvTokens    *repo.TVTokenRepo
 	tpl         *template.Template
 	csrfSecure  bool
 }
@@ -76,6 +77,7 @@ func New(
 	waSvc *service.WaService,
 	waOutbox *repo.WaRepo,
 	digest *service.DigestService,
+	tvTokens *repo.TVTokenRepo,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -258,7 +260,8 @@ func New(
 	return &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
 		distance: distance, paySettings: paySettings, waSettings: waSettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
-		tpl: tpl, csrfSecure: cfg.CSRFSecure,
+		tvTokens: tvTokens,
+		tpl:      tpl, csrfSecure: cfg.CSRFSecure,
 	}, nil
 }
 
@@ -575,6 +578,10 @@ func (s *Server) Routes(r chi.Router) {
 	r.Get("/services", s.ServicesPage)
 	r.Get("/food", s.FoodPage)
 	r.Get("/gallery", s.GalleryPage)
+	// Waiting-room TV: public, but token-gated inside the handlers. The token
+	// is the credential; the kiosk never holds a staff session.
+	r.Get("/tv", s.TVView)
+	r.Get("/tv/queue", s.TVQueuePartial)
 	r.Get("/robots.txt", s.RobotsTXT)
 	r.Get("/sitemap.xml", s.SitemapXML)
 	r.Get("/llms.txt", s.LLMSTxt)
@@ -734,6 +741,11 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/payments", s.AdminPayments)
 		ar.Post("/payments/qris", s.AdminUploadQRIS)
 		ar.Post("/payments/qris/reset", s.AdminResetQRIS)
+
+		// Waiting-room TV kiosk links (generate, show, revoke).
+		ar.Get("/tv", s.AdminTVPage)
+		ar.Post("/tv/generate", s.AdminTVGenerate)
+		ar.Post("/tv/revoke/{id}", s.AdminTVRevoke)
 
 		// WhatsApp configuration (reminders, copy, pause).
 		ar.Get("/whatsapp", s.AdminWhatsApp)

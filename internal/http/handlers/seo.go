@@ -39,6 +39,7 @@ func robotsTXTBody(baseURL string) string {
 	b.WriteString("Disallow: /portal\n")
 	b.WriteString("Disallow: /admin\n")
 	b.WriteString("Disallow: /bookings\n")
+	b.WriteString("Disallow: /tv\n")
 	b.WriteString("Disallow: /uploads/\n")
 	b.WriteString("\n")
 	b.WriteString("Sitemap: " + base + "/sitemap.xml\n")

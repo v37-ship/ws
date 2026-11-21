@@ -633,6 +633,40 @@ type DistanceZone struct {
 	UpdatedAt time.Time
 }
 
+// TVToken is one waiting-room kiosk link. The token is the only credential
+// the TV presents, it is bound to the branch whose queue it may show, and
+// revoking sets RevokedAt (a revoked row is dead immediately — the lookup
+// filters on it, so there is nothing to expire).
+type TVToken struct {
+	ID         uuid.UUID
+	Token      string
+	Label      string
+	LocationID uuid.UUID
+	CreatedAt  *time.Time
+	RevokedAt  *time.Time
+}
+
+// Active reports whether the token may still open the kiosk.
+func (t TVToken) Active() bool { return t.RevokedAt == nil }
+
+// TokenOK verifies a presented kiosk token in constant time. Revocation is
+// Active()'s call, not this one: the question here is only "is this the token
+// on the row", exactly like Booking.TokenOK.
+func (t TVToken) TokenOK(tok string) bool {
+	if t.Token == "" || tok == "" {
+		return false
+	}
+	a, c := t.Token, tok
+	if len(a) != len(c) {
+		return false
+	}
+	n := 0
+	for i := range a {
+		n |= int(a[i]) ^ int(c[i])
+	}
+	return n == 0
+}
+
 // Label renders the band as "6–7 km" (no trailing .0).
 func (z DistanceZone) Label() string {
 	return KmLabel(z.MinKM) + "–" + KmLabel(z.MaxKM) + " km"

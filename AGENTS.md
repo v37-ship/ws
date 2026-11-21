@@ -63,6 +63,14 @@ Goose + Midtrans QRIS.
 - `/testimonials/new` (GET+POST) is guest-open behind that 30/min review
   limiter; submissions always land `pending` — moderation is the spam gate, not
   auth.
+- Waiting-room kiosk: `GET /tv` and `GET /tv/queue` (the 30s poll) are public
+  but token-gated in-handler — `?t=<tv_tokens.token>` is the only credential
+  (constant-time `domain.TVToken.TokenOK` after a revoke-filtered lookup), and
+  the token is location-bound (`location_id`), so a screen can only ever show
+  its branch. Missing/unknown/revoked all render `tv_invalid.html` (minimal, no
+  data, noindex). Management is admin-only at `/admin/tv` (generate, display
+  the full URL, revoke); a revoke kills the TV on its next poll. The token is
+  never an auth substitute anywhere else.
 - Single app replica only (native Postgres sessions, no Redis).
 
 ## Payments & mail

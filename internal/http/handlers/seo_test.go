@@ -60,6 +60,7 @@ func TestSEOBodies(t *testing.T) {
 				"Disallow: /portal",
 				"Disallow: /admin",
 				"Disallow: /bookings",
+				"Disallow: /tv",
 				"Disallow: /uploads/",
 				"Content-Signal: search=yes",
 				"ai-input=yes",
@@ -132,7 +133,7 @@ func TestSEOBodies(t *testing.T) {
 }
 
 // TestRobotsTXTNoBlanketDisallow pins the allow-by-default policy: the only
-// blanket rule is Allow: /, the four private Disallows are the exact set, and
+// blanket rule is Allow: /, the five private Disallows are the exact set, and
 // there is a single user-agent group (no per-bot rules).
 func TestRobotsTXTNoBlanketDisallow(t *testing.T) {
 	body := robotsTXTBody(seoTestBaseURL)
@@ -151,7 +152,7 @@ func TestRobotsTXTNoBlanketDisallow(t *testing.T) {
 		}
 		disallows = append(disallows, path)
 	}
-	want := []string{"/portal", "/admin", "/bookings", "/uploads/"}
+	want := []string{"/portal", "/admin", "/bookings", "/tv", "/uploads/"}
 	if strings.Join(disallows, ",") != strings.Join(want, ",") {
 		t.Errorf("robots.txt Disallow set = %v, want %v", disallows, want)
 	}

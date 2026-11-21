@@ -21,10 +21,13 @@ import (
 // is not UI, so it stays English in both languages.
 const seoTestCardAlt = "Wangga Spa — Baby, Mom, & Woman: self-care for women, loving care for mom & baby. Jakarta spa and homecare."
 
+// tvSweepTime is the fixed creation stamp the admin TV sweep renders.
+var tvSweepTime = time.Date(2026, 11, 21, 10, 0, 0, 0, time.UTC)
+
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
 func TestTemplatesParse(t *testing.T) {
-	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -33,7 +36,7 @@ func TestTemplatesParse(t *testing.T) {
 // The admin bookings table is retired (its URL forwards to /portal/bookings),
 // so the template must leave the embedded set rather than linger unreachable.
 func TestLegacyAdminBookingsTemplateRetired(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -46,7 +49,7 @@ func TestLegacyAdminBookingsTemplateRetired(t *testing.T) {
 // html/template applies contextual escaping at execution time, so parse-only
 // tests miss errors like stray quotes inside attribute values.
 func TestTemplatesExecute(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -55,7 +58,8 @@ func TestTemplatesExecute(t *testing.T) {
 		"register.html", "services.html", "testimonial_new.html", "account.html",
 		"food.html", "gallery.html",
 		"admin_home.html", "admin_payments.html", "admin_locations.html",
-		"admin_testimonials.html", "admin_whatsapp.html",
+		"admin_testimonials.html", "admin_whatsapp.html", "admin_tv.html",
+		"tv_invalid.html", "tv_view.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
@@ -157,7 +161,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"services_partial.html", "staff_partial.html", "slots_partial.html",
 		"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
-		"promo_preview.html",
+		"promo_preview.html", "tv_placeholder.html",
 	}
 	for _, name := range partials {
 		var buf bytes.Buffer
@@ -170,7 +174,7 @@ func TestTemplatesExecute(t *testing.T) {
 // TestTemplatesBothLanguages renders key public pages in EN + ID and fails
 // on missing-key leaks (t returns the key itself when absent).
 func TestTemplatesBothLanguages(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -179,6 +183,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"home.html", "services.html", "book.html", "bookings.html", "login.html",
 			"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
 			"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_testimonials.html", "admin_whatsapp.html",
+			"admin_tv.html", "tv_invalid.html", "tv_view.html",
 			"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 			"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
@@ -261,6 +266,18 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Years"] = []string{"2026", "2025"}
 				data["Lines"] = []domain.ReportLine{}
 				data["Refunds"] = []domain.ReportRefund{}
+			case "admin_tv.html":
+				// One live token so the sweep covers the URL block, the branch
+				// name, the revoke form and the create form, not just the empty
+				// state.
+				locID := uuid.New()
+				data["BaseURL"] = seoTestBaseURL
+				data["Tokens"] = []domain.TVToken{{
+					ID: uuid.New(), Token: "tok", Label: "Lobby TV",
+					LocationID: locID, CreatedAt: &tvSweepTime,
+				}}
+				data["Locations"] = []domain.Location{{ID: locID, Name: "Kayu Putih", Active: true}}
+				data["LocNames"] = map[string]string{locID.String(): "Kayu Putih"}
 			}
 			var buf bytes.Buffer
 			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
@@ -394,6 +411,17 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			}
 			if lang == "id" && name == "admin_cs.html" && !contains(out, "Manajemen Customer Service") {
 				t.Errorf("admin_cs.html (id): missing Indonesian title")
+			}
+			if name == "admin_tv.html" {
+				want := map[string]string{"en": "Waiting-room TV", "id": "TV Ruang Tunggu"}[lang]
+				if !contains(out, want) {
+					t.Errorf("admin_tv.html (%s): missing %q", lang, want)
+				}
+				// The displayed link must be the full kiosk URL, built from
+				// BaseURL, or nobody can type it into the TV.
+				if !contains(out, seoTestBaseURL+"/tv?t=tok") {
+					t.Errorf("admin_tv.html (%s): missing the full kiosk URL", lang)
+				}
 			}
 			if lang == "en" && name == "admin_cs.html" && !contains(out, "Customer Service (CS) Management") {
 				t.Errorf("admin_cs.html (en): missing English title")
@@ -552,6 +580,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"home.html", "services.html", "book.html", "bookings.html", "login.html",
 		"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
 		"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_testimonials.html", "admin_whatsapp.html",
+		"admin_tv.html", "tv_invalid.html", "tv_view.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 		"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 		"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
@@ -565,7 +594,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
 		"customer_search_rows.html", "promo_preview.html",
 	}
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -634,6 +663,18 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Years"] = []string{"2026", "2025"}
 				data["Lines"] = []domain.ReportLine{}
 				data["Refunds"] = []domain.ReportRefund{}
+			case "admin_tv.html":
+				// One live token so the sweep covers the URL block, the branch
+				// name, the revoke form and the create form, not just the empty
+				// state.
+				locID := uuid.New()
+				data["BaseURL"] = seoTestBaseURL
+				data["Tokens"] = []domain.TVToken{{
+					ID: uuid.New(), Token: "tok", Label: "Lobby TV",
+					LocationID: locID, CreatedAt: &tvSweepTime,
+				}}
+				data["Locations"] = []domain.Location{{ID: locID, Name: "Kayu Putih", Active: true}}
+				data["LocNames"] = map[string]string{locID.String(): "Kayu Putih"}
 			}
 			var buf bytes.Buffer
 			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {

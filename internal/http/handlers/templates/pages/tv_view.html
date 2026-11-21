@@ -1,0 +1,19 @@
+{{define "tv_view.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "tv.ph.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+  <meta name="robots" content="noindex">
+</head>
+<body class="tv-body">
+  <main class="tv-shell" data-tv-state="placeholder" style="min-height:100vh; display:grid; place-items:center; padding:2rem; text-align:center;">
+    <div class="stack" style="max-width:640px;">
+      <p class="muted">Wangga Spa</p>
+      <h1 class="page-title">{{t .Lang "tv.ph.title"}}</h1>
+      <p>{{t .Lang "tv.ph.body"}}</p>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}
