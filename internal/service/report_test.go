@@ -1,12 +1,45 @@
 package service
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"spa-booking/internal/domain"
 
 	"github.com/google/uuid"
 )
+
+func TestRefundCeilingError(t *testing.T) {
+	cases := []struct {
+		name            string
+		amount, paid    int64
+		alreadyRefunded int64
+		wantErr         bool
+		wantInMessage   string
+	}{
+		{"exact remaining", 50_000, 150_000, 100_000, false, ""},
+		{"full first refund", 150_000, 150_000, 0, false, ""},
+		{"one rupiah over", 50_001, 150_000, 100_000, true, "exceeds paid amount"},
+		{"zero amount", 0, 150_000, 0, true, "must be positive"},
+		{"negative amount", -1, 150_000, 0, true, "must be positive"},
+		{"already fully refunded", 1, 150_000, 150_000, true, "exceeds paid amount"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := refundCeilingError(tc.amount, tc.paid, tc.alreadyRefunded)
+			if tc.wantErr != (err != nil) {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr && !errors.Is(err, ErrValidation) {
+				t.Fatalf("err = %v, want it to wrap ErrValidation", err)
+			}
+			if tc.wantErr && !strings.Contains(err.Error(), tc.wantInMessage) {
+				t.Fatalf("message = %q, want substring %q", err.Error(), tc.wantInMessage)
+			}
+		})
+	}
+}
 
 func TestPrevNextMonth(t *testing.T) {
 	cases := []struct{ in, prev, next string }{

@@ -211,12 +211,24 @@ func (s *ReportService) AvailableMonths(ctx context.Context, locationID uuid.UUI
 	return s.reports.AvailableMonths(ctx, locationID, 24)
 }
 
+// refundCeilingError enforces the refund money rule: a refund must be
+// positive and the booking may never be refunded beyond what it paid.
+// alreadyRefunded is trusted as given — the caller passes RefundedTotal,
+// which already excludes voided refund rows.
+func refundCeilingError(amount, paid, alreadyRefunded int64) error {
+	if amount <= 0 {
+		return fmt.Errorf("%w: refund amount must be positive", ErrValidation)
+	}
+	if alreadyRefunded+amount > paid {
+		return fmt.Errorf("%w: refund exceeds paid amount (paid %d, refunded %d)",
+			ErrValidation, paid, alreadyRefunded)
+	}
+	return nil
+}
+
 // RecordRefund validates and stores a refund, plus an audit log entry.
 // A booking can never be refunded more than it actually paid.
 func (s *ReportService) RecordRefund(ctx context.Context, bookingID uuid.UUID, amount int64, reason string, actorID *uuid.UUID) (*domain.Refund, error) {
-	if amount <= 0 {
-		return nil, fmt.Errorf("%w: refund amount must be positive", ErrValidation)
-	}
 	p, err := s.payments.ByBookingID(ctx, bookingID)
 	if err != nil {
 		return nil, err
@@ -228,9 +240,8 @@ func (s *ReportService) RecordRefund(ctx context.Context, bookingID uuid.UUID, a
 	if err != nil {
 		return nil, err
 	}
-	if refunded+amount > p.AmountIDR {
-		return nil, fmt.Errorf("%w: refund exceeds paid amount (paid %d, refunded %d)",
-			ErrValidation, p.AmountIDR, refunded)
+	if err := refundCeilingError(amount, p.AmountIDR, refunded); err != nil {
+		return nil, err
 	}
 	rf, err := s.reports.CreateRefund(ctx, bookingID, amount, reason, actorID)
 	if err != nil {
