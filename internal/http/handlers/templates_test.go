@@ -24,6 +24,19 @@ const seoTestCardAlt = "Wangga Spa — Baby, Mom, & Woman: self-care for women, 
 // tvSweepTime is the fixed creation stamp the admin TV sweep renders.
 var tvSweepTime = time.Date(2026, 11, 21, 10, 0, 0, 0, time.UTC)
 
+// portalTVSweepData feeds the portal pairing page every branch of its device
+// list: the admin-only revoke control, a timed row, and the never-seen
+// fallback. The secret hash is deliberately absent — the page never renders it.
+func portalTVSweepData() pageData {
+	locID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	return pageData{
+		"User":      &domain.User{ID: uuid.New(), Role: domain.RoleAdmin, FullName: "Admin"},
+		"Devices":   []domain.TVDevice{{ID: uuid.New(), Label: "Lobby TV", LocationID: locID, PairedAt: &tvSweepTime}},
+		"Locations": []domain.Location{{ID: locID, Name: "Kayu Putih", Active: true}},
+		"LocNames":  map[string]string{locID.String(): "Kayu Putih"},
+	}
+}
+
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
 func TestTemplatesParse(t *testing.T) {
@@ -65,6 +78,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
 		"portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
 		"portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html",
+		"portal_tv.html",
 		"portal_error.html",
 	}
 	for _, name := range pages {
@@ -85,6 +99,10 @@ func TestTemplatesExecute(t *testing.T) {
 			}
 		case "tv_pairing.html":
 			data["Code"] = "482913"
+		case "portal_tv.html":
+			for k, v := range portalTVSweepData() {
+				data[k] = v
+			}
 		case "account.html":
 			data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 		case "portal_food_edit.html":
@@ -201,7 +219,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 			"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 			"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html", "portal_error.html",
+			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html", "portal_tv.html", "portal_error.html",
 		} {
 			data := pageData{
 				"Lang": lang,
@@ -244,6 +262,10 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				}
 			case "tv_pairing.html":
 				data["Code"] = "482913"
+			case "portal_tv.html":
+				for k, v := range portalTVSweepData() {
+					data[k] = v
+				}
 			case "account.html":
 				data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 			case "portal_food_edit.html":
@@ -296,6 +318,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				}}
 				data["Locations"] = []domain.Location{{ID: locID, Name: "Kayu Putih", Active: true}}
 				data["LocNames"] = map[string]string{locID.String(): "Kayu Putih"}
+				data["Devices"] = []domain.TVDevice{{
+					ID: uuid.New(), Label: "Lobby TV", LocationID: locID, PairedAt: &tvSweepTime,
+				}}
 			}
 			var buf bytes.Buffer
 			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
@@ -440,6 +465,16 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, seoTestBaseURL+"/tv?t=tok") {
 					t.Errorf("admin_tv.html (%s): missing the full kiosk URL", lang)
 				}
+				// The paired-device section shares the portal copy, so a
+				// missing key would leak here too.
+				if !contains(out, "/admin/tv/device/") {
+					t.Errorf("admin_tv.html (%s): missing the device revoke action", lang)
+				}
+				for _, key := range []string{"tv.pr.list", "tv.pr.seen", "tv.pr.never", "tv.pr.rev"} {
+					if contains(out, ">"+key+"<") {
+						t.Errorf("admin_tv.html (%s): missing translation for %s", lang, key)
+					}
+				}
 			}
 			if name == "tv_pairing.html" {
 				want := map[string]string{"en": "Pair this screen", "id": "Hubungkan layar ini"}[lang]
@@ -456,6 +491,26 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					if contains(out, ">"+key+"<") {
 						t.Errorf("tv_pairing.html (%s): missing translation for %s", lang, key)
 					}
+				}
+			}
+			if name == "portal_tv.html" {
+				want := map[string]string{"en": "Pair a TV", "id": "Pasangkan TV"}[lang]
+				if !contains(out, want) {
+					t.Errorf("portal_tv.html (%s): missing the pairing heading %q", lang, want)
+				}
+				// t() echoes a missing key, so a literal key in element text is
+				// a translation leak on the counter's own page.
+				for _, key := range []string{
+					"tv.pr.pair", "tv.pr.sub", "tv.pr.code", "tv.pr.loc", "tv.pr.label",
+					"tv.pr.submit", "tv.pr.list", "tv.pr.seen", "tv.pr.never",
+					"tv.pr.rev", "tv.pr.revx", "p.nav.ptv",
+				} {
+					if contains(out, ">"+key+"<") {
+						t.Errorf("portal_tv.html (%s): missing translation for %s", lang, key)
+					}
+				}
+				if !contains(out, `href="/portal/tv"`) {
+					t.Errorf("portal_tv.html (%s): missing the portal nav link", lang)
 				}
 			}
 			if name == "tv_view.html" {
@@ -654,7 +709,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 		"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 		"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-		"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html", "portal_error.html",
+		"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html", "portal_tv.html", "portal_error.html",
 	}
 	partials := []string{
 		"services_partial.html", "staff_partial.html", "slots_partial.html",
@@ -699,6 +754,10 @@ func TestNoEmojiIcons(t *testing.T) {
 				}
 			case "tv_pairing.html":
 				data["Code"] = "482913"
+			case "portal_tv.html":
+				for k, v := range portalTVSweepData() {
+					data[k] = v
+				}
 			case "account.html":
 				data["User"] = &domain.User{FullName: "Test Mom", Role: domain.RoleCustomer}
 			case "portal_food_edit.html":
@@ -751,6 +810,9 @@ func TestNoEmojiIcons(t *testing.T) {
 				}}
 				data["Locations"] = []domain.Location{{ID: locID, Name: "Kayu Putih", Active: true}}
 				data["LocNames"] = map[string]string{locID.String(): "Kayu Putih"}
+				data["Devices"] = []domain.TVDevice{{
+					ID: uuid.New(), Label: "Lobby TV", LocationID: locID, PairedAt: &tvSweepTime,
+				}}
 			}
 			var buf bytes.Buffer
 			if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {

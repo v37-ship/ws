@@ -650,6 +650,10 @@ func (s *Server) Routes(r chi.Router) {
 	// Staff Portal (Accessible by CS and Admin)
 	r.Route("/portal", func(pr chi.Router) {
 		pr.Use(middleware.RequireStaff)
+		// Claiming a pairing code is the brute-force surface, so code entry is
+		// capped per staff user (10/min, the login limiter's scale). The page
+		// itself and the admin-only revoke carry no guessing surface.
+		tvPairEntryLimiter := middleware.NewRateLimiter(10, time.Minute)
 		pr.Get("/", s.PortalDashboard)
 		pr.Get("/queue", s.PortalQueuePartial)
 		pr.Post("/digest", s.PortalSendDigest)
@@ -730,6 +734,18 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/distance/{id}/toggle", s.PortalToggleDistance)
 		pr.Post("/distance/{id}/delete", s.PortalDeleteDistance)
 		pr.Post("/staff/{id}/toggle", s.PortalToggleStaff)
+
+		// Counter-side TV pairing: enter the code the screen shows, name it,
+		// list paired screens. Revoke is admin-only (checked in-handler, the
+		// requirePortalAdmin precedent — CS sees the list read-only).
+		pr.Get("/tv", s.PortalTVPage)
+		pr.With(middleware.RateLimit(tvPairEntryLimiter, func(req *http.Request) string {
+			if u := middleware.UserFrom(req.Context()); u != nil {
+				return "tvpair:" + u.ID.String()
+			}
+			return "tvpair-ip:" + req.RemoteAddr
+		})).Post("/tv/pair", s.PortalTVPair)
+		pr.Post("/tv/device/{id}/revoke", s.PortalTVDeviceRevoke)
 	})
 
 	// Admin Only Routes
@@ -759,6 +775,9 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/tv", s.AdminTVPage)
 		ar.Post("/tv/generate", s.AdminTVGenerate)
 		ar.Post("/tv/revoke/{id}", s.AdminTVRevoke)
+		// Paired screens are revoked from the same page; the handler is the
+		// portal one (admin-gated in-handler as well as by this group).
+		ar.Post("/tv/device/{id}/revoke", s.PortalTVDeviceRevoke)
 
 		// WhatsApp configuration (reminders, copy, pause).
 		ar.Get("/whatsapp", s.AdminWhatsApp)

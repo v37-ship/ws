@@ -191,6 +191,7 @@ func TestAdminTVPageShowsURLs(t *testing.T) {
 	tok := tvFixture()
 	swapTVTokenList(t, []domain.TVToken{tok}, nil)
 	swapTVLocations(t, []domain.Location{{ID: tok.LocationID, Name: "Kayu Putih", Active: true}}, nil)
+	swapTVDeviceList(t, nil, nil)
 
 	rec := runRoute(h, adminRequest(t, http.MethodGet, "/admin/tv?lang=en", domain.RoleAdmin, nil))
 

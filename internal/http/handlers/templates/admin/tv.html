@@ -65,6 +65,29 @@
         <p class="muted">{{t .Lang "a.tv.none"}}</p>
         {{end}}
       </div>
+
+      {{/* Paired screens (the pairing handshake): a named device with a hashed
+           secret, its branch and last-seen stamp. Device metadata only. */}}
+      <div class="panel stack">
+        <h2>{{t .Lang "tv.pr.list"}}</h2>
+        {{if .Devices}}
+        {{range .Devices}}
+        <div style="display:flex; gap:0.5rem; justify-content:space-between; flex-wrap:wrap; align-items:baseline; border-top:1px solid var(--line, #ddd); padding-top:0.75rem;">
+          <strong>{{if .Label}}{{.Label}}{{else}}—{{end}}</strong>
+          <span class="muted">{{index $.LocNames .LocationID.String}}</span>
+          <span class="muted">{{t $.Lang "tv.pr.at"}} {{if .PairedAt}}{{formatTime .PairedAt "02 Jan 2006 15:04"}}{{else}}-{{end}}</span>
+          <span class="muted">{{t $.Lang "tv.pr.seen"}}: {{if .LastSeen}}{{formatTime .LastSeen "02 Jan 2006 15:04"}}{{else}}{{t $.Lang "tv.pr.never"}}{{end}}</span>
+          <form method="post" action="/admin/tv/device/{{.ID}}/revoke"
+                onsubmit="return confirm('{{t $.Lang "tv.pr.revx"}}')">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button class="btn secondary on-light" type="submit">{{icon "x-circle"}} {{t $.Lang "tv.pr.rev"}}</button>
+          </form>
+        </div>
+        {{end}}
+        {{else}}
+        <p class="muted">{{t .Lang "tv.pr.none"}}</p>
+        {{end}}
+      </div>
     </main>
   </div>
   {{template "footer" .}}

@@ -24,6 +24,7 @@
       {{template "portal_link" dict "Href" "/portal/bookings/new" "Active" (eq .Active "new_booking") "Label" (t .Lang "p.nav.new") "Icon" "plus"}}
       {{template "portal_link" dict "Href" "/portal/customers" "Active" (eq .Active "customers") "Label" (t .Lang "p.nav.cu") "Icon" "users"}}
       {{template "portal_link" dict "Href" "/portal/customers/new" "Active" (eq .Active "new_customer") "Label" (t .Lang "p.nav.newc") "Icon" "user-plus"}}
+      {{template "portal_link" dict "Href" "/portal/tv" "Active" (eq .Active "tv") "Label" (t .Lang "p.nav.ptv") "Icon" "tv"}}
     </div>
     <div class="portal-group">
       <div class="portal-group-title">{{t .Lang "p.nav.g_mng"}}</div>

@@ -712,6 +712,14 @@ type TVDevice struct {
 // Active reports whether the device may still open the kiosk.
 func (d TVDevice) Active() bool { return d.RevokedAt == nil }
 
+// TVSecretHash is the at-rest shape of a device secret: lowercase hex sha256.
+// The portal writes it (hashing the pairing's pending key, which the TV already
+// holds) and SecretOK verifies against it, so the two cannot drift apart.
+func TVSecretHash(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
+}
+
 // SecretOK verifies a presented device secret: sha256(secret) is compared with
 // the stored hash in constant time. Revocation is Active()'s call, not this
 // one (the TVToken.TokenOK split).
@@ -719,8 +727,7 @@ func (d TVDevice) SecretOK(secret string) bool {
 	if d.SecretHash == "" || secret == "" {
 		return false
 	}
-	sum := sha256.Sum256([]byte(secret))
-	return subtle.ConstantTimeCompare([]byte(d.SecretHash), []byte(hex.EncodeToString(sum[:]))) == 1
+	return subtle.ConstantTimeCompare([]byte(d.SecretHash), []byte(TVSecretHash(secret))) == 1
 }
 
 // TVDeviceCookie packs the tv_device cookie value: the device id, a dot, then

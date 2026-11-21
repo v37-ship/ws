@@ -43,12 +43,21 @@ var (
 )
 
 // AdminTVPage lists live kiosk links and their full URLs, and offers a
-// generate form scoped to a branch (ruling: the token is location-bound).
+// generate form scoped to a branch (ruling: the token is location-bound). The
+// paired-devices section below it is the new-style credential: a named,
+// last-seen screen with a hashed secret, revocable here as well as in the
+// portal.
 func (s *Server) AdminTVPage(w http.ResponseWriter, r *http.Request) {
 	list, err := tvTokenList(s, r)
 	if err != nil {
 		s.log.Error("tv tokens", "err", err)
 		s.staffFail(w, r, http.StatusInternalServerError, failTVList)
+		return
+	}
+	devices, err := tvDeviceList(s, r)
+	if err != nil {
+		s.log.Error("tv devices", "err", err)
+		s.staffFail(w, r, http.StatusInternalServerError, failTVDevices)
 		return
 	}
 	locs, err := tvActiveLocations(s, r)
@@ -65,6 +74,7 @@ func (s *Server) AdminTVPage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, r, "admin_tv.html", pageData{
 		"Tokens":    list,
+		"Devices":   devices,
 		"Locations": locs,
 		"LocNames":  locNames,
 		"Success":   r.URL.Query().Get("success"),

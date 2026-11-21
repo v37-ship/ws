@@ -1,0 +1,76 @@
+{{define "portal_tv.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "tv.pr.pair"}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "tv" "User" .User "Lang" $.Lang}}
+    <main class="stack">
+      <div>
+        <h1 class="page-title" style="margin-bottom:0.2rem;">{{icon "tv"}} {{t .Lang "tv.pr.pair"}}</h1>
+        <p class="muted" style="margin:0;">{{t .Lang "tv.pr.sub"}}</p>
+      </div>
+
+      {{if .Success}}<p style="color:var(--ok); font-weight:700;" role="status">{{.Success}}</p>{{end}}
+
+      {{/* Code entry is the handshake's only mutating step; htmx keeps the
+           page (and the typed branch) while a toast explains a bad code. */}}
+      <form class="panel stack" method="post" action="/portal/tv/pair"
+            hx-post="/portal/tv/pair" hx-swap="none">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:.75rem; align-items:end;">
+          <label>{{t .Lang "tv.pr.code"}}
+            <input type="text" name="code" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                   autocomplete="one-time-code" placeholder="482913"
+                   style="font-family:ui-monospace, monospace; font-size:1.4rem; letter-spacing:.25rem;">
+          </label>
+          <label>{{t .Lang "tv.pr.loc"}}
+            <select name="location_id" required>
+              {{range .Locations}}
+              <option value="{{.ID}}" {{if eq (len $.Locations) 1}}selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+          </label>
+          <label>{{t .Lang "tv.pr.label"}}
+            <input type="text" name="label" maxlength="60" placeholder="TV Lobby">
+          </label>
+        </div>
+        <div>
+          <button class="btn" type="submit">{{icon "plus"}} {{t .Lang "tv.pr.submit"}}</button>
+        </div>
+      </form>
+
+      <div class="panel stack">
+        <h2>{{t .Lang "tv.pr.list"}}</h2>
+        {{if .Devices}}
+        {{range .Devices}}
+        <div style="display:flex; gap:.5rem; justify-content:space-between; flex-wrap:wrap; align-items:baseline; border-top:1px solid var(--line, #ddd); padding-top:.75rem;">
+          <strong>{{if .Label}}{{.Label}}{{else}}—{{end}}</strong>
+          <span class="muted">{{index $.LocNames .LocationID.String}}</span>
+          <span class="muted">{{t $.Lang "tv.pr.at"}} {{if .PairedAt}}{{formatTime .PairedAt "02 Jan 2006 15:04"}}{{else}}-{{end}}</span>
+          <span class="muted">{{t $.Lang "tv.pr.seen"}}: {{if .LastSeen}}{{formatTime .LastSeen "02 Jan 2006 15:04"}}{{else}}{{t $.Lang "tv.pr.never"}}{{end}}</span>
+          {{if $.User}}{{if eq (printf "%s" $.User.Role) "admin"}}
+          <form method="post" action="/portal/tv/device/{{.ID}}/revoke"
+                hx-post="/portal/tv/device/{{.ID}}/revoke" hx-swap="none"
+                hx-confirm="{{t $.Lang "tv.pr.revx"}}" style="display:inline;">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button class="btn secondary on-light btn-sm" type="submit">{{icon "x-circle"}} {{t $.Lang "tv.pr.rev"}}</button>
+          </form>
+          {{end}}{{end}}
+        </div>
+        {{end}}
+        {{else}}
+        <p class="muted">{{t .Lang "tv.pr.none"}}</p>
+        {{end}}
+      </div>
+    </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}
