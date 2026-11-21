@@ -17,14 +17,15 @@ import (
 // adds no configuration of its own (ruling #12).
 const tvReviewTestURL = "https://g.page/r/CTvExample/review"
 
-// swapTVSlides pins the kiosk's marketing data seam. Like tvQueueBookings, the
-// catalog/testimonial/food services are concrete types, so the tests swap the
-// whole loader instead of opening a database.
+// swapTVSlides pins the kiosk's raw marketing data seam. Like tvQueueBookings,
+// the catalog/testimonial/food services are concrete types, so the tests swap
+// the fetch instead of opening a database. tvLoadSlides still runs on top, so
+// the 1080p caps are part of everything these tests render.
 func swapTVSlides(t *testing.T, slides tvSlideData) {
 	t.Helper()
-	prev := tvLoadSlides
-	tvLoadSlides = func(_ *Server, _ context.Context, _ uuid.UUID) tvSlideData { return slides }
-	t.Cleanup(func() { tvLoadSlides = prev })
+	prev := tvFetchSlides
+	tvFetchSlides = func(_ *Server, _ context.Context, _ uuid.UUID) tvSlideData { return slides }
+	t.Cleanup(func() { tvFetchSlides = prev })
 }
 
 // tvSlideFixtures is marketing data only: active catalog rows, an approved
@@ -150,12 +151,12 @@ func TestTVQueueOnlyLayoutRendersNoMarketing(t *testing.T) {
 	}, nil, nil)
 
 	slideCalls := 0
-	prev := tvLoadSlides
-	tvLoadSlides = func(_ *Server, _ context.Context, _ uuid.UUID) tvSlideData {
+	prev := tvFetchSlides
+	tvFetchSlides = func(_ *Server, _ context.Context, _ uuid.UUID) tvSlideData {
 		slideCalls++
 		return tvSlideFixtures()
 	}
-	t.Cleanup(func() { tvLoadSlides = prev })
+	t.Cleanup(func() { tvFetchSlides = prev })
 
 	rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=id&t="+tvTestToken+"&layout=queue", nil))
 	if rec.Code != http.StatusOK {

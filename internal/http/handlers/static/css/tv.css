@@ -303,6 +303,10 @@ html:not([data-theme]) body.tv-body {
 .tv-deck-rotate .tv-svc-meta { font-size: clamp(1rem, 1.2vw, 1.35rem); }
 .tv-deck-rotate .tv-tm-msg { font-size: clamp(1.4rem, 2vw, 2.2rem); }
 .tv-deck-rotate .tv-food { font-size: clamp(1.3rem, 1.7vw, 2rem); }
+/* Ten capped menu rows still have to clear the fold when a long name wraps to
+   two lines, so the rotate deck trims the row padding a notch. The cap itself
+   lives in tv_slides.go (tvFoodSlideCap); this only buys it the headroom. */
+.tv-deck-rotate .tv-food { padding-block: clamp(0.3rem, 0.7vh, 0.55rem); }
 .tv-deck-rotate .tv-qr-hint { font-size: clamp(1.2rem, 1.6vw, 1.8rem); }
 
 /* The flex column shrinks blocks to content width; give the list slides a

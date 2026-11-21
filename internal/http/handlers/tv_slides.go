@@ -11,8 +11,23 @@ import (
 
 // tvTestimonialCap is the same approved-testimonial budget the homepage
 // filmstrip uses, so the kiosk and the site never disagree about what "the
-// latest reviews" are.
+// latest reviews" are. It is the *fetch* budget only — the television renders
+// tvTestimonialSlideCap of them.
 const tvTestimonialCap = 12
+
+// The television is a fixed 1920x1080 frame with no scroll gesture, so the
+// slide sets need hard render ceilings that CSS cannot give them honestly
+// (overflow:hidden clips mid-glyph instead of removing a row). The production
+// visual gate found a third review card clipped at the viewport bottom and a
+// 13-item menu running past the fold; these caps are the measured ceilings,
+// applied to the data the templates receive.
+const (
+	// tvTestimonialSlideCap is the two newest reviews: a third card clips at
+	// TV type sizes on a 1080p panel.
+	tvTestimonialSlideCap = 2
+	// tvFoodSlideCap is ten menu rows: eleven-plus overflowed the frame.
+	tvFoodSlideCap = 10
+)
 
 // tvSlideData is the kiosk's marketing side: catalog, approved testimonials,
 // Bu Nah's menu and the review link. No booking ever enters this struct — the
@@ -25,14 +40,14 @@ type tvSlideData struct {
 	ReviewURL    string
 }
 
-// tvLoadSlides is the slide data seam (the tvQueueBookings precedent: the
+// tvFetchSlides is the raw slide-data seam (the tvQueueBookings precedent: the
 // services hold concrete pgx repos, so tests swap the call). A read failure
 // only drops that slide: the wall keeps the queue and the next 30s reload
 // retries, because a kiosk has no staff to read an error page.
 //
 // The nil checks keep the render sweeps honest — they build a Server without
 // services — while production always wires every service.
-var tvLoadSlides = func(s *Server, ctx context.Context, loc uuid.UUID) tvSlideData {
+var tvFetchSlides = func(s *Server, ctx context.Context, loc uuid.UUID) tvSlideData {
 	var out tvSlideData
 
 	if s.catalog != nil {
@@ -70,6 +85,28 @@ var tvLoadSlides = func(s *Server, ctx context.Context, loc uuid.UUID) tvSlideDa
 	}
 
 	return out
+}
+
+// tvLoadSlides is the one entry point the kiosk handler calls: read the
+// marketing sets, then enforce the 1080p render ceilings before any template
+// sees them. The caps are server-side on purpose — a CSS clamp or overflow
+// hides the overflow instead of dropping it, and the boundary row still ends
+// mid-glyph on a fixed frame.
+func tvLoadSlides(s *Server, ctx context.Context, loc uuid.UUID) tvSlideData {
+	return capTVSlides(tvFetchSlides(s, ctx, loc))
+}
+
+// capTVSlides trims the slide sets to what a 1920x1080 television can actually
+// show. It keeps the leading rows (ListApproved is newest-first, ListActive is
+// sorted for display), so the deck shows "the latest" in both senses.
+func capTVSlides(d tvSlideData) tvSlideData {
+	if len(d.Testimonials) > tvTestimonialSlideCap {
+		d.Testimonials = d.Testimonials[:tvTestimonialSlideCap]
+	}
+	if len(d.Food) > tvFoodSlideCap {
+		d.Food = d.Food[:tvFoodSlideCap]
+	}
+	return d
 }
 
 // normalizeTVLayout maps ?layout= onto the two shells. Rotate is the default:
