@@ -107,6 +107,12 @@
     __wanggaTVQr();
   }
   </script>
+
+  <script>
+  /* Slides snapshot at page load; the queue is polled. Reload daily-ish so
+     price/menu edits reach a TV nobody ever refreshes. */
+  setTimeout(function () { location.reload(); }, 12 * 60 * 60 * 1000);
+  </script>
 </body>
 </html>
 {{end}}

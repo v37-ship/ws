@@ -69,9 +69,12 @@ Goose + Midtrans QRIS.
   the token is location-bound (`location_id`), so a screen can only ever show
   its branch. Missing/unknown/revoked all render `tv_invalid.html` (minimal, no
   data, noindex). Management is admin-only at `/admin/tv` (generate, display
-  the full URL, revoke); a revoke kills the TV on its next poll. The token is
-  never an auth substitute anywhere else. The queue view is built server-side
-  from redacted view-models (`tvRow`: WIB time, first name + last initial,
+  the full URL, revoke); a revoke kills the TV on its next poll. Handlers never
+  log the token; the chi access log does contain the full URL, the same
+  established exposure as guest booking links — revoke and re-mint to retire a
+  leaked URL. The token is never an auth substitute anywhere else. The queue
+  view is built server-side from redacted view-models (`tvRow`: WIB time,
+  first name + last initial,
   service, therapist first name, status) in `tv_queue.go` — templates never
   see a `domain.Booking`. `tvStatusKeys` is both the status whitelist
   (confirmed/checked_in/in_service/completed) and the label set, and

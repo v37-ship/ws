@@ -14,8 +14,5 @@ CREATE TABLE IF NOT EXISTS tv_tokens (
     revoked_at TIMESTAMPTZ
 );
 
--- The kiosk lookup is by token and only for live rows.
-CREATE INDEX IF NOT EXISTS tv_tokens_active_idx ON tv_tokens (location_id) WHERE revoked_at IS NULL;
-
 -- +goose Down
 DROP TABLE IF EXISTS tv_tokens;
