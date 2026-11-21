@@ -108,9 +108,9 @@ textarea { resize: vertical; }
    hours, the schedule datetime-local picks) relied on for height: an empty
    date/time value keeps a full line box in iOS Safari, the value keeps the
    field's alignment, and the `::-webkit-datetime-edit*` internals stop
-   adding their own padding. Upstream's neighbouring
-   `::-webkit-calendar-picker-indicator { line-height:1 }` exists for Chrome
-   `<datalist>` markers only; this app has no datalist, so it stays out. */
+   adding their own padding. `::-webkit-calendar-picker-indicator` is
+   deliberately not ported — it is not part of upstream preflight, so
+   there is nothing to replace. */
 ::-webkit-date-and-time-value {
   min-height: 1lh; /* preflight: an empty date/time input is one line tall, not short */
   text-align: inherit; /* preflight: iOS Safari lets the field's text alignment through */
