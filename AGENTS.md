@@ -12,7 +12,7 @@ Goose + Midtrans QRIS.
   A 1-minute ticker expires booking holds and deletes expired sessions.
 - `internal/config` (env defaults: `SESSION_TTL=168h`, `BOOKING_HOLD_TTL=15m`),
   `internal/auth` (bcrypt, CSRF token), `internal/db/migrations` (Goose
-  001–022, single source of truth), `internal/domain` (models + helpers
+  001–024, single source of truth), `internal/domain` (models + helpers
   `OwnedBy`/`TokenOK`/`IsGuest`/`Net`/`DisplayName`), `internal/repo` (raw
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
@@ -64,17 +64,53 @@ Goose + Midtrans QRIS.
   limiter; submissions always land `pending` — moderation is the spam gate, not
   auth.
 - Waiting-room kiosk: `GET /tv` and `GET /tv/queue` (the 30s poll) are public
-  but token-gated in-handler — `?t=<tv_tokens.token>` is the only credential
+  but credential-gated in-handler. The shipped path is `?t=<tv_tokens.token>`
   (constant-time `domain.TVToken.TokenOK` after a revoke-filtered lookup), and
   the token is location-bound (`location_id`), so a screen can only ever show
-  its branch. Missing/unknown/revoked all render `tv_invalid.html` (minimal, no
-  data, noindex). Management is admin-only at `/admin/tv` (generate, display
+  its branch. Unknown and revoked tokens both render `tv_invalid.html` (minimal,
+  no data, noindex). Management is admin-only at `/admin/tv` (generate, display
   the full URL, revoke); a revoke kills the TV on its next poll. Handlers never
   log the token; the chi access log does contain the full URL, the same
   established exposure as guest booking links — revoke and re-mint to retire a
-  leaked URL. The token is never an auth substitute anywhere else. The queue
-  view is built server-side from redacted view-models (`tvRow`: WIB time,
-  first name + last initial,
+  leaked URL. The token is never an auth substitute anywhere else. The second
+  credential is a paired device: a bare `/tv` with nothing to verify renders the
+  pairing screen — a six-digit `crypto/rand` code (zero-padded, handled as a
+  string) with a 5-minute TTL and single use via `tv_pairings.consumed_at`,
+  plus a 15-minute HttpOnly `tv_pending` cookie that the 4s `/tv/pair-state`
+  poll presents (pending → keep showing the code; paired → Set-Cookie
+  `tv_device` + `HX-Redirect: /tv`; expired → notice + start-over, stale pending
+  cookie cleared). CS pairs at `/portal/tv` — code + branch + optional label,
+  10/min per user, an unnamed screen falling back to `TV · <branch> · <date>`
+  (60-rune cap, matching the form) — where the code is consumed atomically with
+  the branch, the device minted, and only then linked; wrong, expired and
+  consumed codes answer the one `tv.pr.bad` message (the form is not a code
+  oracle), and the success copy is `<label> paired` (no "TV " prefix, or the
+  fallback label would read "TV TV · …"). The device secret IS the pairing's
+  pending key, promoted: the portal stores only its sha256 hex
+  (`tv_devices.secret_hash`, constant-time compare over the hash — a deliberate
+  deviation from the plaintext `tv_tokens`, since this is a long-lived browser
+  credential rather than a shareable link) and the TV hands the plaintext back
+  as `tv_device`
+  (`<id>.<secret>`, HttpOnly, SameSite=Lax, 30d), so no secret ever travels to
+  the counter and a paired screen's poll is a bare `/tv/queue` (nothing secret
+  in any URL). `tvCredential` resolves in one order: a live device cookie →
+  the view (last-seen stamped at most once a minute, in the UPDATE's
+  predicate); else a live `?t=` token → the view; a presented-but-dead cookie
+  → cleared + pairing screen, so a revoked screen re-pairs itself without a
+  counter visit; no credential → pairing screen; a presented-but-bad `?t=` →
+  the invalid page (a deliberately minted URL must not silently heal into a
+  pairing). A lookup error is an outage, not a revocation: the invalid page
+  renders with the cookie untouched, the 30s poll answers 500 so the wall keeps
+  its last good rows, and a missing/dead cookie on the poll asks htmx for
+  `HX-Refresh` rather than swapping the pairing screen into the queue slot.
+  `/portal/tv` lists the devices (label, branch, paired-at, last-seen; CS
+  read-only), `/admin/tv` the same list with an admin-only revoke that kills the
+  screen on its next poll. Pairing rows are written by anonymous GETs, so `/tv`
+  is rate-limited 6/min per IP and the 1-minute ticker sweeps `tv_pairings` —
+  expired at once, consumed after a 10-minute grace so the TV's final poll can
+  still read its pairing — keeping that write surface bounded. Migration 024 is
+  additive and `tv_tokens` is untouched. The queue view is built server-side
+  from redacted view-models (`tvRow`: WIB time, first name + last initial,
   service, therapist first name, status) in `tv_queue.go` — templates never
   see a `domain.Booking`. `tvStatusKeys` is both the status whitelist
   (confirmed/checked_in/in_service/completed) and the label set, and

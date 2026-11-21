@@ -244,6 +244,7 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 - **Team**: Add/edit therapists (profile, bio, service capabilities, profile photo upload or link, weekly hours), pause/activate, guarded removal (blocked with guidance when booking history exists), and time-off blockouts — all from the portal Team page.
 - **Reports** (`/portal/reports`): Monthly revenue (gross / refunds / net, QRIS-vs-cash, by service/staff) with month + location filters, print stylesheet, and CSV export. Record refunds from booking detail (validated: never more than paid-minus-refunded); refunds deduct in the month recorded (cash basis).
 - **Promo codes, hero banners, food menu, transport bands**: Full CRUD at `/portal/promos`, `/portal/site` (homepage slideshow photos), `/portal/food`, and `/portal/distance` (homecare km → fee bands; bookings keep the fee they were created with). Promo codes are immutable — delete and recreate, never edit.
+- **Waiting-room TV** (`/portal/tv`): the kiosk at `/tv` shows a six-digit pairing code; enter it with the branch (and an optional device name) to pair that screen. The list shows every paired TV with its branch and last-seen stamp; a revoke (admins, here or at `/admin/tv`) sends the screen back to its pairing code by itself. `/admin/tv` also mints the older `?t=` link URLs, which keep working alongside paired devices.
 
 ### 3. Admin — `/admin`
 - Everything CS can do.
