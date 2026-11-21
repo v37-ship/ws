@@ -62,8 +62,8 @@ html[data-theme="dark"] option { background: #2a1f30; color: #f8eff5; }
   outline-offset: 2px;
 }
 
-/* Mobile: tables become cards */
-@media (max-width: 720px) {
+/* Mobile: tables become cards (screen only — print keeps real tables) */
+@media screen and (max-width: 720px) {
   .table-cards table, .table-cards thead, .table-cards tbody,
   .table-cards th, .table-cards td, .table-cards tr { display: block; }
   .table-cards thead { position: absolute; left: -9999px; }

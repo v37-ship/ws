@@ -414,6 +414,41 @@ func TestQueueHandlerPlain(t *testing.T) {
 	}
 }
 
+// A queue poll that cannot reach the database must not answer a bare 500: the
+// app's HTMX config drops non-2xx bodies, so the queue would silently go stale
+// on screen. It takes the staffFail contract instead — error toast, Reswap none
+// (the last good rows stay visible) and no body.
+func TestQueuePartialFailureToasts(t *testing.T) {
+	s := newFailTestServer(t)
+	prev := queueBookings
+	queueBookings = func(_ *Server, _ *http.Request, _ repo.FilterParams) ([]domain.Booking, error) {
+		return nil, fmt.Errorf("db down")
+	}
+	t.Cleanup(func() { queueBookings = prev })
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/portal/queue?lang=en", nil)
+	req.Header.Set("HX-Request", "true")
+	s.PortalQueuePartial(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 preserved", rec.Code)
+	}
+	if body := rec.Body.String(); body != "" {
+		t.Errorf("HTMX failure must not write a body, got %q", body)
+	}
+	if got := rec.Header().Get("HX-Reswap"); got != "none" {
+		t.Errorf("HX-Reswap = %q, want none (keep the last good rows)", got)
+	}
+	kind, msg := decodeToast(t, rec)
+	if kind != "error" {
+		t.Errorf("toast kind = %q, want error", kind)
+	}
+	if msg != failQueue {
+		t.Errorf("toast message = %q, want %q", msg, failQueue)
+	}
+}
+
 // undoStatusTestServer wires the undo data seam to a fixed outcome, exactly
 // like queueBookings pins the queue's data call (the repos are concrete pgx
 // types, so there is no interface to fake).

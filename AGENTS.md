@@ -198,6 +198,12 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - HTMX preview/quote endpoints must **always answer 200 with inline errors**:
   the app's HTMX config (`[45].. → swap:false`) silently swallows 4xx/5xx,
   making buttons look dead (precedent: promo Apply).
+- The canonical dead-button remedy is `staffFail` (`handlers.go`): HTMX calls
+  get the real status code + the `HX-Trigger` toast app.js consumes +
+  `Reswap: none` (the last good DOM survives; a 30s poll keeps its old rows
+  instead of blanking). Non-HTMX requests render `portal_error.html`
+  **deliberately at 200** for 403/500 — it softens status-based monitoring on
+  purpose, so future agents must not "fix" it back to the real code.
 - `hx-include` submits elements under their **`name` attribute**: the input
   name must equal the query param the endpoint reads (`promo_try` vs `code`
   cost a full debug cycle; customer picker `name="q"` is asserted by
@@ -233,6 +239,15 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
 - Slots respect service-hours ∩ therapist-hours with a 10-min prep buffer
   on a 15-min grid, minus `staff_time_off` blockouts. `Source` is
   `web`/`walkin`/`whatsapp`/`phone`; `booking_fee_idr` is stored per booking.
+- One-tap undo: `POST /portal/bookings/{id}/status/undo` restores the
+  previous status derived from the audit log (`previousStatusFromLogs` — the
+  newest "Status changed to X" entry must equal current, else the chain moved
+  under you and undo refuses with a toast, never a silent overwrite). Undo is
+  **quiet**: it writes through `applyStatus(fanOut=false)`, so it never
+  messages the customer or pings the staff group; un-finishing cancels the
+  pending review request (`cancelReview`), and un-cancelling tells staff the
+  customer was already notified (the confirmation dedupe key is permanent —
+  resend from the detail page).
 
 ## Deploy topology
 
@@ -365,8 +380,10 @@ HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
   CSV. Admin (`/admin`) owns cross-cutting setup: locations, CS accounts
   (create, toggle-active revoking sessions, password reset), jobs +
   applications (+CV download), testimonials, customer password reset, own
-  password change. `/admin/services` → `/portal/services` and
-  `/admin/staff` → `/portal/schedule` are redirects, not pages.
+  password change. `/admin/services` → `/portal/services`,
+  `/admin/staff` → `/portal/schedule` and `/admin/bookings` →
+  `/portal/bookings` are redirects, not pages (the legacy admin bookings
+  table was deleted; its route is a 303 under `RequireAdmin`).
 
 ## Git
 

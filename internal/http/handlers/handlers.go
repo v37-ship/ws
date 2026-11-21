@@ -684,6 +684,9 @@ var portalBookingCount = func(s *Server, r *http.Request, f repo.FilterParams) (
 const (
 	failBookings  = "Could not load bookings. Refresh the page and try again."
 	failCustomers = "Could not load customers. Refresh the page and try again."
+	// failQueue is the 30s poll's failure copy: the queue retries on its own,
+	// so it asks for patience instead of a manual refresh.
+	failQueue = "Could not load the queue — retrying shortly."
 )
 
 func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
@@ -810,7 +813,7 @@ func (s *Server) PortalQueuePartial(w http.ResponseWriter, r *http.Request) {
 	filter, claimsMode := queueFilter(r, nowWIB)
 	bookings, err := queueBookings(s, r, filter)
 	if err != nil {
-		http.Error(w, "failed to load queue", http.StatusInternalServerError)
+		s.staffFail(w, r, http.StatusInternalServerError, failQueue)
 		return
 	}
 	s.renderPartial(w, r, "portal_queue_rows.html", pageData{
