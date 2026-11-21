@@ -305,7 +305,11 @@ Goose + Midtrans QRIS.
 - One-tap undo: `POST /portal/bookings/{id}/status/undo` restores the
   previous status derived from the audit log (`previousStatusFromLogs` — the
   newest "Status changed to X" entry must equal current, else the chain moved
-  under you and undo refuses with a toast, never a silent overwrite). Undo is
+  under you and undo refuses with a toast, never a silent overwrite). Every
+  creation path (online, guest, CS walk-in) also writes that status row for the
+  booking's initial status (`logCreationStatus` → `domain.StatusLogAction`), so
+  the first manual move is undoable too; the manual-payment confirm gets its
+  row from `UpdateStatus`. Undo is
   **quiet**: it writes through `applyStatus(fanOut=false)`, so it never
   messages the customer or pings the staff group; un-finishing cancels the
   pending review request (`cancelReview`), and un-cancelling tells staff the

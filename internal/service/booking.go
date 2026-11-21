@@ -184,6 +184,7 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &customerID, "Booking created online (manual QRIS pending)", notes)
+		logCreationStatus(ctx, s.bookings, b, &customerID)
 	} else {
 		p = &domain.Payment{
 			BookingID:       b.ID,
@@ -199,6 +200,7 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &customerID, "Booking created online (QRIS pending)", notes)
+		logCreationStatus(ctx, s.bookings, b, &customerID)
 	}
 	full, _ := s.bookings.ByID(ctx, b.ID)
 	if full != nil {
@@ -366,6 +368,7 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &req.ActorID, "Booking created by CS (Cash Payment - Services)", req.Notes)
+		logCreationStatus(ctx, s.bookings, b, &req.ActorID)
 	} else if s.ManualPayments() {
 		b.Status = domain.BookingConfirmed
 		b.HoldExpiresAt = nil
@@ -393,6 +396,7 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &req.ActorID, "Booking created by CS (manual QRIS pending)", req.Notes)
+		logCreationStatus(ctx, s.bookings, b, &req.ActorID)
 	} else {
 		// QRIS: can pay booking fee or service
 		holdExp := time.Now().Add(s.holdTTL)
@@ -440,6 +444,7 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &req.ActorID, "Booking created by CS (QRIS pending)", req.Notes)
+		logCreationStatus(ctx, s.bookings, b, &req.ActorID)
 	}
 
 	full, _ := s.bookings.ByID(ctx, b.ID)
@@ -464,7 +469,23 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 // statusLogPrefix is the action text BookingRepo.UpdateStatusWithLog writes for
 // every status change. The audit log stores only the new status — there is no
 // previous-status column — so undo derives the previous one from this chain.
-const statusLogPrefix = "Status changed to "
+const statusLogPrefix = domain.StatusLogPrefix
+
+// statusLogWriter is the slice of BookingRepo the creation trail needs: the
+// same activity-row seam every other audit entry goes through.
+type statusLogWriter interface {
+	LogActivity(ctx context.Context, bookingID uuid.UUID, actorID *uuid.UUID, action, notes string) error
+}
+
+// logCreationStatus records the status a booking was created with, in the exact
+// form every later transition writes. Without it a booking's first manual move
+// (a walk-in's check-in, typically) has no predecessor for undo to return to:
+// the creation paths log a human-readable "Booking created…" row, which
+// previousStatusFromLogs skips. Best-effort like the surrounding activity rows —
+// a failed audit insert must not fail a booking that already exists.
+func logCreationStatus(ctx context.Context, logs statusLogWriter, b *domain.Booking, actorID *uuid.UUID) {
+	_ = logs.LogActivity(ctx, b.ID, actorID, domain.StatusLogAction(b.Status), "")
+}
 
 // previousStatusFromLogs derives the status a booking was in before its most
 // recent status change. Entries arrive newest-first (BookingRepo.ListLogs).
@@ -1044,6 +1065,7 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, nil, "Guest booking created online (manual QRIS pending)", req.Notes)
+		logCreationStatus(ctx, s.bookings, b, nil)
 	} else {
 		charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
 			OrderID:      orderID,
@@ -1073,6 +1095,7 @@ func (s *BookingService) CreateGuestPending(ctx context.Context, req GuestBookin
 			return nil, nil, err
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, nil, "Guest booking created online (QRIS pending)", req.Notes)
+		logCreationStatus(ctx, s.bookings, b, nil)
 	}
 	full, _ := s.bookings.ByID(ctx, b.ID)
 	if full != nil {

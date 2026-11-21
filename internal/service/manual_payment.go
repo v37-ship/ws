@@ -77,6 +77,10 @@ func (s *BookingService) ConfirmManualPayment(ctx context.Context, bookingID uui
 		return fmt.Errorf("%w: payment is already confirmed", ErrValidation)
 	}
 	if b.Status == domain.BookingPendingPayment {
+		// UpdateStatus writes the "Status changed to confirmed" audit row, so
+		// the activity row below must not repeat it (a duplicate status row is
+		// harmless to undo but noise in the trail). The creation path records
+		// the pending_payment row this transition undoes back to.
 		if err := s.UpdateStatus(ctx, bookingID, domain.BookingConfirmed, &actorID, "Payment confirmed manually"); err != nil {
 			return err
 		}

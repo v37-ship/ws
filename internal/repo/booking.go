@@ -335,7 +335,7 @@ func (r *BookingRepo) UpdateStatusWithLog(ctx context.Context, id uuid.UUID, sta
 		return err
 	}
 
-	action := "Status changed to " + string(status)
+	action := domain.StatusLogAction(status)
 	_, err = tx.Exec(ctx, `INSERT INTO booking_logs (booking_id, user_id, action, notes) VALUES ($1,$2,$3,$4)`,
 		id, actorID, action, note)
 	if err != nil {

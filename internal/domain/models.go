@@ -193,6 +193,16 @@ const (
 	BookingNoShow         BookingStatus = "no_show"
 )
 
+// StatusLogPrefix opens every audit row written for a status transition. The
+// audit log stores only the new status, so undo derives the previous one by
+// parsing these rows (see service.previousStatusFromLogs).
+const StatusLogPrefix = "Status changed to "
+
+// StatusLogAction is the audit action text written for a transition to s. Both
+// the repo (every UpdateStatusWithLog) and the creation paths (which record the
+// status a booking is born with) use it, so their rows parse identically.
+func StatusLogAction(s BookingStatus) string { return StatusLogPrefix + string(s) }
+
 func (s BookingStatus) Display() string {
 	switch s {
 	case BookingPendingPayment:
