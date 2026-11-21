@@ -162,7 +162,7 @@ func (s *Server) PortalReportsCSV(w http.ResponseWriter, r *http.Request) {
 // PortalRecordRefund stores a refund against a booking's paid payment.
 func (s *Server) PortalRecordRefund(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -205,12 +205,12 @@ func (s *Server) refundFail(w http.ResponseWriter, r *http.Request, id uuid.UUID
 // PortalVoidRefund voids a mistyped refund (admin-only correction).
 func (s *Server) PortalVoidRefund(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	actorID, ok := s.requirePortalAdmin(r)
 	if !ok {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))

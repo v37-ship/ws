@@ -89,7 +89,7 @@ func parseZoneForm(r *http.Request) (domain.DistanceZone, string) {
 // PortalCreateDistance adds a band.
 func (s *Server) PortalCreateDistance(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	z, errMsg := parseZoneForm(r)
@@ -109,7 +109,7 @@ func (s *Server) PortalCreateDistance(w http.ResponseWriter, r *http.Request) {
 // so past money never moves.
 func (s *Server) PortalUpdateDistance(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -135,7 +135,7 @@ func (s *Server) PortalUpdateDistance(w http.ResponseWriter, r *http.Request) {
 // being offered but stay editable).
 func (s *Server) PortalToggleDistance(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -153,7 +153,7 @@ func (s *Server) PortalToggleDistance(w http.ResponseWriter, r *http.Request) {
 // PortalDeleteDistance removes a band (bookings keep their snapshot).
 func (s *Server) PortalDeleteDistance(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))

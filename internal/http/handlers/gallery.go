@@ -97,7 +97,7 @@ func (s *Server) PortalGallery(w http.ResponseWriter, r *http.Request) {
 // PortalCreateGallery adds a gallery row (photo upload/link or video link).
 func (s *Server) PortalCreateGallery(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	g, errMsg := parseGalleryForm(r)
@@ -160,7 +160,7 @@ func (s *Server) PortalUpdateGallery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	g, errMsg := parseGalleryForm(r)
@@ -199,7 +199,7 @@ func (s *Server) PortalUpdateGallery(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalToggleGallery(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {
@@ -212,7 +212,7 @@ func (s *Server) PortalToggleGallery(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeleteGallery(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {
@@ -225,7 +225,7 @@ func (s *Server) PortalDeleteGallery(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalGallerySort(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {

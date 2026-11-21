@@ -114,7 +114,7 @@ func (s *Server) redirectPay(w http.ResponseWriter, r *http.Request, b *domain.B
 func (s *Server) PortalConfirmPayment(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -124,7 +124,7 @@ func (s *Server) PortalConfirmPayment(w http.ResponseWriter, r *http.Request) {
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failSession)
 		return
 	}
 	method := domain.PaymentMethod(r.FormValue("method"))
@@ -143,7 +143,7 @@ func (s *Server) PortalConfirmPayment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalRejectClaim(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -153,7 +153,7 @@ func (s *Server) PortalRejectClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failSession)
 		return
 	}
 	if err := s.book.RejectClaim(r.Context(), id, r.FormValue("note"), u.ID); err != nil {
@@ -187,7 +187,7 @@ func (s *Server) portalPaymentResult(w http.ResponseWriter, r *http.Request, id 
 func (s *Server) PortalSendWhatsApp(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -197,7 +197,7 @@ func (s *Server) PortalSendWhatsApp(w http.ResponseWriter, r *http.Request) {
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failSession)
 		return
 	}
 	kind := r.FormValue("kind")
@@ -212,7 +212,7 @@ func (s *Server) PortalSendWhatsApp(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalUploadReceipt(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, service.MaxReceiptBytes+(1<<20))
 	if err := r.ParseMultipartForm(10 << 20); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -226,7 +226,8 @@ func (s *Server) PortalUploadReceipt(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "Could not load booking", http.StatusInternalServerError)
+		s.log.Error("portal upload receipt", "id", id, "err", err)
+		s.staffFail(w, r, http.StatusInternalServerError, "Could not load the booking. Try again.")
 		return
 	}
 	file, hdr, err := r.FormFile("receipt")

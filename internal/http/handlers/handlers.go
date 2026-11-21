@@ -606,6 +606,30 @@ func (s *Server) ServicesPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "services.html", data)
 }
 
+// Failure copy for portal form actions. English, like every .Error string:
+// the dictionary translates chrome, not diagnostics.
+const (
+	failSession = "Your session expired. Refresh the page and try again."
+	failAdmin   = "Only an admin can do that."
+	failForm    = "Could not read the form. Refresh the page and try again."
+)
+
+// staffFail ends a portal form action that cannot continue (stale CSRF token,
+// staff-only guard, unreadable body). HTMX controls get an error toast and the
+// original status; the app's HTMX config ignores non-2xx swaps, so a bare
+// http.Error here would render nothing and the button would look dead. Plain
+// form posts get the portal shell and a way back instead of a naked browser
+// error page.
+func (s *Server) staffFail(w http.ResponseWriter, r *http.Request, code int, msg string) {
+	if htmx.IsRequest(r) {
+		s.toast(w, "error", msg)
+		htmx.Reswap(w, "none")
+		w.WriteHeader(code)
+		return
+	}
+	s.render(w, r, "portal_error.html", pageData{"ErrorCode": code, "ErrorMessage": msg})
+}
+
 func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
 	nowWIB := time.Now().In(time.FixedZone("WIB", 7*3600))
 	todayStr := nowWIB.Format("2006-01-02")
@@ -735,13 +759,13 @@ func (s *Server) PortalCustomerSearch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalCreateBooking(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	custID, err := uuid.Parse(r.FormValue("customer_id"))
 	if err != nil {
-		http.Error(w, "invalid customer", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, "Pick a customer from the search results before saving.")
 		return
 	}
 	locID, _ := uuid.Parse(r.FormValue("location_id"))
@@ -869,7 +893,7 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalUpdateBookingStatus(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -904,7 +928,7 @@ func (s *Server) PortalUpdateBookingStatus(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) PortalRescheduleBooking(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -942,12 +966,12 @@ func (s *Server) PortalRescheduleBooking(w http.ResponseWriter, r *http.Request)
 // (service/reprice, place/address, notes) with a mandatory logged reason.
 func (s *Server) PortalCorrectBooking(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	actorID, ok := s.requirePortalAdmin(r)
 	if !ok {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1006,7 +1030,7 @@ func (s *Server) PortalNewCustomerForm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalCreateCustomer(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	fullName := r.FormValue("full_name")
@@ -1087,7 +1111,7 @@ func (s *Server) PortalEditCustomerForm(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) PortalUpdateCustomer(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1125,7 +1149,7 @@ func (s *Server) PortalUpdateCustomer(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeleteCustomer(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1153,7 +1177,7 @@ func (s *Server) PortalDeleteCustomer(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalToggleCustomerActive(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1214,12 +1238,12 @@ func (s *Server) PortalSchedule(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalCreateStaff(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, "invalid", http.StatusBadRequest)
+			s.staffFail(w, r, http.StatusBadRequest, failForm)
 			return
 		}
 	}
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	lid, _ := uuid.Parse(r.FormValue("location_id"))
@@ -1250,7 +1274,7 @@ func (s *Server) PortalCreateStaff(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalCreateTimeOff(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	staffID, err := uuid.Parse(r.FormValue("staff_id"))
@@ -1283,7 +1307,7 @@ func (s *Server) PortalCreateTimeOff(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalDeleteTimeOff(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1510,7 +1534,7 @@ func (s *Server) ServeServicePhoto(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1529,7 +1553,7 @@ func (s *Server) PortalToggleService(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeleteService(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1557,7 +1581,7 @@ func (s *Server) PortalDeleteService(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PortalToggleStaff(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1599,12 +1623,12 @@ func (s *Server) PortalEditStaffForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalUpdateStaff(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, "invalid", http.StatusBadRequest)
+			s.staffFail(w, r, http.StatusBadRequest, failForm)
 			return
 		}
 	}
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1658,7 +1682,7 @@ func (s *Server) ServeStaffPhoto(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeleteStaff(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -1715,7 +1739,7 @@ func (s *Server) PortalStaffHoursForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalSaveStaffHours(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))

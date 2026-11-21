@@ -95,7 +95,7 @@ func parsePromoForm(r *http.Request) (domain.PromoCode, string) {
 // PortalCreatePromo stores a new code (active immediately).
 func (s *Server) PortalCreatePromo(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	p, errMsg := parsePromoForm(r)
@@ -114,7 +114,7 @@ func (s *Server) PortalCreatePromo(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalTogglePromo(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {
@@ -127,7 +127,7 @@ func (s *Server) PortalTogglePromo(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeletePromo(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {

@@ -30,7 +30,7 @@ func (s *Server) PortalCreateBanner(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	var photoPath string
@@ -54,7 +54,7 @@ func (s *Server) PortalCreateBanner(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalBannerSort(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {
@@ -69,7 +69,7 @@ func (s *Server) PortalBannerSort(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalToggleBanner(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {
@@ -82,7 +82,7 @@ func (s *Server) PortalToggleBanner(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeleteBanner(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {

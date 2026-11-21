@@ -1,0 +1,27 @@
+{{define "portal_error.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "p.err.t"}} — {{t .Lang "brand.staff"}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  <div class="portal-shell">
+    {{template "portal_nav" dict "Active" "" "User" .User "Lang" $.Lang}}
+  <main class="stack">
+    <div class="panel stack" id="portal-error" role="alert">
+      <h1 class="page-title" style="margin-bottom:0;">{{t .Lang "p.err.t"}}</h1>
+      <p class="error" style="margin:0;">{{.ErrorMessage}}</p>
+      {{if .ErrorCode}}<p class="muted" style="margin:0;"><small>{{.ErrorCode}}</small></p>{{end}}
+      <div>
+        <a class="btn" href="/portal">{{icon "grid"}} {{t .Lang "p.err.back"}}</a>
+      </div>
+    </div>
+  </main>
+  </div>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

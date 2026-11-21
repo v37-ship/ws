@@ -82,7 +82,7 @@ func (s *Server) PortalFood(w http.ResponseWriter, r *http.Request) {
 // PortalCreateFood adds a menu row (photo upload or link).
 func (s *Server) PortalCreateFood(w http.ResponseWriter, r *http.Request) {
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	f, errMsg := parseFoodForm(r)
@@ -136,7 +136,7 @@ func (s *Server) PortalUpdateFood(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	f, errMsg := parseFoodForm(r)
@@ -166,7 +166,7 @@ func (s *Server) PortalUpdateFood(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalToggleFood(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {
@@ -179,7 +179,7 @@ func (s *Server) PortalToggleFood(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PortalDeleteFood(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {

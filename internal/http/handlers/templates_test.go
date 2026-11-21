@@ -44,6 +44,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"portal_booking_detail.html", "portal_customers.html", "portal_customer_new.html",
 		"portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html", "portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
 		"portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html",
+		"portal_error.html",
 	}
 	for _, name := range pages {
 		data := pageData{
@@ -83,6 +84,9 @@ func TestTemplatesExecute(t *testing.T) {
 			data["Bookings"] = []domain.Booking{}
 		case "portal_customer_edit.html":
 			data["Customer"] = domain.User{}
+		case "portal_error.html":
+			data["ErrorCode"] = 403
+			data["ErrorMessage"] = "Only an admin can do that."
 		case "portal_reports.html":
 			data["Summary"] = domain.ReportSummary{
 				StaffRows: []domain.StaffRow{{
@@ -156,7 +160,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 			"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 			"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html",
+			"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html", "portal_error.html",
 		} {
 			data := pageData{
 				"Lang": lang,
@@ -492,7 +496,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
 		"portal_customer_new.html", "portal_customer_detail.html", "portal_customer_edit.html", "portal_schedule.html",
 		"portal_services.html", "portal_staff_hours.html", "portal_staff_edit.html",
-		"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html",
+		"portal_service_edit.html", "portal_reports.html", "portal_food.html", "portal_food_edit.html", "portal_gallery.html", "portal_gallery_edit.html", "portal_site.html", "portal_promos.html", "portal_distance.html", "portal_error.html",
 	}
 	partials := []string{
 		"services_partial.html", "staff_partial.html", "slots_partial.html",

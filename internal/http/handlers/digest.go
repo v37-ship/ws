@@ -14,7 +14,7 @@ import (
 func (s *Server) PortalSendDigest(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	lang := i18n.Resolve(r)
