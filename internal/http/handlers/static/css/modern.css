@@ -1,5 +1,5 @@
-/* Modern HTMX + Alpine layer. Loaded after app.css. Tailwind handles
-   utilities; this file covers htmx indicators, toasts, skeletons. */
+/* Modern HTMX + Alpine layer. Loaded after app.css. app.css carries the
+   markup styles and reset; this file covers htmx indicators, toasts, skeletons. */
 
 .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
 .htmx-request .htmx-indicator,

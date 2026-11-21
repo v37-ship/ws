@@ -265,8 +265,8 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 
 ## Stack
 
-- Go 1.26 + Chi + `html/template` (embedded) + HTMX 2.0.4 + Alpine.js + Tailwind
-- Shared head partial (`layouts/head.html`): Tailwind browser, Alpine CDN, `modern.css` (indicators/toasts/skeletons), `app.js` (toast via `HX-Trigger`, slot-picker fallback)
+- Go 1.26 + Chi + `html/template` (embedded) + HTMX 2.0.4 + Alpine.js; hand-written CSS, no utility framework
+- Shared head partial (`layouts/head.html`): local `app.css` (with the ported minimal reset), `modern.css` (indicators/toasts/skeletons), `app.js` (toast via `HX-Trigger`, slot-picker fallback)
 - PostgreSQL 16 via pgx + Goose migrations (`internal/db/migrations` — single source of truth)
 - HTMX helpers (`internal/http/htmx`): `IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`, `Retarget`, `Reswap`; `renderAuto` serves fragments for `HX-Request`
 - Native Postgres session storage (no Redis required); single app replica

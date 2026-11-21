@@ -129,6 +129,13 @@ func TestTemplatesExecute(t *testing.T) {
 		if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 			t.Errorf("execute %s: %v", name, err)
 		}
+		// Styles are self-hosted: the Tailwind browser CDN was a utility no-op
+		// (only .grid, which app.css already defines) and its preflight reset is
+		// now ported into app.css. A re-added <script> would silently bring the
+		// whole preflight back and double-apply the reset.
+		if out := strings.ToLower(buf.String()); strings.Contains(out, "cdn.jsdelivr.net") || strings.Contains(out, "tailwind") {
+			t.Errorf("%s still references the Tailwind browser CDN", name)
+		}
 		// The customer picker input must send ?q= (what PortalCustomerSearch
 		// reads) — a mismatched name fails silently with empty results.
 		if name == "portal_booking_new.html" {
@@ -258,6 +265,11 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			out := buf.String()
 			if !contains(out, "lang=\""+lang+"\"") {
 				t.Errorf("%s (%s): missing html lang=%s", name, lang, lang)
+			}
+			// This sweep also reaches pages TestTemplatesExecute does not render
+			// (careers, jobs, service edit): none may carry the removed CDN tag.
+			if low := strings.ToLower(out); strings.Contains(low, "cdn.jsdelivr.net") || strings.Contains(low, "tailwind") {
+				t.Errorf("%s (%s) still references the Tailwind browser CDN", name, lang)
 			}
 			// Spot-check translated chrome per language.
 			if lang == "id" && name == "home.html" && !contains(out, "Perawatan diri untuk wanita") {

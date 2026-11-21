@@ -19,11 +19,107 @@
   --radius: 1.35rem;
 }
 
-* { box-sizing: border-box; }
+/* ---------------------------------------------------------------------------
+   Minimal reset, ported from the Tailwind v4 preflight that the browser CDN
+   used to inject. The CDN supplied no utility this app uses (only `.grid`,
+   which this file already defines), but its `@layer base` reset did fill the
+   gaps below. Keep this block first: later rules override it exactly as this
+   file's unlayered CSS beat Tailwind's layered base.
+   --------------------------------------------------------------------------- */
+
+/* Replaces preflight `*, ::after, ::before { box-sizing:border-box;
+   margin:0; padding:0; border:0 solid }` (::backdrop is unused, no dialogs).
+   The layout assumes UA margins are gone (p, h1-h6, dd, details, fieldset)
+   and borders are opt-in through a full `1px solid` shorthand. */
+*, ::before, ::after, ::file-selector-button {
+  box-sizing: border-box; /* preflight: border-box (also on pseudo-elements) */
+  margin: 0; /* preflight: zero UA margins (p, headings, lists, dl, fieldset) */
+  padding: 0; /* preflight: zero UA padding (list indent, fieldset, buttons) */
+  border: 0 solid; /* preflight: zero UA borders (fieldset, hr, iframe) and keep width-only rules working */
+}
+
+/* Replaces preflight `h1-h6 { font-size:inherit; font-weight:inherit }`:
+   unclassed H2/H3 (home "why" cards, footer, admin panels) inherit their
+   section's size and the body weight; UA bold + 2em defaults would reflow
+   every page. */
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+
+/* Replaces preflight `ol, ul { list-style:none }`: the wizard `.steps` list
+   draws its own markers and the muted help lists are intentionally unbulleted
+   (their inline padding-left only restores indentation). */
+ol, ul { list-style: none; }
+
+/* Replaces preflight `img, iframe { display:block; vertical-align:middle }`
+   for the replaced elements in use (service-card and avatar photos, the one
+   gallery <iframe>). Inline SVG icons already set both via `.ic`. */
+img, iframe { display: block; vertical-align: middle; }
+
+/* Replaces preflight `img { max-width:100%; height:auto }`: photos without an
+   explicit class size (service cards, gallery lightbox) stay inside their
+   container instead of overflowing at intrinsic width. */
+img { max-width: 100%; height: auto; }
+
+/* Replaces preflight form-control normalisation. `input, select, textarea`
+   get their own block below; buttons and the file pickers relied on this: an
+   unclassed button (hero "View photo", gallery facade) would otherwise
+   render in UA 13px Arial black on a grey buttonface. */
+button, input, select, textarea, ::file-selector-button {
+  font: inherit; /* preflight: inherit family/size/weight/line-height */
+  font-feature-settings: inherit; /* preflight: inherit */
+  font-variation-settings: inherit; /* preflight: inherit */
+  letter-spacing: inherit; /* preflight: inherit */
+  color: inherit; /* preflight: inherit text colour (white hero buttons) */
+  border-radius: 0; /* preflight: drop the UA radius */
+  background-color: transparent; /* preflight: drop UA buttonface/select grey */
+  opacity: 1; /* preflight: consistent disabled opacity */
+}
+
+/* Replaces preflight `button, input[type=button|reset|submit],
+   ::file-selector-button { appearance:button }`: buttons and submit inputs
+   keep the native button appearance (iOS Safari needs this for its
+   radius/background rendering) on top of the transparent reset above. */
+button,
+input:where([type="button"], [type="reset"], [type="submit"]),
+::file-selector-button {
+  appearance: button;
+}
+
+/* Replaces preflight `::file-selector-button { margin-inline-end:4px }`:
+   the upload inputs show "Choose file" with the same 4px gap before the
+   filename. */
+::file-selector-button { margin-inline-end: 4px; }
+
+/* Replaces preflight `::placeholder { opacity:1; color:50% currentColor }`:
+   every form placeholder (book, admin, portal) keeps the muted tone. */
+::placeholder { opacity: 1; color: color-mix(in oklab, currentcolor 50%, transparent); }
+
+/* Replaces preflight `textarea { resize:vertical }`: textareas must not grow
+   horizontally (Chrome's UA default is `both`). */
+textarea { resize: vertical; }
+
+/* Replaces preflight `code, pre { mono; font-size:1em }`: payment references
+   and report cells render in the mono stack at body size, not UA 13px. */
+code, pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 1em; /* preflight: undo the UA 13px shrink */
+}
+
+/* Replaces preflight `small { font-size:80% }`: the many muted meta lines
+   (emails, dates) size at exactly 80% of their parent instead of the fuzzy
+   UA `smaller` keyword (13.33px vs 12.8px at 16px). */
+small { font-size: 80%; }
+
+/* Replaces preflight's `html` rules that cannot be measured on desktop:
+   iOS must not inflate text on orientation change and taps must not flash
+   the grey highlight. */
+html {
+  -webkit-text-size-adjust: 100%; /* preflight: pin the text scale factor */
+  -webkit-tap-highlight-color: transparent; /* preflight: no tap flash */
+}
+
 html, body { margin: 0; padding: 0; }
 /* Inline SVG UI icons (see Icon in icons.go): stroke-based, currentColor.
-   inline-block defeats the Tailwind preflight `svg { display:block }`
-   reset so icons sit beside text in nav links, cells, and pills. */
+   inline-block keeps icons beside text in nav links, cells, and pills. */
 .ic { display: inline-block; width: 1.1em; height: 1.1em; vertical-align: -0.18em; flex: none; }
 .btn .ic, .btn-wa .ic { width: 1.15em; height: 1.15em; vertical-align: -0.22em; }
 .portal-ico .ic { width: 1.25rem; height: 1.25rem; vertical-align: 0; }

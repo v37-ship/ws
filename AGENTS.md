@@ -1,7 +1,8 @@
 # AGENTS.md — Wangga Spa Baby, Mom, & Woman
 
 Booking app for the spa. Go 1.26 + Chi + `html/template` (embedded) + vendored
-HTMX + Alpine.js + Tailwind browser CDN + Postgres 16 + Goose + Midtrans QRIS.
+HTMX + Alpine.js + hand-written CSS (no utility framework) + Postgres 16 +
+Goose + Midtrans QRIS.
 
 ## Layout
 
