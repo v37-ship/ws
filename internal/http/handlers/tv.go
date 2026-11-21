@@ -12,6 +12,8 @@ import (
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
+
+	"github.com/google/uuid"
 )
 
 // tvTokenActive is the kiosk's single data dependency. It is a variable so the
@@ -63,7 +65,136 @@ const (
 	tvPairingTTL    = 5 * time.Minute
 	tvPendingTTL    = 15 * time.Minute
 	tvDeviceTTL     = 30 * 24 * time.Hour
+
+	// tvDeviceTouchEvery is how stale a device's last_seen must be before the
+	// next request rewrites it. The throttle lives in the UPDATE's predicate
+	// (repo.TVDeviceRepo.TouchLastSeen), so the 30s poll stamps liveness at most
+	// once a minute without any caller-side bookkeeping.
+	tvDeviceTouchEvery = time.Minute
 )
+
+// The credential chain's two device seams, in the tvTokenActive style: the
+// repos are concrete pgx types, so the tests pin every state without a
+// database.
+var (
+	tvDeviceByID = func(s *Server, r *http.Request, id uuid.UUID) (*domain.TVDevice, error) {
+		return s.tvDevices.ByID(r.Context(), id)
+	}
+	tvDeviceTouch = func(s *Server, r *http.Request, id uuid.UUID, every time.Duration) error {
+		return s.tvDevices.TouchLastSeen(r.Context(), id, every)
+	}
+)
+
+// tvCredMode is what the resolution chain found. The zero value is the
+// no-credential case, so a caller that never ran the chain starts a pairing
+// rather than leaking a view.
+type tvCredMode int
+
+const (
+	// tvCredNone: nothing was presented — start a pairing (ruling #7).
+	tvCredNone tvCredMode = iota
+	// tvCredLive: a live device cookie or ?t= token; tvAccess says which.
+	tvCredLive
+	// tvCredDeadDevice: a tv_device cookie was presented and failed. The
+	// screen is cleared and re-enters the handshake by itself.
+	tvCredDeadDevice
+	// tvCredBadToken: a ?t= token was presented and failed. Unlike a dead
+	// cookie this keeps the invalid page: someone minted that URL, so
+	// silently re-opening pairing would hide a retired link.
+	tvCredBadToken
+	// tvCredUnavailable: the credential could not be verified (a DB blip).
+	// Not dead — clearing it would cost the wall a counter visit for a
+	// transient outage.
+	tvCredUnavailable
+)
+
+// tvAccess is the location-scoped credential a kiosk page renders from. Token
+// stays empty for a paired device (the poll URL then carries no secret at
+// all); DeviceID stays zero for the shipped ?t= path. Templates never see a
+// domain.TVDevice or a domain.TVToken.
+type tvAccess struct {
+	LocationID uuid.UUID
+	Token      string
+	DeviceID   uuid.UUID
+}
+
+// tvCredential resolves the kiosk's one credential (ruling #7's order):
+//
+//  1. a live tv_device cookie → the view (and a throttled last-seen stamp)
+//  2. a live ?t= token → the view (the shipped path, unchanged)
+//  3. a presented-but-dead device cookie → pairing screen, cookie cleared
+//  4. no credential at all → pairing screen
+//  5. a presented-but-bad ?t= token → the invalid page (unchanged)
+//
+// The device branch is tried first so retiring a token URL cannot black out a
+// screen that still holds a valid device; the token branch then owns the URL
+// that was deliberately opened, which is why a bad token never self-heals into
+// a pairing.
+func (s *Server) tvCredential(r *http.Request) (*tvAccess, tvCredMode) {
+	deadDevice := false
+	if c, err := r.Cookie(tvDeviceCookie); err == nil {
+		acc, mode := s.tvDeviceAccess(r, c.Value)
+		switch mode {
+		case tvCredLive:
+			return acc, mode
+		case tvCredUnavailable:
+			return nil, mode
+		default:
+			deadDevice = true
+		}
+	}
+	if r.URL.Query().Has("t") {
+		tok, ok := s.tvTokenFrom(r)
+		if !ok {
+			return nil, tvCredBadToken
+		}
+		return &tvAccess{LocationID: tok.LocationID, Token: tok.Token}, tvCredLive
+	}
+	if deadDevice {
+		return nil, tvCredDeadDevice
+	}
+	return nil, tvCredNone
+}
+
+// tvDeviceAccess verifies one tv_device cookie value: parse, look up, and
+// constant-time compare the presented secret with the stored hash. Only a
+// definitive failure (garbage, unknown, revoked, wrong secret) is "dead"; a
+// lookup error is an outage and is reported as such.
+func (s *Server) tvDeviceAccess(r *http.Request, raw string) (*tvAccess, tvCredMode) {
+	id, secret, ok := domain.ParseTVDeviceCookie(raw)
+	if !ok {
+		return nil, tvCredDeadDevice
+	}
+	d, err := tvDeviceByID(s, r, id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return nil, tvCredDeadDevice
+		}
+		// Never log the cookie value: the id alone is a lookup key, and a
+		// transient blip must not read as a revocation.
+		s.log.Error("tv device lookup", "err", err)
+		return nil, tvCredUnavailable
+	}
+	if d == nil || !d.Active() || !d.SecretOK(secret) {
+		return nil, tvCredDeadDevice
+	}
+	// Liveness for the portal's device list. A failed stamp is diagnostics,
+	// never a reason to blank the wall.
+	if err := tvDeviceTouch(s, r, d.ID, tvDeviceTouchEvery); err != nil {
+		s.log.Error("tv device last seen", "err", err)
+	}
+	return &tvAccess{LocationID: d.LocationID, DeviceID: d.ID}, tvCredLive
+}
+
+// tvClearDeviceCookie expires the tv_device cookie. MaxAge < 0 renders as
+// "Max-Age=0" — the same clear the pair-state poll uses for a stale pending
+// key.
+func (s *Server) tvClearDeviceCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name: tvDeviceCookie, Value: "", Path: "/", HttpOnly: true,
+		SameSite: http.SameSiteLaxMode, Secure: s.csrfSecure, MaxAge: -1,
+	})
+}
 
 // tvPairingCreate / tvPairingByKey are the handshake's two repo seams, in the
 // tvTokenActive style: the tests pin every state without a database.

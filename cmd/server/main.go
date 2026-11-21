@@ -167,6 +167,14 @@ func main() {
 				}
 			}
 			_ = sessions.DeleteExpired(context.Background())
+			// Pairing rows are written by anonymous GETs (/tv), so the sweep is
+			// what keeps that surface bounded: expired at once, consumed after a
+			// ten-minute grace (repo.Sweep).
+			if n, err := tvPairings.Sweep(context.Background()); err != nil {
+				log.Warn("tv pairing sweep", "err", err)
+			} else if n > 0 {
+				log.Info("tv pairing sweep", "deleted", n)
+			}
 		}
 	}()
 

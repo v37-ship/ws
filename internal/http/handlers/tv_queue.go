@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"spa-booking/internal/domain"
+	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/repo"
 
 	"github.com/google/uuid"
@@ -195,34 +196,40 @@ func tvRows(bookings []domain.Booking) []tvRow {
 	return rows
 }
 
-// TVView is the public kiosk page. The token is the credential, so this route
-// stays outside every auth middleware.
+// TVView is the public kiosk page. The credential is resolved inside the
+// handler, so this route stays outside every auth middleware.
 func (s *Server) TVView(w http.ResponseWriter, r *http.Request) {
-	// A bare /tv is the pairing entry (ruling #7): the screen shows a code and
-	// waits for the counter. A PRESENTED ?t= keeps the shipped token path —
-	// including the invalid page for a bad token, which deliberately does not
-	// softly re-open pairing for URLs someone minted.
-	if !r.URL.Query().Has("t") {
+	acc, mode := s.tvCredential(r)
+	switch mode {
+	case tvCredDeadDevice:
+		// Ruling #7: a credential that can no longer authenticate is cleared and
+		// the screen re-enters the handshake on its own — no counter visit, no
+		// dark wall. tvPairingStart renders the code and sets a fresh pending
+		// cookie.
+		s.tvClearDeviceCookie(w)
 		s.tvPairingStart(w, r)
 		return
-	}
-	tok, ok := s.tvTokenFrom(r)
-	if !ok {
+	case tvCredNone:
+		s.tvPairingStart(w, r)
+		return
+	case tvCredBadToken, tvCredUnavailable:
 		s.render(w, r, "tv_invalid.html", pageData{})
 		return
 	}
-	// The layout rides the token URL (the admin page shows both variants);
-	// the queue is the same in both shells and only its placement changes.
+	// The layout rides the URL (the admin page shows both variants); the queue
+	// is the same in both shells and only its placement changes. TVToken is the
+	// shipped ?t= credential and stays empty for a paired screen, whose cookie
+	// authenticates its poll.
 	data := pageData{
-		"TVToken": tok.Token,
+		"TVToken": acc.Token,
 		"Layout":  normalizeTVLayout(r.URL.Query().Get("layout")),
 	}
-	slides := tvLoadSlides(s, r.Context(), tok.LocationID)
+	slides := tvLoadSlides(s, r.Context(), acc.LocationID)
 	data["Services"] = slides.Services
 	data["Testimonials"] = slides.Testimonials
 	data["Food"] = slides.Food
 	data["ReviewURL"] = slides.ReviewURL
-	now, next, day, err := s.tvQueueRows(r.Context(), tok.LocationID)
+	now, next, day, err := s.tvQueueRows(r.Context(), acc.LocationID)
 	if err != nil {
 		// The kiosk has no staff to read an error page; keep the shell and let
 		// the 30s poll retry. The next poll replaces the notice on recovery.
@@ -235,15 +242,38 @@ func (s *Server) TVView(w http.ResponseWriter, r *http.Request) {
 }
 
 // TVQueuePartial is the kiosk's polling endpoint (30s, the portal dashboard
-// pattern). A bad token answers the minimal invalid page, so a revoked TV goes
-// dark instead of silently freezing on old rows.
+// pattern). It authenticates by the same chain as the page: a paired screen
+// sends its cookie, a token URL sends ?t=.
+//
+// A bad ?t= answers the minimal invalid page, so a revoked link goes dark
+// instead of silently freezing on old rows. A missing or dead cookie instead
+// asks htmx for a full reload: the pairing screen must never be swapped into
+// the queue slot, and /tv is where the chain (and the cookie clear) runs. A
+// credential we could not VERIFY is a 500, so the wall keeps its last good rows
+// and retries in 30s.
 func (s *Server) TVQueuePartial(w http.ResponseWriter, r *http.Request) {
-	tok, ok := s.tvTokenFrom(r)
-	if !ok {
+	acc, mode := s.tvCredential(r)
+	switch mode {
+	case tvCredBadToken:
 		s.render(w, r, "tv_invalid.html", pageData{})
 		return
+	case tvCredUnavailable:
+		// The credential could not be verified (the device lookup already
+		// logged the cause): answer 500 so htmx keeps the last good rows and
+		// the poll retries in 30s.
+		http.Error(w, "queue unavailable", http.StatusInternalServerError)
+		return
+	case tvCredDeadDevice, tvCredNone:
+		if !htmx.IsRequest(r) {
+			// A plain browser hit has no page to reload: keep the shipped face.
+			s.render(w, r, "tv_invalid.html", pageData{})
+			return
+		}
+		s.tvClearDeviceCookie(w)
+		htmx.Refresh(w)
+		return
 	}
-	now, next, day, err := s.tvQueueRows(r.Context(), tok.LocationID)
+	now, next, day, err := s.tvQueueRows(r.Context(), acc.LocationID)
 	if err != nil {
 		// A 500 is deliberate: htmx's responseHandling drops 4xx/5xx swaps, so
 		// the wall keeps its last good rows and the poll retries in 30s

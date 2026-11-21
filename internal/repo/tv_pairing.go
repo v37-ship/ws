@@ -100,16 +100,19 @@ func (r *TVPairingRepo) LinkDevice(ctx context.Context, pairingID, deviceID uuid
 	return nil
 }
 
-// Sweep deletes handshake rows that can never be claimed again: expired rows
-// at once, consumed rows after a short grace. The grace is what lets the TV's
-// 4s poll still read its pairing right after the counter links the device —
-// deleting a consumed row instantly would race that final poll (a lost poll
-// would orphan a perfectly good device). Ten minutes is still a hard bound on
-// the unauthenticated-write surface.
+// tvPairingSweepSQL is the ticker's whole job: rows whose code can never be
+// claimed again (expired) go at once, consumed rows after a short grace. The
+// grace is what lets the TV's 4s poll still read its pairing right after the
+// counter links the device — deleting a consumed row instantly would race that
+// final poll (a lost poll would orphan a perfectly good device). Ten minutes is
+// still a hard bound on the unauthenticated-write surface.
+const tvPairingSweepSQL = `DELETE FROM tv_pairings
+WHERE expires_at < now() OR consumed_at < now() - interval '10 minutes'`
+
+// Sweep deletes handshake rows that can never be claimed again. It is called by
+// the app's one-minute ticker; the count is the only thing worth logging.
 func (r *TVPairingRepo) Sweep(ctx context.Context) (int64, error) {
-	tag, err := r.pool.Exec(ctx,
-		`DELETE FROM tv_pairings
-WHERE expires_at < now() OR consumed_at < now() - interval '10 minutes'`)
+	tag, err := r.pool.Exec(ctx, tvPairingSweepSQL)
 	if err != nil {
 		return 0, err
 	}
@@ -183,14 +186,17 @@ func (r *TVDeviceRepo) ListActive(ctx context.Context) ([]domain.TVDevice, error
 	return out, rows.Err()
 }
 
-// TouchLastSeen records that the screen is alive, throttled so the 30s poll
-// does not rewrite the row every half minute: the update only lands when the
-// stamp is older than threshold (or never set).
+// tvDeviceTouchLastSeenSQL records that the screen is alive, throttled in the
+// statement itself so the 30s poll does not rewrite the row every half minute:
+// the update only lands when the stamp is older than threshold (or never set).
+const tvDeviceTouchLastSeenSQL = `UPDATE tv_devices SET last_seen=now()
+WHERE id=$1 AND (last_seen IS NULL OR last_seen < $2)`
+
+// TouchLastSeen stamps a live screen. A stamp that is not due yet matches zero
+// rows and is not an error — the caller cannot tell (and does not need to).
 func (r *TVDeviceRepo) TouchLastSeen(ctx context.Context, id uuid.UUID, threshold time.Duration) error {
 	cutoff := time.Now().Add(-threshold)
-	_, err := r.pool.Exec(ctx,
-		`UPDATE tv_devices SET last_seen=now()
-WHERE id=$1 AND (last_seen IS NULL OR last_seen < $2)`, id, cutoff)
+	_, err := r.pool.Exec(ctx, tvDeviceTouchLastSeenSQL, id, cutoff)
 	return err
 }
 

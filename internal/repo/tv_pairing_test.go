@@ -46,6 +46,50 @@ func TestTVPairingMissIsNotFound(t *testing.T) {
 	}
 }
 
+// TestTVPairingSweepDeletesOnlyDeadRows pins the ticker's deletion contract
+// (ruling #10). Two classes go: rows whose code can never be claimed again
+// (expired), and claimed rows past a grace window long enough for the TV's last
+// 4s poll to still read its pairing. Anything else — a live code, a just-claimed
+// row — must survive the sweep.
+func TestTVPairingSweepDeletesOnlyDeadRows(t *testing.T) {
+	q := tvPairingSweepSQL
+	if strings.Contains(q, ";") {
+		t.Fatalf("sweep must be one statement, got:\n%s", q)
+	}
+	for _, want := range []string{
+		"DELETE FROM tv_pairings",
+		"expires_at < now()",
+		"consumed_at < now() - interval '10 minutes'",
+	} {
+		if !strings.Contains(q, want) {
+			t.Errorf("sweep SQL missing %q:\n%s", want, q)
+		}
+	}
+	if strings.Contains(q, "consumed_at IS NULL") {
+		t.Errorf("sweep must not spare every unconsumed row forever:\n%s", q)
+	}
+}
+
+// TestTVDeviceTouchLastSeenIsThrottled pins the reason the 30s poll can stamp
+// liveness at all: the UPDATE carries its own threshold predicate, so a second
+// stamp inside the window matches zero rows instead of rewriting the row every
+// half minute. The no-op is the SQL's, not a caller-side flag that could drift.
+func TestTVDeviceTouchLastSeenIsThrottled(t *testing.T) {
+	q := tvDeviceTouchLastSeenSQL
+	if strings.Contains(q, ";") {
+		t.Fatalf("touch must be one statement, got:\n%s", q)
+	}
+	for _, want := range []string{
+		"UPDATE tv_devices SET last_seen=now()",
+		"WHERE id=$1",
+		"(last_seen IS NULL OR last_seen < $2)",
+	} {
+		if !strings.Contains(q, want) {
+			t.Errorf("touch SQL missing %q:\n%s", want, q)
+		}
+	}
+}
+
 // rowErr is a pgx.Row that always fails its Scan, standing in for the driver
 // result of an UPDATE that matched no rows (there is no DB in the test suite).
 type rowErr struct{ err error }
