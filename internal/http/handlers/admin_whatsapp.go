@@ -96,12 +96,12 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 func (s *Server) AdminSaveWhatsApp(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	row, err := parseWaSettingsForm(r)
@@ -123,12 +123,12 @@ func (s *Server) AdminSaveWhatsApp(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminResetWhatsApp(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	if err := s.waSettings.ResetAll(r.Context(), u.ID); err != nil {
@@ -141,12 +141,12 @@ func (s *Server) AdminResetWhatsApp(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminTestWhatsApp(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	target := strings.TrimSpace(r.FormValue("target"))
@@ -174,12 +174,12 @@ func (s *Server) AdminTestWhatsApp(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminRescheduleWhatsApp(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	cfg := s.waSettings.Effective(r.Context())
@@ -203,12 +203,12 @@ func (s *Server) AdminRescheduleWhatsApp(w http.ResponseWriter, r *http.Request)
 func (s *Server) AdminSaveWaTemplate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	key := r.FormValue("key")
@@ -222,12 +222,12 @@ func (s *Server) AdminSaveWaTemplate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminResetWaTemplate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	if err := s.waSettings.ResetOverride(r.Context(), r.FormValue("key"), u.ID); err != nil {

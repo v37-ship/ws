@@ -101,7 +101,7 @@ func (s *Server) AdminJobs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminCreateJob(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	var locID *uuid.UUID
@@ -123,7 +123,7 @@ func (s *Server) AdminCreateJob(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminToggleJob(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if id, err := uuid.Parse(chi.URLParam(r, "id")); err == nil {

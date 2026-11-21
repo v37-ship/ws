@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"spa-booking/internal/config"
+	"spa-booking/internal/domain"
 )
 
 func newFailTestServer(t *testing.T) *Server {
@@ -98,6 +100,88 @@ func TestStaffFailRendersPortalPage(t *testing.T) {
 	}
 	if contains(out, "p.err.t") || contains(out, "invalid request") {
 		t.Error("portal_error page leaks a raw key or the old bare error body")
+	}
+}
+
+// The walk-in form's live customer picker is an HTMX-polled partial: a repo
+// error must toast instead of answering a bare 500 (the app's HTMX config drops
+// non-2xx bodies, so the picker would silently keep stale results).
+func TestPortalCustomerSearchFailureToasts(t *testing.T) {
+	s := newFailTestServer(t)
+	prev := portalCustomerSearch
+	portalCustomerSearch = func(_ *Server, _ *http.Request, _ string) ([]domain.User, error) {
+		return nil, fmt.Errorf("db down")
+	}
+	t.Cleanup(func() { portalCustomerSearch = prev })
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/portal/customers/search?q=ani&lang=en", nil)
+	req.Header.Set("HX-Request", "true")
+	s.PortalCustomerSearch(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 preserved", rec.Code)
+	}
+	if body := rec.Body.String(); body != "" {
+		t.Errorf("HTMX failure must not write a body, got %q", body)
+	}
+	if got := rec.Header().Get("HX-Reswap"); got != "none" {
+		t.Errorf("HX-Reswap = %q, want none (keep the last good results)", got)
+	}
+	kind, msg := decodeToast(t, rec)
+	if kind != "error" {
+		t.Errorf("toast kind = %q, want error", kind)
+	}
+	if msg != failSearch {
+		t.Errorf("toast message = %q, want %q", msg, failSearch)
+	}
+}
+
+// An admin form post with a stale CSRF token takes the same contract: the HTMX
+// caller (admin TV revoke posts hydrate through htmx) gets a toast, not a bare
+// "invalid request" the swap would drop.
+func TestAdminSaveWhatsAppCSRFToast(t *testing.T) {
+	s := newFailTestServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/whatsapp", strings.NewReader("remind_hour=9"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+
+	s.AdminSaveWhatsApp(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if body := rec.Body.String(); body != "" {
+		t.Errorf("HTMX failure must not write a body, got %q", body)
+	}
+	if got := rec.Header().Get("HX-Reswap"); got != "none" {
+		t.Errorf("HX-Reswap = %q, want none", got)
+	}
+	kind, msg := decodeToast(t, rec)
+	if kind != "error" {
+		t.Errorf("toast kind = %q, want error", kind)
+	}
+	if msg != failSession {
+		t.Errorf("toast message = %q, want %q", msg, failSession)
+	}
+}
+
+// The same admin post as a plain form leaves the browser on the portal shell
+// with a way back, not on a naked "invalid request" line.
+func TestAdminSaveWhatsAppCSRFPage(t *testing.T) {
+	s := newFailTestServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/whatsapp", strings.NewReader(""))
+
+	s.AdminSaveWhatsApp(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 portal error page", rec.Code)
+	}
+	out := rec.Body.String()
+	if !contains(out, `id="portal-error"`) || !contains(out, failSession) {
+		t.Error("plain admin form CSRF failure must render the portal error page")
 	}
 }
 

@@ -38,12 +38,12 @@ func (s *Server) renderAdminPayments(w http.ResponseWriter, r *http.Request, suc
 func (s *Server) AdminUploadQRIS(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 3<<20)
 	if err := r.ParseMultipartForm(10 << 20); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	file, hdr, err := r.FormFile("qris")
@@ -73,12 +73,12 @@ func (s *Server) AdminUploadQRIS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminResetQRIS(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
 	if u == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	old := ""

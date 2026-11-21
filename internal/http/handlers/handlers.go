@@ -540,7 +540,7 @@ func (s *Server) AdminLocations(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminCreateLocation(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	l := &domain.Location{
@@ -684,6 +684,9 @@ var portalBookingCount = func(s *Server, r *http.Request, f repo.FilterParams) (
 const (
 	failBookings  = "Could not load bookings. Refresh the page and try again."
 	failCustomers = "Could not load customers. Refresh the page and try again."
+	// failSearch is the walk-in picker's live-search copy. The picker retries
+	// on the next keystroke, so it asks for a retry instead of a refresh.
+	failSearch = "Could not search customers — try again."
 	// failQueue is the 30s poll's failure copy: the queue retries on its own,
 	// so it asks for patience instead of a manual refresh.
 	failQueue = "Could not load the queue — retrying shortly."
@@ -855,12 +858,19 @@ func (s *Server) prefillCustomer(ctx context.Context, idStr string) *domain.User
 	return cust
 }
 
+// portalCustomerSearch is the booking picker's single data call. A variable for
+// the same reason queueBookings is: the repos are concrete pgx types, so the
+// handler test swaps this, not a database.
+var portalCustomerSearch = func(s *Server, r *http.Request, q string) ([]domain.User, error) {
+	return s.auth.SearchCustomers(r.Context(), q)
+}
+
 // PortalCustomerSearch serves the booking picker live-search results.
 func (s *Server) PortalCustomerSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
-	list, err := s.auth.SearchCustomers(r.Context(), q)
+	list, err := portalCustomerSearch(s, r, q)
 	if err != nil {
-		http.Error(w, "search failed", http.StatusInternalServerError)
+		s.staffFail(w, r, http.StatusInternalServerError, failSearch)
 		return
 	}
 	s.renderPartial(w, r, "customer_search_rows.html", pageData{
@@ -1978,7 +1988,7 @@ func (s *Server) AdminCSList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) AdminCreateCS(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	name := r.FormValue("full_name")
@@ -1995,7 +2005,7 @@ func (s *Server) AdminCreateCS(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) AdminToggleCSActive(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -2019,7 +2029,7 @@ func (s *Server) AdminToggleCSActive(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) AdminResetCSPassword(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -2068,7 +2078,7 @@ func (s *Server) AdminPasswordForm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) AdminChangePassword(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	u := middleware.UserFrom(r.Context())
@@ -2097,7 +2107,7 @@ func (s *Server) AdminChangePassword(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) AdminResetCustomerPassword(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))

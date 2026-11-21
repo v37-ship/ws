@@ -89,11 +89,11 @@ func (s *Server) AdminTVPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminTVGenerate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if middleware.UserFrom(r.Context()) == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	locID, err := uuid.Parse(strings.TrimSpace(r.FormValue("location_id")))
@@ -125,11 +125,11 @@ func (s *Server) AdminTVGenerate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AdminTVRevoke(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	if middleware.UserFrom(r.Context()) == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))

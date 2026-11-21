@@ -181,7 +181,7 @@ func (s *Server) AdminCreateTestimonial(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	photoPath, photoURL, msg := s.snapshotPhoto(r, nil)
@@ -211,7 +211,7 @@ func (s *Server) AdminCreateTestimonial(w http.ResponseWriter, r *http.Request) 
 func (s *Server) AdminTestimonialStatus(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -231,7 +231,7 @@ func (s *Server) AdminTestimonialStatus(w http.ResponseWriter, r *http.Request) 
 func (s *Server) AdminDeleteTestimonial(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
-		http.Error(w, "invalid", http.StatusBadRequest)
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
