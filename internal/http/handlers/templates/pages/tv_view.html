@@ -5,23 +5,38 @@
   <title>{{t .Lang "tv.title"}} — Wangga Spa Baby, Mom, & Woman</title>
   {{template "head" .}}
   <link rel="stylesheet" href="{{static "css/tv.css"}}">
-  {{if .ReviewURL}}
+  {{if and (eq .Layout "rotate") .ReviewURL}}
   {{/* Vendored QR renderer: davidshimjs/qrcodejs v1.0.0 (MIT), minified
        single file, unchanged from
        https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js
        (sha256 c541ef06327885a8415bca8df6071e14189b4855336def4f36db54bde8484f36).
-       It renders the review slide's QR client-side; no build step. */}}
+       It renders the review slide's QR client-side; no build step. Only the
+       rotate shell has a review slide, so queue-only never loads it. */}}
   <script src="{{static "js/qrcode.min.js"}}" defer></script>
   {{end}}
   <meta name="robots" content="noindex">
 </head>
 <body class="tv-body">
-  {{/* Two shells, one queue and one slide set (ruling #6). Split is the
-       default: the queue + bands stay pinned left while the marketing deck
-       rotates right. Rotate gives every slide the whole screen and adds the
-       queue to the rotation. Both keep the same 30s poll and the same
-       partials. */}}
-  {{if eq .Layout "rotate"}}
+  {{/* Two shells, one queue, one optional slide set. Rotate is the default:
+       it hands every slide the whole panel and adds the queue to the rotation.
+       Queue-only is the market-free board — the bands and the day list at full
+       width, no deck, no slides, no QR. Both keep the same 30s poll wrapper
+       and the same daily reload. */}}
+  {{if eq .Layout "queue"}}
+  <main class="tv-shell tv-shell-queue">
+    <header class="tv-head">
+      <div>
+        <p class="tv-brand">Wangga Spa</p>
+        <h1 class="tv-title">{{t .Lang "tv.title"}}</h1>
+      </div>
+      <p class="tv-live">{{t .Lang "tv.live"}}</p>
+    </header>
+
+    <section class="tv-queue-pane">
+      {{template "tv_queue_panel.html" .}}
+    </section>
+  </main>
+  {{else}}
   <main class="tv-shell tv-shell-rotate">
     <p class="tv-rotate-brand">Wangga Spa</p>
     <div class="tv-deck tv-deck-rotate" x-data="tvDeck(15000)">
@@ -31,29 +46,9 @@
       {{template "tv_slides.html" .}}
     </div>
   </main>
-  {{else}}
-  <main class="tv-shell tv-shell-split">
-    <header class="tv-head">
-      <div>
-        <p class="tv-brand">Wangga Spa</p>
-        <h1 class="tv-title">{{t .Lang "tv.title"}}</h1>
-      </div>
-      <p class="tv-live">{{t .Lang "tv.live"}}</p>
-    </header>
-
-    <div class="tv-split">
-      <section class="tv-queue-pane">
-        {{template "tv_queue_panel.html" .}}
-      </section>
-      {{if or .Services .Testimonials .Food .ReviewURL}}
-      <aside class="tv-slide-pane tv-deck tv-deck-split" x-data="tvDeck(15000)">
-        {{template "tv_slides.html" .}}
-      </aside>
-      {{end}}
-    </div>
-  </main>
   {{end}}
 
+  {{if eq .Layout "rotate"}}
   <script>
   /* Kiosk slide rotation. Alpine (shipped by head.html) owns the timer; this
      file only provides the component. Every slide is in the DOM so the 30s
@@ -107,6 +102,7 @@
     __wanggaTVQr();
   }
   </script>
+  {{end}}
 
   <script>
   /* Slides snapshot at page load; the queue is polled. Reload daily-ish so

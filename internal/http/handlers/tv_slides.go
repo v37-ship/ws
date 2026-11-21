@@ -72,13 +72,15 @@ var tvLoadSlides = func(s *Server, ctx context.Context, loc uuid.UUID) tvSlideDa
 	return out
 }
 
-// normalizeTVLayout maps ?layout= onto the two shells. Only the exact literal
-// "rotate" opts into full-screen rotation; every other value (missing, typo,
-// different casing) stays on the split default, so a malformed link can never
-// leave a TV with an unexpected shell.
+// normalizeTVLayout maps ?layout= onto the two shells. Rotate is the default:
+// it gives every slide the whole panel (the retired split layout collapsed Bu
+// Nah's two-column menu grid into each other at 40% width). Only the exact
+// literal "queue" opts into the market-free queue-only shell, so a malformed
+// link can never leave a TV blank — and every legacy bookmark (?layout=split
+// included) lands on rotate instead of an error.
 func normalizeTVLayout(v string) string {
-	if v == "rotate" {
-		return "rotate"
+	if v == "queue" {
+		return "queue"
 	}
-	return "split"
+	return "rotate"
 }

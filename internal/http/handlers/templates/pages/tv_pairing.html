@@ -21,7 +21,7 @@
       <p class="tv-pair-hint">{{t .Lang "tv.pr.hint"}}</p>
       <p class="tv-pair-code">{{.Code}}</p>
       <div id="tv-pair-state" class="tv-pair-state"
-           hx-get="/tv/pair-state{{if eq .Layout "rotate"}}?layout=rotate{{end}}"
+           hx-get="/tv/pair-state{{if eq .Layout "queue"}}?layout=queue{{end}}"
            hx-trigger="every 4s" hx-swap="innerHTML">
         {{template "tv_pair_state.html" .}}
       </div>

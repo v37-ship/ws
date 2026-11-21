@@ -66,6 +66,10 @@ func tvSweepData(lang string) pageData {
 	priceM, priceL := int64(25000), int64(35000)
 	return pageData{
 		"Lang": lang, "TVToken": tvTestToken, "Now": []tvRow{now}, "Next": next, "Day": day,
+		// The default shell. Set explicitly so the sweep renders the rotate deck
+		// (and its slide partials) rather than falling through to the queue-only
+		// branch on a missing key.
+		"Layout": "rotate",
 		// Marketing data for the slide partials: the sweeps must reach every
 		// slide (and the QR include) in both languages.
 		"Services": []domain.Service{{Name: "Pijat Balinese", NameID: "Pijat Bali", PriceIDR: 275000, DurationMin: 90}},

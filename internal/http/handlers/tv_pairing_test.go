@@ -161,6 +161,54 @@ func TestTVPairingScreenShowsCodeAndNoBookingData(t *testing.T) {
 	}
 }
 
+// The pairing page's 4s poll inherits the shell the screen was opened with, so
+// a queue-only bookmark survives a re-pair. Rotate is the default, so it
+// appends nothing and a retired split bookmark lands on rotate.
+func TestTVPairingStartCarriesLayout(t *testing.T) {
+	for _, tc := range []struct{ name, query, want string }{
+		{"default (rotate)", "", `hx-get="/tv/pair-state"`},
+		{"explicit rotate", "&layout=rotate", `hx-get="/tv/pair-state"`},
+		{"legacy split lands on rotate", "&layout=split", `hx-get="/tv/pair-state"`},
+		{"queue only", "&layout=queue", `hx-get="/tv/pair-state?layout=queue"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newRouteTestServer(t)
+			swapTVPairingCreate(t, nil, nil)
+			swapTVClock(t, tvQueueNow)
+
+			rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=id"+tc.query, nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rec.Code)
+			}
+			out := rec.Body.String()
+			if !contains(out, tc.want) {
+				t.Errorf("pairing page missing %q", tc.want)
+			}
+			for _, unwanted := range []string{
+				`hx-get="/tv/pair-state?layout=rotate"`,
+				`hx-get="/tv/pair-state?layout=split"`,
+			} {
+				if contains(out, unwanted) {
+					t.Errorf("pairing page must not carry the retired/extra param %q", unwanted)
+				}
+			}
+		})
+	}
+}
+
+// The expired fragment's "start over" link is the non-HTMX fallback; it must
+// carry the queue-only shell through the re-pair like the poll does.
+func TestTVPairStateExpiredLinkCarriesQueueLayout(t *testing.T) {
+	h := newRouteTestServer(t)
+	swapTVPairingByKey(t, nil, repo.ErrNotFound, nil)
+	req := httptest.NewRequest(http.MethodGet, "/tv/pair-state?lang=id&layout=queue", nil)
+	req.AddCookie(&http.Cookie{Name: "tv_pending", Value: tvPairKey})
+	out := runRoute(h, req).Body.String()
+	if !contains(out, `href="/tv?layout=queue"`) {
+		t.Errorf("expired fragment missing the queue-only start-over link")
+	}
+}
+
 // Ruling #10: creating pairing rows is an unauthenticated write, so the GET is
 // rate-limited per IP at the login scale (6/min). The 7th start in a minute is
 // refused before it reaches the repo.
@@ -290,13 +338,16 @@ func TestTVPairStatePairedSetsDeviceCookie(t *testing.T) {
 	}
 }
 
-// The redirect target follows the shell the pairing page was opened with: a
-// rotate bookmark that re-pairs must not silently land in the split layout.
+// The redirect target follows the shell the pairing page was opened with.
+// Rotate is the default, so it appends nothing; only a queue-only bookmark is
+// carried through — and a retired split bookmark lands on rotate, not an error.
 func TestTVPairStatePairedCarriesLayout(t *testing.T) {
 	for _, tc := range []struct{ name, query, want string }{
-		{"default shell", "", "/tv"},
-		{"rotate shell", "?layout=rotate", "/tv?layout=rotate"},
-		{"unknown layout stays split", "?layout=ROTATE", "/tv"},
+		{"default shell (rotate)", "", "/tv"},
+		{"explicit rotate shell", "?layout=rotate", "/tv"},
+		{"legacy split lands on rotate", "?layout=split", "/tv"},
+		{"queue-only shell", "?layout=queue", "/tv?layout=queue"},
+		{"unknown layout stays rotate", "?layout=ROTATE", "/tv"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newRouteTestServer(t)
@@ -366,14 +417,16 @@ func TestTVPairStateExpired(t *testing.T) {
 // clears the dead pending key and answers the paired branch's own mechanism
 // (204 + HX-Redirect), so the wall loads a FRESH pairing — new key, new code,
 // new 5-minute TTL — within one 4s tick and nobody has to reach for the TV
-// remote. The redirect carries ?layout=rotate through the re-pair.
+// remote. The redirect carries ?layout=queue through the re-pair (rotate is
+// the default, so it carries nothing).
 func TestTVPairStateExpiredRearms(t *testing.T) {
 	for _, tc := range []struct {
 		name, query, wantRedirect, wantPoll string
 	}{
-		{"default shell", "", "/tv", `hx-get="/tv/pair-state"`},
-		{"rotate shell", "?layout=rotate", "/tv?layout=rotate", `hx-get="/tv/pair-state?layout=rotate"`},
-		{"unknown layout stays split", "?layout=ROTATE", "/tv", `hx-get="/tv/pair-state"`},
+		{"default shell (rotate)", "", "/tv", `hx-get="/tv/pair-state"`},
+		{"legacy split lands on rotate", "?layout=split", "/tv", `hx-get="/tv/pair-state"`},
+		{"queue-only shell", "?layout=queue", "/tv?layout=queue", `hx-get="/tv/pair-state?layout=queue"`},
+		{"unknown layout stays rotate", "?layout=ROTATE", "/tv", `hx-get="/tv/pair-state"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newRouteTestServer(t)

@@ -660,7 +660,7 @@ func TestAdminTVPageShowsURLs(t *testing.T) {
 	for _, want := range []string{
 		"Lobby TV",
 		"/tv?t=" + tvTestToken,
-		"layout=rotate",
+		"layout=queue",
 		"/admin/tv/revoke/" + tok.ID.String(),
 		`action="/admin/tv/generate"`,
 		"Kayu Putih",
@@ -669,6 +669,11 @@ func TestAdminTVPageShowsURLs(t *testing.T) {
 		if !contains(out, want) {
 			t.Errorf("admin TV page missing %q", want)
 		}
+	}
+	// The default URL is the rotate deck: the queue-only variant is the only
+	// one that carries a layout param.
+	if contains(out, "layout=rotate") {
+		t.Error("admin TV page still advertises the retired rotate parameter")
 	}
 }
 

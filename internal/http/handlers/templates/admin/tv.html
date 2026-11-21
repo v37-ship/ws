@@ -50,8 +50,10 @@
             <input type="text" readonly value="{{$.BaseURL}}/tv?t={{.Token}}" onclick="this.select()">
           </label>
           <p class="muted">{{t $.Lang "a.tv.urlx"}}</p>
+          {{/* The second link is the market-free board. The dict keys keep
+               their historical "rot" names (a value-only copy edit). */}}
           <label>{{t $.Lang "a.tv.rot"}}
-            <input type="text" readonly value="{{$.BaseURL}}/tv?t={{.Token}}&layout=rotate" onclick="this.select()">
+            <input type="text" readonly value="{{$.BaseURL}}/tv?t={{.Token}}&layout=queue" onclick="this.select()">
           </label>
           <p class="muted">{{t $.Lang "a.tv.rotx"}}</p>
           <form method="post" action="/admin/tv/revoke/{{.ID}}"

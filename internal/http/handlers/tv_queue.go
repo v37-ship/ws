@@ -220,15 +220,21 @@ func (s *Server) TVView(w http.ResponseWriter, r *http.Request) {
 	// is the same in both shells and only its placement changes. TVToken is the
 	// shipped ?t= credential and stays empty for a paired screen, whose cookie
 	// authenticates its poll.
+	layout := normalizeTVLayout(r.URL.Query().Get("layout"))
 	data := pageData{
 		"TVToken": acc.Token,
-		"Layout":  normalizeTVLayout(r.URL.Query().Get("layout")),
+		"Layout":  layout,
 	}
-	slides := tvLoadSlides(s, r.Context(), acc.LocationID)
-	data["Services"] = slides.Services
-	data["Testimonials"] = slides.Testimonials
-	data["Food"] = slides.Food
-	data["ReviewURL"] = slides.ReviewURL
+	// Queue-only is market-free by construction: the slides are not merely
+	// hidden, they are never loaded, so a queue screen cannot carry a slide (or
+	// a review URL) even by accident.
+	if layout == "rotate" {
+		slides := tvLoadSlides(s, r.Context(), acc.LocationID)
+		data["Services"] = slides.Services
+		data["Testimonials"] = slides.Testimonials
+		data["Food"] = slides.Food
+		data["ReviewURL"] = slides.ReviewURL
+	}
 	now, next, day, err := s.tvQueueRows(r.Context(), acc.LocationID)
 	if err != nil {
 		// The kiosk has no staff to read an error page; keep the shell and let

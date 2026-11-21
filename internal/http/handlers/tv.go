@@ -207,11 +207,12 @@ func (s *Server) tvClearPendingCookie(w http.ResponseWriter) {
 }
 
 // tvPairPath is where the handshake sends the screen next: a fresh /tv start.
-// The pairing page's poll inherits ?layout=rotate from its own URL, so a
-// rotate bookmark that re-pairs must not silently land in the split shell.
+// Rotate is the default, so it appends nothing; only a queue-only bookmark is
+// carried through, or a re-pairing queue screen would land in the rotating
+// shell.
 func tvPairPath(r *http.Request) string {
-	if normalizeTVLayout(r.URL.Query().Get("layout")) == "rotate" {
-		return "/tv?layout=rotate"
+	if normalizeTVLayout(r.URL.Query().Get("layout")) == "queue" {
+		return "/tv?layout=queue"
 	}
 	return "/tv"
 }

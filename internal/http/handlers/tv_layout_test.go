@@ -48,17 +48,24 @@ func tvSlideFixtures() tvSlideData {
 	}
 }
 
-// The layout param is pure and pinned: only the exact literal "rotate" leaves
-// the split default. A stray space or casing must not switch the shell.
+// The layout param is pure and pinned. Rotate is the default, so everything
+// that is not the exact literal "queue" — missing, casing, junk, and the
+// retired "split" — lands there: a legacy split bookmark still opens a working
+// TV instead of an error or a deleted shell.
 func TestNormalizeTVLayout(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"", "split"},
-		{"split", "split"},
+		{"", "rotate"},
 		{"rotate", "rotate"},
-		{"ROTATE", "split"},
-		{" rotate", "split"},
-		{"rotate ", "split"},
-		{"fullscreen", "split"},
+		{"ROTATE", "rotate"},
+		{" rotate", "rotate"},
+		{"rotate ", "rotate"},
+		{"split", "rotate"},
+		{"SPLIT", "rotate"},
+		{"fullscreen", "rotate"},
+		{"queue", "queue"},
+		{"QUEUE", "rotate"},
+		{" queue", "rotate"},
+		{"queue ", "rotate"},
 	}
 	for _, c := range cases {
 		if got := normalizeTVLayout(c.in); got != c.want {
@@ -67,58 +74,73 @@ func TestNormalizeTVLayout(t *testing.T) {
 	}
 }
 
-// The default shell: queue + bands pinned on the left, the marketing deck on
-// the right, and the 30s poll unchanged. The queue must not sit inside the
-// deck (that is the rotate layout's shape).
-func TestTVSplitLayoutShowsQueueAndSlides(t *testing.T) {
-	h := newRouteTestServer(t)
-	tok := tvFixture()
-	swapTVActive(t, &tok, nil, nil)
-	swapTVClock(t, tvQueueNow)
-	swapTVQueue(t, []domain.Booking{
-		tvQueueBooking("Sari Wijaya", "Pijat Balinese", "Ayu Lestari", domain.BookingInService, domain.PlaceOnsite, 10, 0),
-	}, nil, nil)
-	swapTVSlides(t, tvSlideFixtures())
-
-	rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=id&t="+tvTestToken, nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	out := rec.Body.String()
-
-	for _, want := range []string{
-		"tv-shell-split",
-		`id="tv-live"`,
-		`hx-trigger="every 30s"`,
-		`x-data="tvDeck(15000)"`,
-		"Sedang dilayani",
-		"Sari W.",
-		"tv-deck-split",
-		"Perawatan &amp; harga",
-		"Pijat Bali",
-		"Rp 275.000",
-		"Nasgor Bu Nah",
-		"Rina Kartika",
-		"Enak sekali, bayi saya tenang.",
-		`id="tv-qr"`,
-		tvReviewTestURL,
-		"js/qrcode.min.js",
+// Rotate is the default shell: one full-screen slide at a time, the queue as
+// one slide in the same deck, every slide partial and the same 30s poll. The
+// legacy split param (and any junk) must render exactly this, never a deleted
+// split shell.
+func TestTVDefaultLayoutIsTheRotateDeck(t *testing.T) {
+	for _, tc := range []struct{ name, query string }{
+		{"no layout param", ""},
+		{"explicit rotate", "&layout=rotate"},
+		{"legacy split bookmark", "&layout=split"},
+		{"junk layout", "&layout=fullscreen"},
 	} {
-		if !contains(out, want) {
-			t.Errorf("split layout missing %q", want)
-		}
-	}
-	if contains(out, "tv-deck-rotate") || contains(out, "tv-slide-queue") {
-		t.Error("split layout must pin the queue outside the deck")
-	}
-	if got := strings.Count(out, `id="tv-live"`); got != 1 {
-		t.Errorf("queue poll wrapper count = %d, want 1", got)
+		t.Run(tc.name, func(t *testing.T) {
+			h := newRouteTestServer(t)
+			tok := tvFixture()
+			swapTVActive(t, &tok, nil, nil)
+			swapTVClock(t, tvQueueNow)
+			swapTVQueue(t, []domain.Booking{
+				tvQueueBooking("Sari Wijaya", "Pijat Balinese", "Ayu Lestari", domain.BookingInService, domain.PlaceOnsite, 10, 0),
+			}, nil, nil)
+			swapTVSlides(t, tvSlideFixtures())
+
+			rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=id&t="+tvTestToken+tc.query, nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rec.Code)
+			}
+			out := rec.Body.String()
+
+			for _, want := range []string{
+				"tv-shell-rotate",
+				"tv-deck-rotate",
+				"tv-slide-queue",
+				`id="tv-live"`,
+				`hx-trigger="every 30s"`,
+				`x-data="tvDeck(15000)"`,
+				"Sedang dilayani",
+				"Sari W.",
+				"Perawatan &amp; harga",
+				"Pijat Bali",
+				"Rp 275.000",
+				"Nasgor Bu Nah",
+				"Rina Kartika",
+				"Enak sekali, bayi saya tenang.",
+				`id="tv-qr"`,
+				tvReviewTestURL,
+				"js/qrcode.min.js",
+				"12 * 60 * 60 * 1000", // the daily-ish reload timer
+			} {
+				if !contains(out, want) {
+					t.Errorf("rotate layout missing %q", want)
+				}
+			}
+			for _, unwanted := range []string{"tv-shell-split", "tv-deck-split", "tv-split", "tv-shell-queue"} {
+				if contains(out, unwanted) {
+					t.Errorf("rotate layout must not render %q", unwanted)
+				}
+			}
+			if got := strings.Count(out, `id="tv-live"`); got != 1 {
+				t.Errorf("queue poll wrapper count = %d, want 1", got)
+			}
+		})
 	}
 }
 
-// The rotate shell: one full-screen slide at a time, with the queue as a slide
-// in the same deck, the same slide partials, and the same poll wrapper.
-func TestTVRotateLayoutShowsRotationDeck(t *testing.T) {
+// Queue-only is the market-free shell: the bands and the day list at full
+// width, the same 30s poll, the same daily reload — and not one byte of the
+// slide set. The handler does not even load the marketing data.
+func TestTVQueueOnlyLayoutRendersNoMarketing(t *testing.T) {
 	h := newRouteTestServer(t)
 	tok := tvFixture()
 	swapTVActive(t, &tok, nil, nil)
@@ -126,39 +148,62 @@ func TestTVRotateLayoutShowsRotationDeck(t *testing.T) {
 	swapTVQueue(t, []domain.Booking{
 		tvQueueBooking("Sari Wijaya", "Pijat Balinese", "Ayu Lestari", domain.BookingInService, domain.PlaceOnsite, 10, 0),
 	}, nil, nil)
-	swapTVSlides(t, tvSlideFixtures())
 
-	rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=id&t="+tvTestToken+"&layout=rotate", nil))
+	slideCalls := 0
+	prev := tvLoadSlides
+	tvLoadSlides = func(_ *Server, _ context.Context, _ uuid.UUID) tvSlideData {
+		slideCalls++
+		return tvSlideFixtures()
+	}
+	t.Cleanup(func() { tvLoadSlides = prev })
+
+	rec := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=id&t="+tvTestToken+"&layout=queue", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	out := rec.Body.String()
 
 	for _, want := range []string{
-		"tv-shell-rotate",
-		"tv-deck-rotate",
-		"tv-slide-queue",
+		"tv-shell-queue",
 		`id="tv-live"`,
 		`hx-trigger="every 30s"`,
-		`x-data="tvDeck(15000)"`,
+		"Sedang dilayani",
+		"Berikutnya",
+		"Jadwal hari ini",
 		"Sari W.",
-		"Perawatan &amp; harga",
-		"Pijat Bali",
-		"Nasgor Bu Nah",
-		"Rina Kartika",
-		`id="tv-qr"`,
-		tvReviewTestURL,
-		"js/qrcode.min.js",
+		"Pijat Balinese",
+		"12 * 60 * 60 * 1000", // the daily-ish reload timer
 	} {
 		if !contains(out, want) {
-			t.Errorf("rotate layout missing %q", want)
+			t.Errorf("queue layout missing %q", want)
 		}
 	}
-	if contains(out, "tv-shell-split") || contains(out, "tv-deck-split") {
-		t.Error("rotate layout must not render the split shell")
+	// The whole marketing half is gone, not merely hidden: no slide markup,
+	// no deck component, no slides region and no QR renderer.
+	for _, unwanted := range []string{
+		"tv-slide", "tv-deck", "tvDeck", "tv-slides",
+		"qrcode.min.js", `id="tv-qr"`,
+		"Perawatan &amp; harga", "Rp 275.000",
+		"Nasgor Bu Nah", "Rina Kartika", "Suka kunjungan Anda?",
+		tvReviewTestURL,
+		"tv-shell-rotate", "tv-shell-split",
+	} {
+		if contains(out, unwanted) {
+			t.Errorf("queue layout must not render %q", unwanted)
+		}
 	}
 	if got := strings.Count(out, `id="tv-live"`); got != 1 {
 		t.Errorf("queue poll wrapper count = %d, want 1", got)
+	}
+	if slideCalls != 0 {
+		t.Errorf("queue layout loaded the marketing slides %d times, want 0", slideCalls)
+	}
+
+	// The queue shell is translated too (the i18n sweep only renders the
+	// default shell).
+	en := runRoute(h, httptest.NewRequest(http.MethodGet, "/tv?lang=en&t="+tvTestToken+"&layout=queue", nil))
+	if body := en.Body.String(); !contains(body, "Waiting-room queue") || !contains(body, "Up next") {
+		t.Errorf("queue layout (en) is missing its translated copy")
 	}
 }
 
@@ -204,8 +249,9 @@ func TestTVReviewSlideOnlyWhenURLSet(t *testing.T) {
 	}
 }
 
-// Re-run Task 2's hostile assertion across BOTH shells and every new slide:
-// the page renders queue/marketing data only, never booking PII.
+// Re-run the hostile assertion across BOTH shells and every slide: the page
+// renders queue/marketing data only, never booking PII. Marketing is expected
+// in rotate and must be absent in queue-only.
 func TestTVNoPIIAcrossLayoutsAndSlides(t *testing.T) {
 	h := newRouteTestServer(t)
 	tok := tvFixture()
@@ -214,35 +260,50 @@ func TestTVNoPIIAcrossLayoutsAndSlides(t *testing.T) {
 	swapTVQueue(t, []domain.Booking{tvHostileBooking()}, nil, nil)
 	swapTVSlides(t, tvSlideFixtures())
 
-	for _, suffix := range []string{"", "&layout=rotate"} {
-		path := "/tv?lang=id&t=" + tvTestToken + suffix
-		rec := runRoute(h, httptest.NewRequest(http.MethodGet, path, nil))
-		if rec.Code != http.StatusOK {
-			t.Fatalf("%s: status = %d, want 200", path, rec.Code)
-		}
-		out := rec.Body.String()
-		for _, want := range []string{"Sari W.", "Pijat Balinese", "Perawatan &amp; harga", "Nasgor Bu Nah"} {
-			if !contains(out, want) {
-				t.Errorf("%s: missing %q", path, want)
+	for _, tc := range []struct {
+		name      string
+		query     string
+		marketing bool
+	}{
+		{"queue only", "&layout=queue", false},
+		{"rotate", "&layout=rotate", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := "/tv?lang=id&t=" + tvTestToken + tc.query
+			rec := runRoute(h, httptest.NewRequest(http.MethodGet, path, nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s: status = %d, want 200", path, rec.Code)
 			}
-		}
-		low := strings.ToLower(out)
-		for _, leak := range []string{
-			"sari wijaya",
-			"081234567890",
-			"sari@example.com",
-			"bayi sensitif",
-			"asi eksklusif",
-			"alergi lanolin",
-			"jl. rahasia",
-			"pending",
-			"qris",
-			"350.000",
-			"lestari",
-		} {
-			if strings.Contains(low, leak) {
-				t.Errorf("%s: leaked %q into the kiosk HTML", path, leak)
+			out := rec.Body.String()
+			// The queue is on both shells; marketing only on rotate.
+			for _, want := range []string{"Sari W.", "Pijat Balinese"} {
+				if !contains(out, want) {
+					t.Errorf("%s: missing %q", path, want)
+				}
 			}
-		}
+			for _, want := range []string{"Perawatan &amp; harga", "Nasgor Bu Nah", "Rina Kartika", `id="tv-qr"`} {
+				if got := contains(out, want); got != tc.marketing {
+					t.Errorf("%s: marketing marker %q present = %v, want %v", path, want, got, tc.marketing)
+				}
+			}
+			low := strings.ToLower(out)
+			for _, leak := range []string{
+				"sari wijaya",
+				"081234567890",
+				"sari@example.com",
+				"bayi sensitif",
+				"asi eksklusif",
+				"alergi lanolin",
+				"jl. rahasia",
+				"pending",
+				"qris",
+				"350.000",
+				"lestari",
+			} {
+				if strings.Contains(low, leak) {
+					t.Errorf("%s: leaked %q into the kiosk HTML", path, leak)
+				}
+			}
+		})
 	}
 }

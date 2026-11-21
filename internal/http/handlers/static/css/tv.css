@@ -221,30 +221,18 @@ html:not([data-theme]) body.tv-body {
 }
 
 /* Layout shells ------------------------------------------------------------
-   Split (default) pins the queue left at ~60% and rotates the marketing deck
-   right; rotate hands the whole screen to one slide at a time, queue included.
-   One slide set, one poll wrapper, two arrangements (ruling #6). */
+   Rotate is the default: one full-screen slide at a time, queue included.
+   Queue-only is the market-free board — the bands and the day list at full
+   width, no deck. One slide set, one poll wrapper (ruling #6). */
 
-.tv-split {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: clamp(1.25rem, 2.4vw, 2.5rem);
-  align-items: stretch;
-  min-height: 0;
-}
-
+/* Queue-only: the board owns the whole width; the pane keeps the bands'
+   rhythm and the poll's own wrapper. */
 .tv-queue-pane {
   min-width: 0;
   display: grid;
   align-content: start;
   gap: clamp(0.9rem, 2vh, 1.75rem);
 }
-
-/* No marketing data: the queue keeps the whole width instead of leaving an
-   empty right-hand column. */
-.tv-queue-pane:only-child { grid-column: 1 / -1; }
-
-.tv-slide-pane { min-width: 0; min-height: 0; }
 
 .tv-shell-rotate {
   position: relative;
@@ -308,8 +296,8 @@ html:not([data-theme]) body.tv-body {
   overflow-y: auto;
 }
 
-/* A rotate slide owns the whole panel, so its copy scales up: the split
-   deck is read from across a room too, but has roughly half the width. */
+/* A rotate slide owns the whole panel, so its copy scales up: a wall screen is
+   read from across a room and a slide is the only thing on it. */
 .tv-deck-rotate .tv-slide-title { font-size: clamp(2rem, 3vw, 3.4rem); }
 .tv-deck-rotate .tv-svc-name { font-size: clamp(1.3rem, 1.8vw, 2rem); }
 .tv-deck-rotate .tv-svc-meta { font-size: clamp(1rem, 1.2vw, 1.35rem); }
@@ -560,14 +548,6 @@ html:not([data-theme]) body.tv-body {
 }
 
 /* Narrow hosts (an admin previewing the TV on a laptop) ------------------- */
-
-@media (max-width: 1400px) {
-  /* Below TV widths the two panes squeeze the five queue columns into each
-     other (the deck would paint over the badge). Stack instead: an admin
-     previewing on a laptop scrolls, a wall screen (1920+) never hits this. */
-  .tv-split { grid-template-columns: 1fr; }
-  .tv-deck-split { min-height: 55vh; }
-}
 
 @media (max-width: 900px) {
   .tv-head { flex-direction: column; align-items: flex-start; }

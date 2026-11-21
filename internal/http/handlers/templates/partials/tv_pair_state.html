@@ -3,10 +3,10 @@
      only ever rendered for a non-HTMX hit on the endpoint — the 4s poll
      clears the stale pending cookie in the handler and answers 204 +
      HX-Redirect:/tv, so the wall mints a fresh code by itself. The link here
-     carries ?layout=rotate through the same re-pair. */}}
+     carries ?layout=queue through the same re-pair (rotate is the default). */}}
 {{if eq .State "expired"}}
 <p class="tv-pair-note">{{t .Lang "tv.pr.exp"}}</p>
-<a class="tv-pair-again" href="/tv{{if eq .Layout "rotate"}}?layout=rotate{{end}}">{{t .Lang "tv.pr.again"}}</a>
+<a class="tv-pair-again" href="/tv{{if eq .Layout "queue"}}?layout=queue{{end}}">{{t .Lang "tv.pr.again"}}</a>
 {{else}}
 <p class="tv-pair-note">{{icon "clock"}} {{t .Lang "tv.pr.wait"}}</p>
 {{end}}
