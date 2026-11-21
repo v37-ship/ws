@@ -24,9 +24,10 @@ const (
 	// faqCount is the number of Q&A pairs on the home page: faq.q1..faq.qN and
 	// faq.a1..faq.aN feed both the visible accordion and the JSON-LD graph.
 	faqCount = 5
-	// seoImagePath is the branded 1200x630 share card. One asset feeds both the
+	// seoImagePath is the branded share card. One asset feeds both the
 	// Open Graph preview (head.html) and the JSON-LD entity image, so a link
-	// preview and a crawler can never disagree.
+	// preview and a crawler can never disagree. Dimensions live in the
+	// og:image:width/height tags, trued to the asset by test.
 	seoImagePath = "/static/img/share-card.jpg"
 )
 
