@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -124,10 +126,25 @@ func Load() (Config, error) {
 
 // Validate rejects a configuration that would ship broken absolute URLs.
 // Production must never serve the development default BaseURL: it feeds every
-// canonical, og:url, sitemap and llms.txt link.
+// canonical, og:url, sitemap and llms.txt link, so it has to be an https URL
+// on a public host. A typo or a plain-HTTP value would poison every one of
+// those links, so boot fails fast instead.
 func Validate(cfg Config) error {
-	if cfg.AppEnv == "production" && cfg.BaseURL == "http://localhost:8080" {
+	if cfg.AppEnv != "production" {
+		return nil
+	}
+	if cfg.BaseURL == "http://localhost:8080" {
 		return fmt.Errorf("BASE_URL must be the public site URL when APP_ENV=production (got %q)", cfg.BaseURL)
+	}
+	u, err := url.Parse(cfg.BaseURL)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return fmt.Errorf("BASE_URL must be an https URL in production (got %q)", cfg.BaseURL)
+	}
+	if strings.EqualFold(u.Hostname(), "localhost") {
+		return fmt.Errorf("BASE_URL must be a public host in production (got %q)", cfg.BaseURL)
+	}
+	if ip := net.ParseIP(u.Hostname()); ip != nil && ip.IsLoopback() {
+		return fmt.Errorf("BASE_URL must be a public host in production (got %q)", cfg.BaseURL)
 	}
 	return nil
 }

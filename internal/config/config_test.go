@@ -3,8 +3,9 @@ package config
 import "testing"
 
 // TestValidate pins the production BaseURL guard: an APP_ENV=production boot
-// with the development default would poison every canonical, og:url, sitemap
-// and llms.txt URL, so it must fail fast.
+// with the development default, a plain-HTTP URL or a loopback host would
+// poison every canonical, og:url, sitemap and llms.txt URL, so it must fail
+// fast.
 func TestValidate(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -14,6 +15,21 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "production with localhost base url",
 			cfg:     Config{AppEnv: "production", BaseURL: "http://localhost:8080"},
+			wantErr: true,
+		},
+		{
+			name:    "production with plain http base url",
+			cfg:     Config{AppEnv: "production", BaseURL: "http://example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "production with https localhost base url",
+			cfg:     Config{AppEnv: "production", BaseURL: "https://localhost:8088"},
+			wantErr: true,
+		},
+		{
+			name:    "production with https loopback address",
+			cfg:     Config{AppEnv: "production", BaseURL: "https://127.0.0.1:8088"},
 			wantErr: true,
 		},
 		{
