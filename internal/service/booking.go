@@ -117,7 +117,8 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		DistanceFeeIDR: distanceFee,
 		Source:         "web",
 	}
-	if s.ManualPayments() {
+	manual := s.ManualPayments()
+	if manual {
 		// Pay-later: the slot is secured now, payment happens online or at
 		// the counter after the service.
 		b.Status = domain.BookingConfirmed
@@ -129,17 +130,48 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		}
 		return nil, nil, err
 	}
-	redeemed := false
-	if quote.Code != "" {
-		if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
-			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
-			return nil, nil, fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
-		}
-		redeemed = true
-	}
 	orderID := orderRef(b.ID)
+	var charge *payment.QRISChargeResult
+	err = runRedeemedCharge(
+		func() error {
+			if quote.Code == "" {
+				return nil
+			}
+			if err := s.promos.TryRedeem(ctx, quote.Code); err != nil {
+				return fmt.Errorf("%w: promo code just reached its limit", ErrValidation)
+			}
+			return nil
+		},
+		func() error {
+			if manual {
+				return nil
+			}
+			c, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
+				OrderID:      orderID,
+				AmountIDR:    b.Net(),
+				CustomerName: customer.FullName,
+				Email:        customer.Email,
+				ItemName:     svc.Name,
+			})
+			if err != nil {
+				return fmt.Errorf("qris charge: %w", err)
+			}
+			charge = c
+			return nil
+		},
+		func() error {
+			if quote.Code == "" {
+				return nil
+			}
+			return s.promos.Unredeem(ctx, quote.Code)
+		},
+	)
+	if err != nil {
+		_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
+		return nil, nil, err
+	}
 	var p *domain.Payment
-	if s.ManualPayments() {
+	if manual {
 		p = &domain.Payment{
 			BookingID:      b.ID,
 			OrderID:        orderID,
@@ -153,20 +185,6 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 		}
 		_ = s.bookings.LogActivity(ctx, b.ID, &customerID, "Booking created online (manual QRIS pending)", notes)
 	} else {
-		charge, err := s.midtrans.ChargeQRIS(ctx, payment.QRISChargeRequest{
-			OrderID:      orderID,
-			AmountIDR:    b.Net(),
-			CustomerName: customer.FullName,
-			Email:        customer.Email,
-			ItemName:     svc.Name,
-		})
-		if err != nil {
-			if redeemed {
-				_ = s.promos.Unredeem(ctx, quote.Code)
-			}
-			_ = s.bookings.UpdateStatus(ctx, b.ID, domain.BookingExpired)
-			return nil, nil, fmt.Errorf("qris charge: %w", err)
-		}
 		p = &domain.Payment{
 			BookingID:       b.ID,
 			OrderID:         orderID,
@@ -186,10 +204,25 @@ func (s *BookingService) CreatePending(ctx context.Context, customerID, location
 	if full != nil {
 		b = full
 	}
-	if s.ManualPayments() {
+	if manual {
 		s.onConfirmed(ctx, b, p, customer.FullName, customer.Phone)
 	}
 	return b, p, nil
+}
+
+// runRedeemedCharge applies the online booking money rule: a promo redemption
+// is charged in the same step, and a failed charge rolls the redemption back.
+// A failed redemption stops the sequence before the charge runs; the returned
+// error is the one that stopped it (nil when both steps succeed).
+func runRedeemedCharge(redeem func() error, charge func() error, unredeem func() error) error {
+	if err := redeem(); err != nil {
+		return err
+	}
+	if err := charge(); err != nil {
+		_ = unredeem()
+		return err
+	}
+	return nil
 }
 
 // normalizePlace validates the fulfillment place. Empty defaults to onsite;

@@ -134,3 +134,46 @@ func TestBookingOwnedBy(t *testing.T) {
 		t.Errorf("guest owned by account")
 	}
 }
+
+func TestRunRedeemedCharge(t *testing.T) {
+	errRedeem := errors.New("promo exhausted")
+	errCharge := errors.New("qris charge")
+	type calls struct{ redeem, charge, unredeem int }
+	run := func(redeemErr, chargeErr error) (calls, error) {
+		var c calls
+		err := runRedeemedCharge(
+			func() error { c.redeem++; return redeemErr },
+			func() error { c.charge++; return chargeErr },
+			func() error { c.unredeem++; return nil },
+		)
+		return c, err
+	}
+
+	t.Run("redeem fails: nothing else runs", func(t *testing.T) {
+		c, err := run(errRedeem, nil)
+		if !errors.Is(err, errRedeem) {
+			t.Fatalf("err = %v, want errRedeem", err)
+		}
+		if c != (calls{redeem: 1}) {
+			t.Fatalf("calls = %+v, want only redeem", c)
+		}
+	})
+	t.Run("charge fails: redemption is rolled back", func(t *testing.T) {
+		c, err := run(nil, errCharge)
+		if !errors.Is(err, errCharge) {
+			t.Fatalf("err = %v, want errCharge", err)
+		}
+		if c != (calls{redeem: 1, charge: 1, unredeem: 1}) {
+			t.Fatalf("calls = %+v, want redeem+charge+unredeem", c)
+		}
+	})
+	t.Run("both succeed: no rollback", func(t *testing.T) {
+		c, err := run(nil, nil)
+		if err != nil {
+			t.Fatalf("err = %v, want nil", err)
+		}
+		if c != (calls{redeem: 1, charge: 1}) {
+			t.Fatalf("calls = %+v, want redeem+charge", c)
+		}
+	})
+}
