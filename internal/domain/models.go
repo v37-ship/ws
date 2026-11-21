@@ -275,6 +275,10 @@ type Booking struct {
 	MomCondition   string
 	PaymentMethod  PaymentMethod
 	PaymentStatus  PaymentStatus
+	// HasReceipt reports whether the booking's payment carries an uploaded
+	// transfer proof. Populated by BookingRepo.ListFiltered (the queue and
+	// bookings lists); zero on rows from other queries.
+	HasReceipt bool
 }
 
 type BookingLog struct {

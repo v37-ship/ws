@@ -164,7 +164,8 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
-		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending')
+		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending'),
+		COALESCE(p.receipt_path,'') <> ''
 		FROM bookings b
 		LEFT JOIN users u ON u.id = b.customer_id
 		LEFT JOIN services sv ON sv.id = b.service_id
@@ -247,7 +248,7 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 			&b.CustomerName, &b.CustomerPhone, &b.CustomerEmail,
 			&b.ServiceName, &b.StaffName, &b.LocationName,
 			&b.BabyName, &b.MomCondition,
-			&b.PaymentMethod, &b.PaymentStatus,
+			&b.PaymentMethod, &b.PaymentStatus, &b.HasReceipt,
 		); err != nil {
 			return nil, err
 		}

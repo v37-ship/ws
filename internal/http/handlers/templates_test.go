@@ -399,7 +399,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				for _, key := range []string{
 					"slots.title", "slots.hint", "svc2.service", "pay.wait", "pay.status",
 					"book.legend", "book.no_slots", "p.q.mt", "p.br.mt", "p.clm.n",
-					"p.clm.mt", "p.det.cff",
+					"p.clm.mt", "p.clm.nr", "p.det.cff",
 				} {
 					if contains(out, `"`+key+`"`) || contains(out, ">"+key+"<") {
 						t.Errorf("partial %s (%s): missing translation for key %s", name, lang, key)

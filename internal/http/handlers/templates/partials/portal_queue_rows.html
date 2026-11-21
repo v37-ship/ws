@@ -1,7 +1,7 @@
 {{define "portal_queue_rows.html"}}
 {{range .TodayBookings}}
 <tr>
-  <td><strong>{{formatTime .StartAt "15:04"}} - {{formatTime .EndAt "15:04"}}</strong></td>
+  <td><strong>{{formatTime .StartAt "15:04"}} - {{formatTime .EndAt "15:04"}}</strong>{{if $.ClaimsMode}}<br><small class="muted">{{formatTime .StartAt "02 Jan 2006"}}</small>{{end}}</td>
   <td>
     <div><strong>{{.CustomerName}}</strong>{{if not .CustomerID}} <span class="badge no_show">{{t $.Lang "p.bk.guest"}}</span>{{end}}</div>
     {{if .CustomerPhone}}
@@ -47,7 +47,11 @@
     </div>
     {{if $.ClaimsMode}}
     <div style="display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:0.4rem;">
+      {{if .HasReceipt}}
       <a href="/portal/bookings/{{.ID}}/receipt" target="_blank" rel="noopener" class="btn secondary on-light btn-sm" title="{{t $.Lang "p.pay.view"}}">{{icon "image"}} {{t $.Lang "p.pay.rcpt"}}</a>
+      {{else}}
+      <small class="muted" style="align-self:center;">{{t $.Lang "p.clm.nr"}}</small>
+      {{end}}
       <form method="post" action="/portal/bookings/{{.ID}}/payment/confirm" hx-post="/portal/bookings/{{.ID}}/payment/confirm" hx-swap="none">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="method" value="qris_static">

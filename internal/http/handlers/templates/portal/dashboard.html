@@ -59,7 +59,7 @@
 
     <div class="panel stack">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-        <h2>{{t .Lang "p.dash.q"}} ({{.TodayStr}}){{if .ClaimsMode}} <span class="badge">{{t .Lang "p.bk.claim"}}</span>{{end}}</h2>
+        <h2>{{if .ClaimsMode}}{{t .Lang "p.dash.claim"}}{{else}}{{t .Lang "p.dash.q"}} ({{.TodayStr}}){{end}}</h2>
         <span class="muted"><span class="htmx-indicator spinner" aria-hidden="true"></span> {{t .Lang "p.dash.auto"}} <a href="/portal{{if .ClaimsMode}}?payment=claim{{end}}" hx-get="/portal/queue{{if .ClaimsMode}}?payment=claim{{end}}" hx-target="#live-queue" hx-swap="innerHTML">{{t .Lang "p.dash.ref"}}</a></span>
       </div>
 

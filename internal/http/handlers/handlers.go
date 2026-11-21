@@ -655,8 +655,9 @@ func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
 	unpaid, claims, _ := s.book.PaymentCounts(r.Context())
 	stats.Unpaid = unpaid
 	stats.Claims = claims
-	// Claims fast lane: the stat card opens /portal?payment=claim, which filters
-	// the queue to claimed-unpaid rows. The stat cards above stay whole-day.
+	// Claims fast lane: the stat card opens /portal?payment=claim, which lists
+	// every unresolved claim (not just today's). The stat cards above stay
+	// whole-day, so their day-scoped list stays the source for the counts.
 	filter, claimsMode := queueFilter(r, nowWIB)
 	queue := bookings
 	if claimsMode {
@@ -711,18 +712,15 @@ func normalizeBookingSort(v string) string {
 
 // queueFilter maps the queue's query string to the list filter used by both
 // the dashboard's first render and the 30s poll, so the two cannot disagree on
-// what the queue shows. Claims mode reuses the bookings list's payment=claim
-// predicate (pending payment with a customer-reported transfer) instead of
-// inventing a second definition of "claimed".
+// what the queue shows. Claims mode is the bookings list's payment=claim
+// predicate (pending payment with a customer-reported transfer) and nothing
+// else — no day scope, because the dashboard's Claims stat counts every
+// outstanding claim and a day-scoped queue would hide rows the number promised.
 func queueFilter(r *http.Request, now time.Time) (repo.FilterParams, bool) {
-	filter := repo.FilterParams{
-		Date: now.In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02"),
-	}
 	if r.URL.Query().Get("payment") == "claim" {
-		filter.Payment = "claim"
-		return filter, true
+		return repo.FilterParams{Payment: "claim"}, true
 	}
-	return filter, false
+	return repo.FilterParams{Date: now.In(time.FixedZone("WIB", 7*3600)).Format("2006-01-02")}, false
 }
 
 // queueBookings is the queue's single data dependency. It is a variable so the

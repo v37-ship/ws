@@ -19,36 +19,38 @@ import (
 // the key back), which is exactly the failure these tests exist to catch.
 var queueCopy = map[string]map[string]string{
 	"en": {
-		"ci":        "Mark Checked-In (In Lobby)",
-		"sta":       "Start In-Service (In Room)",
-		"fin":       "Mark Completed",
-		"cfn":       "Mark as No-Show?",
-		"cfc":       "Cancel this booking?",
-		"cff":       "Mark this visit as completed?",
-		"nos":       "Mark No-Show",
-		"cx":        "Cancel Booking",
-		"paid":      "Confirm payment",
-		"reject":    "Reject claim",
-		"rcpt":      "Receipt",
-		"claimnote": "Confirmed from claims queue",
-		"claimnone": "No payment claims today.",
-		"todaynone": "No bookings scheduled for today yet.",
+		"ci":          "Mark Checked-In (In Lobby)",
+		"sta":         "Start In-Service (In Room)",
+		"fin":         "Mark Completed",
+		"cfn":         "Mark as No-Show?",
+		"cfc":         "Cancel this booking?",
+		"cff":         "Mark this visit as completed?",
+		"nos":         "Mark No-Show",
+		"cx":          "Cancel Booking",
+		"paid":        "Confirm payment",
+		"reject":      "Reject claim",
+		"rcpt":        "Receipt",
+		"claimnote":   "Confirmed from claims queue",
+		"claimnone":   "No payment claims waiting.",
+		"receiptnone": "No receipt uploaded",
+		"todaynone":   "No bookings scheduled for today yet.",
 	},
 	"id": {
-		"ci":        "Tandai Check-In (Di Lobi)",
-		"sta":       "Mulai Dilayani (Di Ruangan)",
-		"fin":       "Tandai Selesai",
-		"cfn":       "Tandai sebagai tidak hadir?",
-		"cfc":       "Batalkan booking ini?",
-		"cff":       "Tandai kunjungan ini selesai?",
-		"nos":       "Tandai Tidak Hadir",
-		"cx":        "Batalkan Booking",
-		"paid":      "Konfirmasi pembayaran",
-		"reject":    "Tolak klaim",
-		"rcpt":      "Bukti",
-		"claimnote": "Dikonfirmasi dari antrean klaim",
-		"claimnone": "Belum ada klaim pembayaran hari ini.",
-		"todaynone": "Belum ada booking terjadwal hari ini.",
+		"ci":          "Tandai Check-In (Di Lobi)",
+		"sta":         "Mulai Dilayani (Di Ruangan)",
+		"fin":         "Tandai Selesai",
+		"cfn":         "Tandai sebagai tidak hadir?",
+		"cfc":         "Batalkan booking ini?",
+		"cff":         "Tandai kunjungan ini selesai?",
+		"nos":         "Tandai Tidak Hadir",
+		"cx":          "Batalkan Booking",
+		"paid":        "Konfirmasi pembayaran",
+		"reject":      "Tolak klaim",
+		"rcpt":        "Bukti",
+		"claimnote":   "Dikonfirmasi dari antrean klaim",
+		"claimnone":   "Belum ada klaim pembayaran.",
+		"receiptnone": "Belum ada bukti transfer",
+		"todaynone":   "Belum ada booking terjadwal hari ini.",
 	},
 }
 
@@ -61,6 +63,7 @@ func queueBooking(status domain.BookingStatus, pay domain.PaymentStatus) domain.
 		ServiceName: "Baby Massage", StaffName: "Bidan Ayu",
 		StartAt: start, EndAt: start.Add(time.Hour), Status: status,
 		PriceIDR: 150000, PaymentMethod: domain.PaymentMethodQRISStatic, PaymentStatus: pay,
+		HasReceipt: true,
 	}
 }
 
@@ -212,6 +215,39 @@ func TestClaimsQueueRow(t *testing.T) {
 	}
 }
 
+// A claim can arrive without an uploaded transfer proof. The row then shows an
+// honest muted note instead of a receipt link that answers 404.
+func TestClaimsQueueReceiptAffordance(t *testing.T) {
+	s := newFailTestServer(t)
+	for _, lang := range []string{"en", "id"} {
+		copy := queueCopy[lang]
+		with := queueBooking(domain.BookingConfirmed, domain.PaymentPending)
+		out := renderQueue(t, s, pageData{
+			"Lang": lang, "CSRF": "tok", "ClaimsMode": true,
+			"TodayBookings": []domain.Booking{with},
+		})
+		if !contains(out, `href="/portal/bookings/`+with.ID.String()+`/receipt"`) {
+			t.Errorf("claims row (%s): receipt link missing when a receipt exists", lang)
+		}
+		if contains(out, copy["receiptnone"]) {
+			t.Errorf("claims row (%s): must not say the receipt is missing when it exists", lang)
+		}
+
+		without := queueBooking(domain.BookingConfirmed, domain.PaymentPending)
+		without.HasReceipt = false
+		out = renderQueue(t, s, pageData{
+			"Lang": lang, "CSRF": "tok", "ClaimsMode": true,
+			"TodayBookings": []domain.Booking{without},
+		})
+		if !contains(out, copy["receiptnone"]) {
+			t.Errorf("claims row (%s): want the no-receipt note %q", lang, copy["receiptnone"])
+		}
+		if contains(out, `/receipt"`) {
+			t.Errorf("claims row (%s): no receipt link may render without a receipt", lang)
+		}
+	}
+}
+
 // The payment block belongs to claims mode only: an ordinary queue row keeps
 // its status buttons and stays out of the payment flow.
 func TestClaimsQueueRowOnlyInClaimsMode(t *testing.T) {
@@ -224,6 +260,11 @@ func TestClaimsQueueRowOnlyInClaimsMode(t *testing.T) {
 		if contains(out, never) {
 			t.Errorf("plain queue row must not carry the claims controls, found %q", never)
 		}
+	}
+	// Today's queue already has the date in its heading; only the all-time
+	// claims list repeats it per row.
+	if contains(out, "21 Nov 2026") {
+		t.Error("plain queue row must not carry the claims-mode date line")
 	}
 }
 
@@ -249,20 +290,23 @@ func TestClaimsQueueEmptyState(t *testing.T) {
 
 // The queue handler maps its query string to a list filter through one helper,
 // so the initial dashboard render and the 30s poll cannot disagree. Claims mode
-// reuses the bookings list's payment=claim predicate (pending + reported).
+// is the bookings list's payment=claim predicate with NO day scope: the Claims
+// stat counts every outstanding claim (repo.PaymentRepo.Counts), so a
+// day-scoped queue would hide rows the number promised.
 func TestClaimsQueueFilter(t *testing.T) {
 	wib := time.FixedZone("WIB", 7*3600)
 	now := time.Date(2026, 11, 21, 15, 30, 0, 0, wib)
 	cases := []struct {
 		query       string
 		wantPayment string
+		wantDate    string
 		wantClaims  bool
 	}{
-		{"", "", false},
-		{"?payment=claim", "claim", true},
-		{"?payment=unpaid", "", false},
-		{"?payment=paid", "", false},
-		{"?payment=Claim", "", false},
+		{"", "", "2026-11-21", false},
+		{"?payment=claim", "claim", "", true},
+		{"?payment=unpaid", "", "2026-11-21", false},
+		{"?payment=paid", "", "2026-11-21", false},
+		{"?payment=Claim", "", "2026-11-21", false},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(http.MethodGet, "/portal/queue"+c.query, nil)
@@ -270,26 +314,37 @@ func TestClaimsQueueFilter(t *testing.T) {
 		if filter.Payment != c.wantPayment {
 			t.Errorf("queueFilter(%q).Payment = %q, want %q", c.query, filter.Payment, c.wantPayment)
 		}
+		if filter.Date != c.wantDate {
+			t.Errorf("queueFilter(%q).Date = %q, want %q", c.query, filter.Date, c.wantDate)
+		}
 		if claims != c.wantClaims {
 			t.Errorf("queueFilter(%q) claims = %v, want %v", c.query, claims, c.wantClaims)
 		}
-		if filter.Date != "2026-11-21" {
-			t.Errorf("queueFilter(%q).Date = %q, want the WIB day", c.query, filter.Date)
-		}
+	}
+	// Claims mode adds the claim predicate and nothing else, so it cannot drift
+	// from the all-time count the dashboard shows.
+	filter, _ := queueFilter(httptest.NewRequest(http.MethodGet, "/portal/queue?payment=claim", nil), now)
+	if filter != (repo.FilterParams{Payment: "claim"}) {
+		t.Errorf("claims filter = %+v, want only the claim predicate", filter)
 	}
 }
 
 // The queue handler is the wiring under test: ?payment=claim must reach the
-// repo as the booked-list claim predicate and the rendered rows must be the
-// claims fast lane. The repos are concrete pgx types, so the data call is
-// swapped for a recorder instead of a database.
+// repo as the bookings-list claim predicate with no day scope, and the rendered
+// rows must be the claims fast lane. A claim from yesterday has to show up
+// where staff are looking, with its date visible so it is not mistaken for
+// today's. The repos are concrete pgx types, so the data call is swapped for a
+// recorder instead of a database.
 func TestClaimsQueueHandler(t *testing.T) {
 	s := newFailTestServer(t)
 	var gotFilter repo.FilterParams
 	prev := queueBookings
 	queueBookings = func(_ *Server, _ *http.Request, f repo.FilterParams) ([]domain.Booking, error) {
 		gotFilter = f
-		return []domain.Booking{queueBooking(domain.BookingConfirmed, domain.PaymentPending)}, nil
+		old := queueBooking(domain.BookingConfirmed, domain.PaymentPending)
+		old.StartAt = time.Date(2026, 11, 20, 3, 0, 0, 0, time.UTC) // 10:00 WIB, not today
+		old.EndAt = old.StartAt.Add(time.Hour)
+		return []domain.Booking{old}, nil
 	}
 	t.Cleanup(func() { queueBookings = prev })
 
@@ -304,12 +359,16 @@ func TestClaimsQueueHandler(t *testing.T) {
 	if gotFilter.Payment != "claim" {
 		t.Errorf("queue filter Payment = %q, want claim (the claimed-unpaid predicate)", gotFilter.Payment)
 	}
+	if gotFilter.Date != "" {
+		t.Errorf("claims queue filter Date = %q, want no day scope (all unresolved claims)", gotFilter.Date)
+	}
 	out := rec.Body.String()
 	for _, want := range []string{
 		`name="method" value="qris_static"`,
 		`name="note" value="` + queueCopy["en"]["claimnote"] + `"`,
 		"/payment/reject",
 		"/receipt",
+		"20 Nov 2026", // the row carries its own date outside today's queue
 	} {
 		if !contains(out, want) {
 			t.Errorf("claims queue response missing %q", want)
@@ -378,8 +437,13 @@ func TestClaimsQueueDashboardLink(t *testing.T) {
 	if !contains(claims, `hx-get="/portal/queue?payment=claim"`) {
 		t.Error("dashboard: queue poll must keep the claims filter")
 	}
-	if !contains(claims, `<span class="badge">Claims</span>`) {
-		t.Error("dashboard: filtered queue must say it is the claims view")
+	// All-time claims are not "today's queue": the heading must not promise a
+	// day the rows do not have.
+	if !contains(claims, `<h2>Claims to review</h2>`) {
+		t.Error("dashboard: filtered queue must be headed as the claims view")
+	}
+	if contains(claims, "Sat 21 Nov 2026") {
+		t.Error("dashboard: claims queue must not carry the today heading")
 	}
 
 	plain := render(false)
@@ -389,7 +453,7 @@ func TestClaimsQueueDashboardLink(t *testing.T) {
 	if !contains(plain, `hx-get="/portal/queue"`) {
 		t.Error("dashboard: plain queue poll missing")
 	}
-	if contains(plain, `<span class="badge">Claims</span>`) {
-		t.Error("dashboard: plain queue must not claim to be the claims view")
+	if !contains(plain, `<h2>Today&#39;s Live Queue (Sat 21 Nov 2026)</h2>`) {
+		t.Error("dashboard: plain queue must keep the today heading")
 	}
 }
