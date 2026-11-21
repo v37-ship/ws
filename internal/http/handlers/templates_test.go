@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 	"testing"
@@ -15,6 +16,10 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// seoTestCardAlt mirrors the og:image:alt copy rendered by head.html. Meta copy
+// is not UI, so it stays English in both languages.
+const seoTestCardAlt = "Wangga Spa — Baby, Mom, & Woman: self-care for women, loving care for mom & baby. Jakarta spa and homecare."
 
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
@@ -194,7 +199,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["HeroBanners"] = []domain.HeroBanner{{ImageURL: "https://example.com/a.jpg"}, {ImageURL: "https://example.com/b.jpg"}}
 				// The head meta + JSON-LD the Home handler wires for the page.
 				data["BaseURL"] = seoTestBaseURL
-				data["LogoPath"] = seoLogoPath
+				data["ImagePath"] = seoImagePath
 				data["SEO"] = pageData{
 					"Title":       "Wangga Spa Baby, Mom, & Woman",
 					"Description": i18n.T(lang, "seo.desc"),
@@ -206,7 +211,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				)
 			case "services.html":
 				data["BaseURL"] = seoTestBaseURL
-				data["LogoPath"] = seoLogoPath
+				data["ImagePath"] = seoImagePath
 				data["SEO"] = pageData{
 					"Title":       "Services — Wangga Spa Baby, Mom, & Woman",
 					"Description": i18n.T(lang, "seo.desc"),
@@ -326,8 +331,24 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, `<meta property="og:url" content="`+wantCanonical+`"`) {
 					t.Errorf("%s (%s): missing og:url %s", name, lang, wantCanonical)
 				}
-				if !contains(out, `<meta property="og:image" content="`+seoTestBaseURL+`/static/img/logo.png"`) {
-					t.Errorf("%s (%s): missing og:image", name, lang)
+				// One card, two consumers: the og:image tags describe it in full
+				// (dimensions + alt), and the JSON-LD entity must name the very
+				// same URL so a crawler and a chat preview never disagree.
+				wantCard := seoTestBaseURL + "/static/img/share-card.jpg"
+				if !contains(out, `<meta property="og:image" content="`+wantCard+`"`) {
+					t.Errorf("%s (%s): og:image must be the branded share card %s", name, lang, wantCard)
+				}
+				if !contains(out, `<meta property="og:image:width" content="1200"`) {
+					t.Errorf("%s (%s): missing og:image:width 1200", name, lang)
+				}
+				if !contains(out, `<meta property="og:image:height" content="630"`) {
+					t.Errorf("%s (%s): missing og:image:height 630", name, lang)
+				}
+				if !contains(out, `<meta property="og:image:alt" content="`+html.EscapeString(seoTestCardAlt)+`"`) {
+					t.Errorf("%s (%s): missing og:image:alt", name, lang)
+				}
+				if !contains(out, `"image":"`+wantCard+`"`) {
+					t.Errorf("%s (%s): JSON-LD image must be the og:image URL %s", name, lang, wantCard)
 				}
 			}
 			if name == "home.html" {

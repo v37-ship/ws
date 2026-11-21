@@ -3,6 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/jpeg"
 	"strings"
 	"testing"
 
@@ -126,6 +128,32 @@ func TestSiteStructuredData(t *testing.T) {
 		if !strings.Contains(raw, want) {
 			t.Errorf("site block missing %s", want)
 		}
+	}
+}
+
+// TestShareCardIsThePreviewImage keeps one card behind every consumer: the
+// embedded asset really is 1200x630 (so the og:image:width/height tags cannot
+// lie) and the LocalBusiness JSON-LD names the same file as the og meta.
+func TestShareCardIsThePreviewImage(t *testing.T) {
+	const wantPath = "/static/img/share-card.jpg"
+	blocks := siteStructuredData(seoTestBaseURL, "", seoTestWhatsApp, sdLocations(), nil)
+	if got := blocks[0]["image"]; got != seoTestBaseURL+wantPath {
+		t.Errorf("JSON-LD image = %v, want %s", got, seoTestBaseURL+wantPath)
+	}
+	f, err := staticFS.Open(strings.TrimPrefix(wantPath, "/"))
+	if err != nil {
+		t.Fatalf("share card missing from the embedded static tree: %v", err)
+	}
+	defer f.Close()
+	cfg, format, err := image.DecodeConfig(f)
+	if err != nil {
+		t.Fatalf("decode share card: %v", err)
+	}
+	if format != "jpeg" {
+		t.Errorf("share card format = %s, want jpeg", format)
+	}
+	if cfg.Width != 1200 || cfg.Height != 630 {
+		t.Errorf("share card is %dx%d, want 1200x630 (og:image:width/height)", cfg.Width, cfg.Height)
 	}
 }
 

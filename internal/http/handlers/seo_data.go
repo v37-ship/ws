@@ -24,8 +24,10 @@ const (
 	// faqCount is the number of Q&A pairs on the home page: faq.q1..faq.qN and
 	// faq.a1..faq.aN feed both the visible accordion and the JSON-LD graph.
 	faqCount = 5
-	// seoLogoPath is the business logo and the Open Graph preview image.
-	seoLogoPath = "/static/img/logo.png"
+	// seoImagePath is the branded 1200x630 share card. One asset feeds both the
+	// Open Graph preview (head.html) and the JSON-LD entity image, so a link
+	// preview and a crawler can never disagree.
+	seoImagePath = "/static/img/share-card.jpg"
 )
 
 // seoHoursRange matches the wall-clock window inside a human hours string
@@ -84,7 +86,7 @@ func siteStructuredData(baseURL, hours, waPhone string, locs []domain.Location, 
 			"@id":          id,
 			"name":         seoBrandName + " — " + loc.Name,
 			"url":          base + "/",
-			"image":        base + seoLogoPath,
+			"image":        base + seoImagePath,
 			"priceRange":   seoPriceRange,
 			"openingHours": open,
 			"address": map[string]any{
