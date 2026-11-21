@@ -196,6 +196,26 @@ func (s *Server) tvClearDeviceCookie(w http.ResponseWriter) {
 	})
 }
 
+// tvClearPendingCookie expires the tv_pending cookie with the same path and
+// flags the start sets, so every clear is a real deletion (not a lookalike
+// cookie scoped somewhere else).
+func (s *Server) tvClearPendingCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name: tvPendingCookie, Value: "", Path: "/", HttpOnly: true,
+		SameSite: http.SameSiteLaxMode, Secure: s.csrfSecure, MaxAge: -1,
+	})
+}
+
+// tvPairPath is where the handshake sends the screen next: a fresh /tv start.
+// The pairing page's poll inherits ?layout=rotate from its own URL, so a
+// rotate bookmark that re-pairs must not silently land in the split shell.
+func tvPairPath(r *http.Request) string {
+	if normalizeTVLayout(r.URL.Query().Get("layout")) == "rotate" {
+		return "/tv?layout=rotate"
+	}
+	return "/tv"
+}
+
 // tvPairingCreate / tvPairingByKey are the handshake's two repo seams, in the
 // tvTokenActive style: the tests pin every state without a database.
 var (
@@ -258,7 +278,10 @@ func (s *Server) tvPairingStart(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode, Secure: s.csrfSecure,
 		MaxAge: int(tvPendingTTL.Seconds()),
 	})
-	s.render(w, r, "tv_pairing.html", pageData{"Code": p.Code, "State": "pending"})
+	s.render(w, r, "tv_pairing.html", pageData{
+		"Code": p.Code, "State": "pending",
+		"Layout": normalizeTVLayout(r.URL.Query().Get("layout")),
+	})
 }
 
 // TVPairState is the pairing screen's 4s poll. It reads the pending cookie and
@@ -267,8 +290,12 @@ func (s *Server) tvPairingStart(w http.ResponseWriter, r *http.Request) {
 //   - pending — a tiny "waiting" fragment (the screen keeps showing its code)
 //   - paired  — the device cookie is Set and the page is sent back to /tv,
 //     where the credential chain renders the real (redacted) view
-//   - expired — the notice plus a start-over link; the stale pending cookie is
-//     cleared so the next /tv is a clean start, never a loop on a dead key
+//   - expired — the poll re-arms itself: the stale pending cookie is cleared
+//     and the answer is the same 204 + HX-Redirect used by the paired branch,
+//     so the screen loads a FRESH pairing (new code, new 5-minute TTL) within
+//     one 4s tick instead of waiting for someone with the TV remote. A
+//     non-HTMX hit (a human on the endpoint) still gets the notice fragment,
+//     which is the only path that renders it.
 func (s *Server) TVPairState(w http.ResponseWriter, r *http.Request) {
 	key := ""
 	if c, err := r.Cookie(tvPendingCookie); err == nil {
@@ -291,11 +318,24 @@ func (s *Server) TVPairState(w http.ResponseWriter, r *http.Request) {
 			Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
 			Secure: s.csrfSecure, MaxAge: int(tvDeviceTTL.Seconds()),
 		})
-		htmx.Redirect(w, "/tv")
+		// The handshake is over: the pending key is no longer a credential the
+		// screen should keep presenting alongside its device cookie.
+		s.tvClearPendingCookie(w)
+		htmx.Redirect(w, tvPairPath(r))
 		w.WriteHeader(http.StatusNoContent)
 	case "expired":
-		http.SetCookie(w, &http.Cookie{Name: tvPendingCookie, Value: "", Path: "/", MaxAge: -1})
-		s.renderPartial(w, r, "tv_pair_state.html", pageData{"State": "expired"})
+		s.tvClearPendingCookie(w)
+		if htmx.IsRequest(r) {
+			// Self-repair: the poll drives the screen back to a bare /tv, which
+			// mints a fresh code. No remote control, no counter visit.
+			htmx.Redirect(w, tvPairPath(r))
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		s.renderPartial(w, r, "tv_pair_state.html", pageData{
+			"State":  "expired",
+			"Layout": normalizeTVLayout(r.URL.Query().Get("layout")),
+		})
 	default:
 		s.renderPartial(w, r, "tv_pair_state.html", pageData{"State": "pending"})
 	}

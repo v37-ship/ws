@@ -27,7 +27,6 @@ const (
 	failTVDevRevoke = "Could not revoke that TV. Try again."
 	failTVDevGone   = "That TV is no longer listed. Refresh the page."
 	failTVDevID     = "Unknown TV device"
-	msgTVDevRevoke  = "TV revoked"
 )
 
 // The handshake's seams, in the tvTokenList/tvTokenRevoke style: the repos are
@@ -201,6 +200,7 @@ func (s *Server) PortalTVDeviceRevoke(w http.ResponseWriter, r *http.Request) {
 		s.staffFail(w, r, http.StatusForbidden, "Only an admin can revoke a TV.")
 		return
 	}
+	lang := i18n.Resolve(r)
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		s.staffFail(w, r, http.StatusBadRequest, failTVDevID)
@@ -219,7 +219,7 @@ func (s *Server) PortalTVDeviceRevoke(w http.ResponseWriter, r *http.Request) {
 		s.staffFail(w, r, http.StatusInternalServerError, failTVDevRevoke)
 		return
 	}
-	s.redirectHTMX(w, r, back+"?success="+url.QueryEscape(msgTVDevRevoke))
+	s.redirectHTMX(w, r, back+"?success="+url.QueryEscape(i18n.T(lang, "tv.pr.revok")))
 }
 
 // tvSixDigits is the code's whole shape rule: exactly six ASCII digits. The

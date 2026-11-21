@@ -535,6 +535,29 @@ func TestPortalTVDeviceRevokeRedirectsForAdmin(t *testing.T) {
 	}
 }
 
+// The revoke banner is user-facing copy, so it follows the request's language
+// exactly like the pair success line (tv.pr.ok). The key pair itself is pinned
+// by TestDictParity.
+func TestPortalTVDeviceRevokeLocalizesBanner(t *testing.T) {
+	h := newRouteTestServer(t)
+	swapTVDeviceRevoke(t, nil)
+	dev := tvPortalDevice()
+
+	req := tvPortalUserRequest(t, http.MethodPost, "/portal/tv/device/"+dev.ID.String()+"/revoke?lang=id",
+		&domain.User{ID: uuid.New(), Role: domain.RoleAdmin}, url.Values{})
+	req.Header.Set("HX-Request", "true")
+	rec := runRoute(h, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (htmx redirect)", rec.Code)
+	}
+	loc := rec.Header().Get("HX-Redirect")
+	msg, err := url.QueryUnescape(strings.TrimPrefix(loc, "/portal/tv?success="))
+	if err != nil || msg != "TV dicabut" {
+		t.Errorf("success copy = %q (%v), want %q", msg, err, "TV dicabut")
+	}
+}
+
 func TestPortalTVDeviceRevokeFailureToasts(t *testing.T) {
 	h := newRouteTestServer(t)
 	swapTVDeviceRevoke(t, errors.New("db down"))

@@ -281,12 +281,45 @@ func TestTVPairStatePairedSetsDeviceCookie(t *testing.T) {
 	if c.MaxAge != 30*24*60*60 {
 		t.Errorf("tv_device MaxAge = %d, want 30 days", c.MaxAge)
 	}
+	// The handshake is over: the device cookie replaces the pending key, and
+	// the stale tv_pending (15m) must not ride along as a second credential.
+	if c := tvCookie(rec, "tv_pending"); c == nil {
+		t.Fatal("paired response must clear the stale tv_pending cookie")
+	} else if c.Value != "" || c.MaxAge >= 0 {
+		t.Errorf("tv_pending = (%q, MaxAge %d), want cleared", c.Value, c.MaxAge)
+	}
 }
 
-// Dead ends all answer the same expired fragment: unknown key, an expiry that
-// elapsed (with or without a claim), and no cookie at all. The fragment clears
-// the stale cookie and offers a start-over link, so the screen can never loop
-// on an old key.
+// The redirect target follows the shell the pairing page was opened with: a
+// rotate bookmark that re-pairs must not silently land in the split layout.
+func TestTVPairStatePairedCarriesLayout(t *testing.T) {
+	for _, tc := range []struct{ name, query, want string }{
+		{"default shell", "", "/tv"},
+		{"rotate shell", "?layout=rotate", "/tv?layout=rotate"},
+		{"unknown layout stays split", "?layout=ROTATE", "/tv"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newRouteTestServer(t)
+			p := tvPairingFixture()
+			p.ConsumedAt = time.Now()
+			dev := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+			p.DeviceID = &dev
+			swapTVPairingByKey(t, &p, nil, nil)
+
+			req := httptest.NewRequest(http.MethodGet, "/tv/pair-state"+tc.query, nil)
+			req.AddCookie(&http.Cookie{Name: "tv_pending", Value: tvPairKey})
+			rec := runRoute(h, req)
+
+			if got := rec.Header().Get("HX-Redirect"); got != tc.want {
+				t.Errorf("HX-Redirect = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// Dead ends all answer expired: a non-HTMX hit gets the notice fragment (the
+// only path that renders it) and the stale cookie is cleared either way; the
+// live 4s poll instead self-rearms — see TestTVPairStateExpiredRearms.
 func TestTVPairStateExpired(t *testing.T) {
 	t.Run("unknown pending key", func(t *testing.T) {
 		h := newRouteTestServer(t)
@@ -327,6 +360,80 @@ func TestTVPairStateExpired(t *testing.T) {
 		t.Cleanup(func() { tvPairingByKey = prev })
 		assertTVPairExpired(t, runRoute(h, httptest.NewRequest(http.MethodGet, "/tv/pair-state?lang=id", nil)))
 	})
+}
+
+// The screen must never wedge. The expired poll is not a dead-end notice: it
+// clears the dead pending key and answers the paired branch's own mechanism
+// (204 + HX-Redirect), so the wall loads a FRESH pairing — new key, new code,
+// new 5-minute TTL — within one 4s tick and nobody has to reach for the TV
+// remote. The redirect carries ?layout=rotate through the re-pair.
+func TestTVPairStateExpiredRearms(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, wantRedirect, wantPoll string
+	}{
+		{"default shell", "", "/tv", `hx-get="/tv/pair-state"`},
+		{"rotate shell", "?layout=rotate", "/tv?layout=rotate", `hx-get="/tv/pair-state?layout=rotate"`},
+		{"unknown layout stays split", "?layout=ROTATE", "/tv", `hx-get="/tv/pair-state"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newRouteTestServer(t)
+			swapTVClock(t, tvQueueNow)
+			swapTVPairingByKey(t, nil, repo.ErrNotFound, nil)
+			var created []domain.TVPairing
+			swapTVPairingCreate(t, &created, nil)
+
+			req := httptest.NewRequest(http.MethodGet, "/tv/pair-state"+tc.query, nil)
+			req.Header.Set("HX-Request", "true")
+			req.AddCookie(&http.Cookie{Name: "tv_pending", Value: tvPairKey})
+			rec := runRoute(h, req)
+
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204 (redirect without a swap)", rec.Code)
+			}
+			if got := rec.Header().Get("HX-Redirect"); got != tc.wantRedirect {
+				t.Fatalf("HX-Redirect = %q, want %q", got, tc.wantRedirect)
+			}
+			if body := rec.Body.String(); body != "" {
+				t.Errorf("re-arming response must not write a body, got %q", body)
+			}
+			// The clear must be a real deletion with the start's own flags.
+			c := tvCookie(rec, "tv_pending")
+			if c == nil {
+				t.Fatal("expired poll must clear the stale pending cookie")
+			}
+			if c.Value != "" || c.MaxAge >= 0 || !c.HttpOnly || c.Path != "/" {
+				t.Errorf("tv_pending clear = (%q, MaxAge %d, HttpOnly %v, Path %q), want empty/0/true//",
+					c.Value, c.MaxAge, c.HttpOnly, c.Path)
+			}
+
+			// The browser follows the redirect with the cleared cookie gone: a
+			// bare /tv must mint a new pairing row (the loop cannot re-serve the
+			// dead key).
+			rec2 := runRoute(h, httptest.NewRequest(http.MethodGet, tc.wantRedirect, nil))
+			if rec2.Code != http.StatusOK {
+				t.Fatalf("reload status = %d, want 200", rec2.Code)
+			}
+			if len(created) != 1 {
+				t.Fatalf("pairings created on reload = %d, want 1", len(created))
+			}
+			p := created[0]
+			if p.PendingKey == tvPairKey {
+				t.Error("reload reused the dead pending key")
+			}
+			if !tvPairCodeRe.MatchString(p.Code) {
+				t.Errorf("fresh code = %q, want six digits", p.Code)
+			}
+			if want := tvQueueNow.Add(5 * time.Minute); !p.ExpiresAt.Equal(want) {
+				t.Errorf("fresh expires_at = %s, want %s (5-minute TTL)", p.ExpiresAt, want)
+			}
+			if out := rec2.Body.String(); !contains(out, p.Code) {
+				t.Error("the fresh pairing page does not show its new code")
+			}
+			if out := rec2.Body.String(); !contains(out, tc.wantPoll) {
+				t.Errorf("fresh pairing page missing %q", tc.wantPoll)
+			}
+		})
+	}
 }
 
 // A DB blip is not an expired code: answer 500 so htmx keeps the current

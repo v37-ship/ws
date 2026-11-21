@@ -1,10 +1,12 @@
 {{define "tv_pair_state.html"}}
-{{/* The pairing poll's fragment. Pending keeps the screen waiting; expired
-     clears the stale pending cookie (in the handler) and offers a start-over
-     link, so a dead code can never loop the screen. */}}
+{{/* The pairing poll's fragment. Pending keeps the screen waiting; expired is
+     only ever rendered for a non-HTMX hit on the endpoint — the 4s poll
+     clears the stale pending cookie in the handler and answers 204 +
+     HX-Redirect:/tv, so the wall mints a fresh code by itself. The link here
+     carries ?layout=rotate through the same re-pair. */}}
 {{if eq .State "expired"}}
 <p class="tv-pair-note">{{t .Lang "tv.pr.exp"}}</p>
-<a class="tv-pair-again" href="/tv">{{t .Lang "tv.pr.again"}}</a>
+<a class="tv-pair-again" href="/tv{{if eq .Layout "rotate"}}?layout=rotate{{end}}">{{t .Lang "tv.pr.again"}}</a>
 {{else}}
 <p class="tv-pair-note">{{icon "clock"}} {{t .Lang "tv.pr.wait"}}</p>
 {{end}}
