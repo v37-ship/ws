@@ -90,8 +90,14 @@ input:where([type="button"], [type="reset"], [type="submit"]),
 ::file-selector-button { margin-inline-end: 4px; }
 
 /* Replaces preflight `::placeholder { opacity:1; color:50% currentColor }`:
-   every form placeholder (book, admin, portal) keeps the muted tone. */
-::placeholder { opacity: 1; color: color-mix(in oklab, currentcolor 50%, transparent); }
+   every form placeholder (book, admin, portal) keeps the muted tone.
+   Safari 16.4/16.5 crash on any currentcolor+color-mix() declaration
+   (tailwindcss#17194); the guard keeps it non-emitted there, so do NOT hoist
+   the color line back out of the @supports block. */
+::placeholder { opacity: 1; }
+@supports (not (-webkit-appearance: -apple-pay-button)) or (contain-intrinsic-size: 1px) {
+  ::placeholder { color: color-mix(in oklab, currentcolor 50%, transparent); }
+}
 
 /* Replaces preflight `textarea { resize:vertical }`: textareas must not grow
    horizontally (Chrome's UA default is `both`). */
