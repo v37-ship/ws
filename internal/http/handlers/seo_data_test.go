@@ -152,8 +152,8 @@ func TestShareCardIsThePreviewImage(t *testing.T) {
 	if format != "jpeg" {
 		t.Errorf("share card format = %s, want jpeg", format)
 	}
-	if cfg.Width != 1080 || cfg.Height != 773 {
-		t.Errorf("share card is %dx%d, want 1080x773 (og:image:width/height)", cfg.Width, cfg.Height)
+	if cfg.Width != 1200 || cfg.Height != 630 {
+		t.Errorf("share card is %dx%d, want 1200x630 (og:image:width/height)", cfg.Width, cfg.Height)
 	}
 }
 

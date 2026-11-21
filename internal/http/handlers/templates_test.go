@@ -338,11 +338,11 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, `<meta property="og:image" content="`+wantCard+`"`) {
 					t.Errorf("%s (%s): og:image must be the branded share card %s", name, lang, wantCard)
 				}
-				if !contains(out, `<meta property="og:image:width" content="1080"`) {
-					t.Errorf("%s (%s): missing og:image:width 1080", name, lang)
+				if !contains(out, `<meta property="og:image:width" content="1200"`) {
+					t.Errorf("%s (%s): missing og:image:width 1200", name, lang)
 				}
-				if !contains(out, `<meta property="og:image:height" content="773"`) {
-					t.Errorf("%s (%s): missing og:image:height 773", name, lang)
+				if !contains(out, `<meta property="og:image:height" content="630"`) {
+					t.Errorf("%s (%s): missing og:image:height 630", name, lang)
 				}
 				if !contains(out, `<meta property="og:image:alt" content="`+html.EscapeString(seoTestCardAlt)+`"`) {
 					t.Errorf("%s (%s): missing og:image:alt", name, lang)
