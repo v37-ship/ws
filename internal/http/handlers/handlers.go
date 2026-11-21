@@ -962,6 +962,59 @@ func (s *Server) PortalUpdateBookingStatus(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?toast=%s&kind=%s", id, url.QueryEscape("Status updated to "+string(newStatus)), "success"), http.StatusSeeOther)
 }
 
+// undoStatus is the undo handler's single data dependency: the status the
+// booking is in now (needed for the un-cancel guidance) and the revert itself.
+// It is a variable so the handler test can pin both the refused and successful
+// outcomes without a database (the repos are concrete pgx types, no interface
+// seam); production always uses the live service calls below.
+var undoStatus = func(s *Server, r *http.Request, id uuid.UUID, actorID *uuid.UUID) (prev, from domain.BookingStatus, err error) {
+	b, err := s.book.GetBooking(r.Context(), id)
+	if err != nil {
+		return "", "", err
+	}
+	prev, err = s.book.UndoLastStatus(r.Context(), id, actorID)
+	return prev, b.Status, err
+}
+
+// PortalUndoBookingStatus reverts the booking's most recent status change. It
+// shares the status handler's toast contract: success refreshes so the badge
+// and action panel swap, refusal answers a real 422 with an error toast. Undo
+// is quiet toward the customer (ruling 3); when it un-cancels, the toast tells
+// staff the customer already heard about the cancellation.
+func (s *Server) PortalUndoBookingStatus(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	var actorID *uuid.UUID
+	if u != nil {
+		actorID = &u.ID
+	}
+	prev, from, err := undoStatus(s, r, id, actorID)
+	if err != nil {
+		s.staffFail(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	lang := i18n.Resolve(r)
+	msg := i18n.T(lang, "p.undo.t") + " " + prev.Display()
+	if from == domain.BookingCancelled {
+		msg += " — " + i18n.T(lang, "p.undo.w")
+	}
+	if htmx.IsRequest(r) {
+		s.toast(w, "success", msg)
+		htmx.Refresh(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?toast=%s&kind=%s", id, url.QueryEscape(msg), "success"), http.StatusSeeOther)
+}
+
 func (s *Server) PortalRescheduleBooking(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.requireCSRF(r) {
 		s.staffFail(w, r, http.StatusBadRequest, failSession)

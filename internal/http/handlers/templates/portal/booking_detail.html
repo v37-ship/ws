@@ -79,7 +79,7 @@
               {{end}}
 
               {{if or (eq (printf "%s" .Booking.Status) "in_service") (eq (printf "%s" .Booking.Status) "checked_in")}}
-                <button type="submit" name="status" value="completed" class="btn" style="background:#16a34a;" hx-disabled-elt="this">
+                <button type="submit" name="status" value="completed" class="btn" style="background:#16a34a;" hx-confirm="{{t .Lang "p.det.cff"}}" hx-disabled-elt="this">
                   {{icon "check-circle"}} {{t .Lang "p.det.fin"}}
                 </button>
               {{end}}
@@ -93,6 +93,13 @@
                 </button>
               {{end}}
             </div>
+          </form>
+
+          <form method="post" action="/portal/bookings/{{.Booking.ID}}/status/undo" hx-post="/portal/bookings/{{.Booking.ID}}/status/undo" hx-swap="none">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <button type="submit" class="btn secondary on-light btn-sm" hx-disabled-elt="this">
+              {{icon "undo"}} {{t .Lang "p.undo.l"}}
+            </button>
           </form>
         </div>
 

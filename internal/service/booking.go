@@ -461,28 +461,105 @@ func (s *BookingService) CreateStaffBooking(ctx context.Context, req StaffBookin
 	return b, p, nil
 }
 
+// statusLogPrefix is the action text BookingRepo.UpdateStatusWithLog writes for
+// every status change. The audit log stores only the new status — there is no
+// previous-status column — so undo derives the previous one from this chain.
+const statusLogPrefix = "Status changed to "
+
+// previousStatusFromLogs derives the status a booking was in before its most
+// recent status change. Entries arrive newest-first (BookingRepo.ListLogs).
+//
+// The newest status entry must equal current: if anything moved the booking
+// since, the chain no longer matches and undo must refuse rather than overwrite
+// a concurrent change. Non-status entries interleaved in the log (notes,
+// reschedules) are skipped, and a lone status entry has no predecessor.
+func previousStatusFromLogs(entries []domain.BookingLog, current domain.BookingStatus) (domain.BookingStatus, bool) {
+	matched := false
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Action, statusLogPrefix) {
+			continue
+		}
+		status := domain.BookingStatus(strings.TrimSpace(strings.TrimPrefix(e.Action, statusLogPrefix)))
+		if !knownBookingStatus(status) {
+			continue
+		}
+		if !matched {
+			if status != current {
+				return "", false
+			}
+			matched = true
+			continue
+		}
+		return status, true
+	}
+	return "", false
+}
+
+// knownBookingStatus reports whether s is one of the eight lifecycle statuses.
+func knownBookingStatus(s domain.BookingStatus) bool {
+	switch s {
+	case domain.BookingPendingPayment, domain.BookingConfirmed, domain.BookingCheckedIn, domain.BookingInService,
+		domain.BookingCompleted, domain.BookingCancelled, domain.BookingExpired, domain.BookingNoShow:
+		return true
+	}
+	return false
+}
+
 func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, newStatus domain.BookingStatus, actorID *uuid.UUID, note string) error {
 	b, err := s.bookings.ByID(ctx, bookingID)
 	if err != nil {
 		return err
 	}
-	switch newStatus {
-	case domain.BookingPendingPayment, domain.BookingConfirmed, domain.BookingCheckedIn, domain.BookingInService,
-		domain.BookingCompleted, domain.BookingCancelled, domain.BookingExpired, domain.BookingNoShow:
-	default:
+	if !knownBookingStatus(newStatus) {
 		return fmt.Errorf("%w: unknown booking status %s", ErrValidation, newStatus)
 	}
+	return s.applyStatus(ctx, b, newStatus, actorID, note, true)
+}
 
-	if err := s.bookings.UpdateStatusWithLog(ctx, bookingID, newStatus, actorID, note); err != nil {
+// UndoLastStatus reverts the booking's most recent status change. It is
+// deliberately quiet toward the customer (ruling 3): the reverted transition
+// runs no lifecycle fan-out, so it never sends a new message. Un-finishing a
+// visit drops the pending +2h review request, because a review ask for an
+// unfinished visit is wrong. Un-cancelling sends nothing — the original
+// confirmation dedupe key is permanent — so the handler's toast tells staff to
+// resend the confirmation from the detail page instead.
+func (s *BookingService) UndoLastStatus(ctx context.Context, bookingID uuid.UUID, actorID *uuid.UUID) (domain.BookingStatus, error) {
+	b, err := s.bookings.ByID(ctx, bookingID)
+	if err != nil {
+		return "", err
+	}
+	logs, err := s.bookings.ListLogs(ctx, bookingID)
+	if err != nil {
+		return "", err
+	}
+	prev, ok := previousStatusFromLogs(logs, b.Status)
+	if !ok {
+		return "", fmt.Errorf("%w: no undoable status change", ErrValidation)
+	}
+	if err := s.applyStatus(ctx, b, prev, actorID, "Undo: restored from "+string(b.Status), false); err != nil {
+		return "", err
+	}
+	if b.Status == domain.BookingCompleted {
+		s.cancelReview(ctx, bookingID)
+	}
+	return prev, nil
+}
+
+// applyStatus writes the status and its audit row, then (when fanOut is true)
+// runs the lifecycle side effects. Every forward transition funnels through
+// here so the customer and the staff group hear about it exactly once, and so
+// scheduled reminders never outlive the booking they belong to. Undo passes
+// false: a revert is a correction, not a new event.
+func (s *BookingService) applyStatus(ctx context.Context, b *domain.Booking, newStatus domain.BookingStatus, actorID *uuid.UUID, note string, fanOut bool) error {
+	if err := s.bookings.UpdateStatusWithLog(ctx, b.ID, newStatus, actorID, note); err != nil {
 		return err
 	}
-
-	// Every lifecycle transition funnels through here so the customer and the
-	// staff group hear about it exactly once, and so scheduled reminders never
-	// outlive the booking they belong to.
+	if !fanOut {
+		return nil
+	}
 	switch newStatus {
 	case domain.BookingCancelled:
-		s.cancelReminder(ctx, bookingID)
+		s.cancelReminder(ctx, b.ID)
 		s.notifyCustomerCancelled(ctx, b, note)
 		s.notifyGroupSlot(ctx, b, "cancelled", actorLabel(actorID), time.Time{})
 		if email, name := s.bookingRecipient(ctx, b); email != "" {
@@ -490,11 +567,11 @@ func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, 
 				fmt.Sprintf("Hi %s, your Wangga booking for %s on %s was cancelled. Note: %s", name, b.ServiceName, b.StartAt.Format(time.RFC1123), note))
 		}
 	case domain.BookingExpired:
-		s.cancelReminder(ctx, bookingID)
+		s.cancelReminder(ctx, b.ID)
 		s.notifyCustomerExpired(ctx, b)
 		s.notifyGroupSlot(ctx, b, "expired", "sistem", time.Time{})
 	case domain.BookingNoShow:
-		s.cancelReminder(ctx, bookingID)
+		s.cancelReminder(ctx, b.ID)
 		s.notifyGroupSlot(ctx, b, "no_show", actorLabel(actorID), time.Time{})
 	case domain.BookingCompleted:
 		s.notifyReviewRequest(ctx, b)
@@ -503,7 +580,7 @@ func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, 
 		// the group ping all key off the new status.
 		bb := *b
 		bb.Status = domain.BookingConfirmed
-		p, _ := s.payments.ByBookingID(ctx, bookingID)
+		p, _ := s.payments.ByBookingID(ctx, b.ID)
 		name, phone := s.contact(ctx, &bb)
 		s.onConfirmed(ctx, &bb, p, name, phone)
 	}

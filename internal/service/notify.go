@@ -240,6 +240,18 @@ func (s *BookingService) cancelReminder(ctx context.Context, id uuid.UUID) {
 	}
 }
 
+// cancelReview drops the post-visit review ask scheduled when a visit was
+// finished. Undo un-finishes a visit, and asking for a review of a visit that
+// is no longer complete is wrong (ruling 3, quiet undo).
+func (s *BookingService) cancelReview(ctx context.Context, id uuid.UUID) {
+	if s.opts.Wa == nil {
+		return
+	}
+	if _, err := s.opts.Wa.CancelPending(ctx, id, reviewKey(id)); err != nil {
+		s.log.Warn("wa cancel review request", "booking", id, "err", err)
+	}
+}
+
 // ReschedulePendingReminders moves the pending H-1 reminders of future
 // bookings after the reminder hour changed. Already-sent rows are never
 // revived (UpsertScheduled only moves pending/failed rows).

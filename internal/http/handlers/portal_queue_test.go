@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +12,9 @@ import (
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/repo"
+	"spa-booking/internal/service"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -34,6 +38,7 @@ var queueCopy = map[string]map[string]string{
 		"claimnone":   "No payment claims waiting.",
 		"receiptnone": "No receipt uploaded",
 		"todaynone":   "No bookings scheduled for today yet.",
+		"undo":        "Undo last status change",
 	},
 	"id": {
 		"ci":          "Tandai Check-In (Di Lobi)",
@@ -51,6 +56,7 @@ var queueCopy = map[string]map[string]string{
 		"claimnone":   "Belum ada klaim pembayaran.",
 		"receiptnone": "Belum ada bukti transfer",
 		"todaynone":   "Belum ada booking terjadwal hari ini.",
+		"undo":        "Kembalikan status terakhir",
 	},
 }
 
@@ -405,6 +411,166 @@ func TestQueueHandlerPlain(t *testing.T) {
 	}
 	if contains(out, `value="checked_in"`) == false {
 		t.Error("plain queue response lost the status buttons")
+	}
+}
+
+// undoStatusTestServer wires the undo data seam to a fixed outcome, exactly
+// like queueBookings pins the queue's data call (the repos are concrete pgx
+// types, so there is no interface to fake).
+func undoStatusTestServer(t *testing.T, from, prev domain.BookingStatus, err error) *Server {
+	t.Helper()
+	s := newFailTestServer(t)
+	orig := undoStatus
+	undoStatus = func(_ *Server, _ *http.Request, _ uuid.UUID, _ *uuid.UUID) (domain.BookingStatus, domain.BookingStatus, error) {
+		return prev, from, err
+	}
+	t.Cleanup(func() { undoStatus = orig })
+	return s
+}
+
+func undoRequest(t *testing.T, id uuid.UUID, lang string) *http.Request {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost,
+		"/portal/bookings/"+id.String()+"/status/undo?lang="+lang,
+		strings.NewReader("csrf=tok"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	req.AddCookie(&http.Cookie{Name: "csrf", Value: "tok"})
+	// Handlers read the booking id from chi's route context; a direct handler
+	// test has to supply it (no router in the path).
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id.String())
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+}
+
+// The queue row always carries the undo control, whatever the status: it is the
+// one-tap safety net for a mis-click made in the queue itself (ruling 4). A
+// refusal is explained by the toast, so the control never hides.
+func TestQueueRowUndoControl(t *testing.T) {
+	s := newFailTestServer(t)
+	statuses := []domain.BookingStatus{
+		domain.BookingConfirmed, domain.BookingInService,
+		domain.BookingCompleted, domain.BookingCancelled,
+	}
+	for _, lang := range []string{"en", "id"} {
+		copy := queueCopy[lang]
+		for _, st := range statuses {
+			b := queueBooking(st, domain.PaymentPaid)
+			out := renderQueue(t, s, pageData{
+				"Lang": lang, "CSRF": "tok", "TodayBookings": []domain.Booking{b},
+			})
+			if !contains(out, `hx-post="/portal/bookings/`+b.ID.String()+`/status/undo"`) {
+				t.Errorf("queue row (%s, %s): missing undo control", lang, st)
+			}
+			if !contains(out, copy["undo"]) {
+				t.Errorf("queue row (%s, %s): undo control lost its label %q", lang, st, copy["undo"])
+			}
+		}
+	}
+}
+
+// A mismatched chain (someone moved the booking since) must answer an error
+// toast and NO refresh: the status did not change, so the row/page must not be
+// presented as if it had. staffFail keeps the 422 and skips the body.
+func TestUndoStatusHandlerRefusal(t *testing.T) {
+	id := uuid.New()
+	s := undoStatusTestServer(t, "", "", fmt.Errorf("%w: no undoable status change", service.ErrValidation))
+
+	rec := httptest.NewRecorder()
+	s.PortalUndoBookingStatus(rec, undoRequest(t, id, "en"))
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	if body := rec.Body.String(); body != "" {
+		t.Errorf("HTMX failure must not write a body, got %q", body)
+	}
+	if got := rec.Header().Get("HX-Refresh"); got != "" {
+		t.Errorf("refused undo must not refresh (nothing changed), got HX-Refresh %q", got)
+	}
+	kind, msg := decodeToast(t, rec)
+	if kind != "error" {
+		t.Errorf("toast kind = %q, want error", kind)
+	}
+	if !strings.Contains(msg, "no undoable status change") {
+		t.Errorf("toast message = %q, want the refusal reason", msg)
+	}
+}
+
+// A successful undo refreshes (badge and action panel swap) and says what it
+// restored. Undoing a cancellation appends the quiet-undo guidance instead of
+// silently resending a confirmation (ruling 3).
+func TestUndoStatusHandlerSuccess(t *testing.T) {
+	cases := []struct {
+		name    string
+		from    domain.BookingStatus
+		prev    domain.BookingStatus
+		wantWav bool
+	}{
+		{name: "un-finish", from: domain.BookingCompleted, prev: domain.BookingInService},
+		{name: "un-cancel", from: domain.BookingCancelled, prev: domain.BookingConfirmed, wantWav: true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := undoStatusTestServer(t, c.from, c.prev, nil)
+			rec := httptest.NewRecorder()
+			s.PortalUndoBookingStatus(rec, undoRequest(t, uuid.New(), "en"))
+
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204", rec.Code)
+			}
+			if got := rec.Header().Get("HX-Refresh"); got != "true" {
+				t.Errorf("HX-Refresh = %q, want true", got)
+			}
+			kind, msg := decodeToast(t, rec)
+			if kind != "success" {
+				t.Errorf("toast kind = %q, want success", kind)
+			}
+			if !strings.Contains(msg, "Status restored to "+c.prev.Display()) {
+				t.Errorf("toast message = %q, want the restored status", msg)
+			}
+			warn := strings.Contains(msg, "already notified of the cancellation")
+			if warn != c.wantWav {
+				t.Errorf("toast guidance present = %v, want %v (%q)", warn, c.wantWav, msg)
+			}
+		})
+	}
+}
+
+// The detail page is where an admin or CS notices the mistake later: it gets
+// the same undo control beside the status panel, and its Finish button now asks
+// first like the queue row already did (design part 2).
+func TestBookingDetailUndoControl(t *testing.T) {
+	s := newFailTestServer(t)
+	b := queueBooking(domain.BookingInService, domain.PaymentPaid)
+	for _, lang := range []string{"en", "id"} {
+		copy := queueCopy[lang]
+		var buf bytes.Buffer
+		data := pageData{
+			"Lang": lang, "CSRF": "tok", "Booking": &b, "Refundable": int64(0),
+			"Contact": pageData{
+				"WhatsApp": "62800", "Email": "a@b.c", "Address": "addr", "Hours": "hours",
+				"Maps": "https://maps.example/", "Instagram": "https://instagram.example/",
+				"TikTok": "https://tiktok.example/", "Facebook": "https://facebook.example/",
+			},
+		}
+		if err := s.tpl.ExecuteTemplate(&buf, "portal_booking_detail.html", data); err != nil {
+			t.Fatalf("execute booking detail (%s): %v", lang, err)
+		}
+		out := buf.String()
+		if !contains(out, `hx-post="/portal/bookings/`+b.ID.String()+`/status/undo"`) {
+			t.Errorf("detail (%s): missing undo control", lang)
+		}
+		if !contains(out, copy["undo"]) {
+			t.Errorf("detail (%s): undo control lost its label %q", lang, copy["undo"])
+		}
+		finish := buttonTag(out, `value="completed"`)
+		if finish == "" {
+			t.Fatalf("detail (%s): in-service booking missing finish button", lang)
+		}
+		if !contains(finish, `hx-confirm="`+copy["cff"]+`"`) {
+			t.Errorf("detail (%s): finish button must confirm first: %q", lang, finish)
+		}
 	}
 }
 

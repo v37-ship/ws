@@ -14,7 +14,7 @@ func TestIconNames(t *testing.T) {
 		"user-plus", "sparkles", "utensils", "image", "images", "ticket", "crown",
 		"shield", "chart", "cash", "qris", "chat", "pin", "phone",
 		"mail", "clock", "instagram", "tiktok", "facebook", "home", "building", "briefcase",
-		"play", "check-circle", "alert", "x-circle", "printer",
+		"play", "check-circle", "alert", "x-circle", "printer", "undo",
 		"download", "key", "info", "smile", "heart", "external", "send",
 	}
 	if len(used) != len(icons) {

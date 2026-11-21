@@ -44,6 +44,10 @@
         {{end}}
       </form>
       {{end}}
+      <form method="post" action="/portal/bookings/{{.ID}}/status/undo" hx-post="/portal/bookings/{{.ID}}/status/undo" hx-swap="none">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button type="submit" class="btn secondary on-light btn-sm" title="{{t $.Lang "p.undo.l"}}" aria-label="{{t $.Lang "p.undo.l"}}" hx-disabled-elt="this">{{icon "undo"}}</button>
+      </form>
     </div>
     {{if $.ClaimsMode}}
     <div style="display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:0.4rem;">

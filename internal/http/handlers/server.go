@@ -637,6 +637,7 @@ func (s *Server) Routes(r chi.Router) {
 		pr.Post("/bookings/new", s.PortalCreateBooking)
 		pr.Get("/bookings/{id}", s.PortalBookingDetail)
 		pr.Post("/bookings/{id}/status", s.PortalUpdateBookingStatus)
+		pr.Post("/bookings/{id}/status/undo", s.PortalUndoBookingStatus)
 		pr.Post("/bookings/{id}/reschedule", s.PortalRescheduleBooking)
 		pr.Post("/bookings/{id}/correct", s.PortalCorrectBooking)
 		pr.Post("/bookings/{id}/refunds", s.PortalRecordRefund)
