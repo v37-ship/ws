@@ -10,6 +10,31 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestRefundAmountError(t *testing.T) {
+	cases := []struct {
+		name    string
+		amount  int64
+		wantErr bool
+	}{
+		{"zero amount", 0, true},
+		{"negative amount", -1, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := refundAmountError(tc.amount)
+			if tc.wantErr != (err != nil) {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr && !errors.Is(err, ErrValidation) {
+				t.Fatalf("err = %v, want it to wrap ErrValidation", err)
+			}
+			if tc.wantErr && !strings.Contains(err.Error(), "must be positive") {
+				t.Fatalf("message = %q, want substring %q", err.Error(), "must be positive")
+			}
+		})
+	}
+}
+
 func TestRefundCeilingError(t *testing.T) {
 	cases := []struct {
 		name            string
@@ -21,8 +46,6 @@ func TestRefundCeilingError(t *testing.T) {
 		{"exact remaining", 50_000, 150_000, 100_000, false, ""},
 		{"full first refund", 150_000, 150_000, 0, false, ""},
 		{"one rupiah over", 50_001, 150_000, 100_000, true, "exceeds paid amount"},
-		{"zero amount", 0, 150_000, 0, true, "must be positive"},
-		{"negative amount", -1, 150_000, 0, true, "must be positive"},
 		{"already fully refunded", 1, 150_000, 150_000, true, "exceeds paid amount"},
 	}
 	for _, tc := range cases {
