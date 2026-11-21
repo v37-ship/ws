@@ -584,6 +584,16 @@ html[data-theme="dark"] code { background: #3a2b41; }
   tr { break-inside: avoid; }
 }
 
+/* Day agenda printing: the dashboard queue is what the counter pins up, so
+   the live-refresh chrome, row actions and WhatsApp buttons (dead on paper)
+   drop out and the table unfurls to the full page width instead of scrolling. */
+@media print {
+  .dash-actions, .queue-controls { display: none !important; }
+  #live-queue-wrap { overflow: visible !important; }
+  #live-queue-wrap table { width: 100%; min-width: 0; }
+  #live-queue-wrap .btn-wa { display: none !important; }
+}
+
 /* Testimonials: borderless sliding filmstrip + star inputs */
 [x-cloak] { display: none !important; }
 .tm-shell { position: relative; background: transparent; border: 0; box-shadow: none; padding-left: 0; padding-right: 0; }

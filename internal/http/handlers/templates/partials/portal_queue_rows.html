@@ -22,7 +22,7 @@
     <small><strong>{{.PaymentMethod}}</strong> / {{.PaymentStatus}}</small><br>
     <small>{{formatIDR .PriceIDR}}</small>
   </td>
-  <td>
+  <td class="no-print">
     {{$status := printf "%s" .Status}}
     <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
       <a href="/portal/bookings/{{.ID}}" class="btn secondary on-light btn-sm">{{t $.Lang "p.q.mg"}}</a>
