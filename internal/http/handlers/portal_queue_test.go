@@ -114,6 +114,46 @@ func buttonTag(out, marker string) string {
 	return out[start : i+end+1]
 }
 
+// statusActions returns the status value of every submit button that posts a
+// booking status, in template order. It pins the row's whole action set — an
+// extra or missing button changes it, which a per-button presence check alone
+// would miss.
+func statusActions(out string) []string {
+	var got []string
+	for _, part := range strings.Split(out, `name="status" value="`)[1:] {
+		if i := strings.Index(part, `"`); i > 0 {
+			got = append(got, part[:i])
+		}
+	}
+	return got
+}
+
+func wantActions(t *testing.T, lang string, got []string, want ...string) {
+	t.Helper()
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("queue row (%s): status actions = %v, want %v", lang, got, want)
+	}
+}
+
+// buttonHTML returns the whole <button>...</button> element that contains
+// marker. buttonTag stops at the opening tag, so label text (which lives
+// between ">" and "</button>") needs this form to stay pinned to its button.
+func buttonHTML(out, marker string) string {
+	i := strings.Index(out, marker)
+	if i < 0 {
+		return ""
+	}
+	start := strings.LastIndex(out[:i], "<button")
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(out[i:], "</button>")
+	if end < 0 {
+		return ""
+	}
+	return out[start : i+end+len("</button>")]
+}
+
 // A queue row carries the same conditional status buttons as the detail page:
 // a confirmed booking can be checked in, started, no-showed or cancelled from
 // the row, with the destructive two keeping their confirm prompt.
@@ -177,6 +217,93 @@ func TestQueueRowFinishNeedsConfirm(t *testing.T) {
 		}
 		if contains(out, `value="checked_in"`) {
 			t.Errorf("queue row (%s): in-service booking must not offer check-in", lang)
+		}
+	}
+}
+
+// The checked-in row is a guest in the lobby: check-in is behind it, so the row
+// offers Start service and Finish (which asks first) and drops the destructive
+// pair — a checked-in guest must not be no-showed or cancelled from here.
+func TestQueueRowCheckedInButtons(t *testing.T) {
+	s := newFailTestServer(t)
+	b := queueBooking(domain.BookingCheckedIn, domain.PaymentPaid)
+	for _, lang := range []string{"en", "id"} {
+		copy := queueCopy[lang]
+		out := renderQueue(t, s, pageData{
+			"Lang": lang, "CSRF": "tok", "TodayBookings": []domain.Booking{b},
+		})
+
+		wantActions(t, lang, statusActions(out), "in_service", "completed")
+
+		start := buttonHTML(out, `value="in_service"`)
+		if start == "" {
+			t.Fatalf("queue row (%s): checked-in row missing start button", lang)
+		}
+		if !contains(start, copy["sta"]) {
+			t.Errorf("queue row (%s): start button lost its label %q: %q", lang, copy["sta"], start)
+		}
+		if contains(start, "hx-confirm") {
+			t.Errorf("queue row (%s): start is not destructive, it must not confirm: %q", lang, start)
+		}
+
+		finish := buttonHTML(out, `value="completed"`)
+		if finish == "" {
+			t.Fatalf("queue row (%s): checked-in row missing finish button", lang)
+		}
+		if !contains(finish, copy["fin"]) {
+			t.Errorf("queue row (%s): finish button lost its label %q: %q", lang, copy["fin"], finish)
+		}
+		if !contains(finish, `hx-confirm="`+copy["cff"]+`"`) {
+			t.Errorf("queue row (%s): finish button must confirm first: %q", lang, finish)
+		}
+
+		for _, never := range []string{`value="checked_in"`, `value="no_show"`, `value="cancelled"`} {
+			if contains(out, never) {
+				t.Errorf("queue row (%s): checked-in booking must not offer %s", lang, never)
+			}
+		}
+	}
+}
+
+// An unpaid booking is the other shape without a check-in: staff can only mark
+// it no-show or cancel, and both destroy the booking, so both ask first.
+func TestQueueRowPendingPaymentButtons(t *testing.T) {
+	s := newFailTestServer(t)
+	b := queueBooking(domain.BookingPendingPayment, domain.PaymentPending)
+	for _, lang := range []string{"en", "id"} {
+		copy := queueCopy[lang]
+		out := renderQueue(t, s, pageData{
+			"Lang": lang, "CSRF": "tok", "TodayBookings": []domain.Booking{b},
+		})
+
+		wantActions(t, lang, statusActions(out), "no_show", "cancelled")
+
+		noShow := buttonHTML(out, `value="no_show"`)
+		if noShow == "" {
+			t.Fatalf("queue row (%s): pending-payment row missing no-show button", lang)
+		}
+		if !contains(noShow, copy["nos"]) {
+			t.Errorf("queue row (%s): no-show button lost its label %q: %q", lang, copy["nos"], noShow)
+		}
+		if !contains(noShow, `hx-confirm="`+copy["cfn"]+`"`) {
+			t.Errorf("queue row (%s): no-show button must confirm first: %q", lang, noShow)
+		}
+
+		cancel := buttonHTML(out, `value="cancelled"`)
+		if cancel == "" {
+			t.Fatalf("queue row (%s): pending-payment row missing cancel button", lang)
+		}
+		if !contains(cancel, copy["cx"]) {
+			t.Errorf("queue row (%s): cancel button lost its label %q: %q", lang, copy["cx"], cancel)
+		}
+		if !contains(cancel, `hx-confirm="`+copy["cfc"]+`"`) {
+			t.Errorf("queue row (%s): cancel button must confirm first: %q", lang, cancel)
+		}
+
+		for _, never := range []string{`value="checked_in"`, `value="in_service"`, `value="completed"`} {
+			if contains(out, never) {
+				t.Errorf("queue row (%s): unpaid booking must not offer %s", lang, never)
+			}
 		}
 	}
 }
