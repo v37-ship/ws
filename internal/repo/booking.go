@@ -145,6 +145,10 @@ func (r *BookingRepo) ListActiveFrom(ctx context.Context, limit int) ([]domain.B
 	return r.scanList(ctx, q, limit)
 }
 
+// PageSize is the row count for one portal list page. Lists paginate in SQL
+// (LIMIT/OFFSET), never by slicing rows in the handler.
+const PageSize = 25
+
 type FilterParams struct {
 	Status     domain.BookingStatus
 	Date       string // YYYY-MM-DD
@@ -153,27 +157,37 @@ type FilterParams struct {
 	Search     string
 	Payment    string // "unpaid", "claim" or "paid"
 	Sort       string // "newest", "latest" or "upcoming" (empty = appointment asc)
-	Limit      int
+	Limit      int    // row cap for non-paginated callers (Page 0 only)
+	Page       int    // 1-based page when > 0: LIMIT PageSize OFFSET (Page-1)*PageSize
 }
 
-func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domain.Booking, error) {
-	var sb strings.Builder
-	sb.WriteString(`SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
+// bookingListSelect is the row shape the portal list reads. HasReceipt rides
+// along so claims rows know whether a receipt link would resolve.
+const bookingListSelect = `SELECT b.id, b.customer_id, b.location_id, b.service_id, b.staff_id, b.start_at, b.end_at,
 		b.status, b.price_idr, b.booking_fee_idr, b.hold_expires_at, b.notes, b.source, b.place, b.visit_address, b.promo_code, b.discount_idr, b.distance_km, b.distance_fee_idr, b.guest_name, b.guest_phone, b.guest_email, b.access_token,
 		b.created_by_id, b.updated_by_id, b.created_at, b.updated_at,
 		COALESCE(NULLIF(b.guest_name,''), u.full_name,''), COALESCE(NULLIF(b.guest_phone,''), u.phone,''), COALESCE(NULLIF(b.guest_email,''), u.email,''),
 		COALESCE(sv.name,''), COALESCE(st.name,''), COALESCE(l.name,''),
 		COALESCE(u.baby_name,''), COALESCE(u.mom_condition,''),
 		COALESCE(p.payment_method, 'qris'), COALESCE(p.status, 'pending'),
-		COALESCE(p.receipt_path,'') <> ''
+		COALESCE(p.receipt_path,'') <> ''`
+
+// bookingFilterFrom is the shared FROM/JOIN block. payments.booking_id is
+// UNIQUE, so the LEFT JOIN never multiplies rows and count(*) is the number of
+// matching bookings.
+const bookingFilterFrom = `
 		FROM bookings b
 		LEFT JOIN users u ON u.id = b.customer_id
 		LEFT JOIN services sv ON sv.id = b.service_id
 		LEFT JOIN staff st ON st.id = b.staff_id
 		LEFT JOIN locations l ON l.id = b.location_id
-		LEFT JOIN payments p ON p.booking_id = b.id
-		WHERE 1=1`)
+		LEFT JOIN payments p ON p.booking_id = b.id`
 
+// bookingFilterWhere renders the predicate shared by the list and its count, so
+// a filter can never mean one thing in the rows and another in the total. The
+// returned fragments start with " AND "; idx is the next free placeholder.
+func bookingFilterWhere(f FilterParams) (string, []any, int) {
+	var sb strings.Builder
 	var args []any
 	idx := 1
 
@@ -211,28 +225,59 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 	case "paid":
 		sb.WriteString(" AND p.status = 'paid'")
 	}
+	return sb.String(), args, idx
+}
 
-	switch f.Sort {
+func bookingOrder(sort string) string {
+	switch sort {
 	case "newest":
-		sb.WriteString(" ORDER BY b.created_at DESC, b.id DESC")
+		return " ORDER BY b.created_at DESC, b.id DESC"
 	case "latest":
-		sb.WriteString(" ORDER BY b.start_at DESC, b.id DESC")
+		return " ORDER BY b.start_at DESC, b.id DESC"
 	case "upcoming":
-		sb.WriteString(` ORDER BY
+		return ` ORDER BY
 			(date(b.start_at AT TIME ZONE 'Asia/Jakarta') < (now() AT TIME ZONE 'Asia/Jakarta')::date) ASC,
 			CASE WHEN date(b.start_at AT TIME ZONE 'Asia/Jakarta') >= (now() AT TIME ZONE 'Asia/Jakarta')::date
 				THEN b.start_at END ASC,
 			b.start_at DESC,
-			b.id DESC`)
+			b.id DESC`
 	default:
-		sb.WriteString(" ORDER BY b.start_at ASC, b.id ASC")
+		return " ORDER BY b.start_at ASC, b.id ASC"
 	}
-	if f.Limit > 0 {
+}
+
+// bookingListSQL builds the filtered list query. Page > 0 adds the SQL page
+// window; Limit is the legacy cap for callers that are not portal pages
+// (dashboard day list, digest) and never rides along with a page.
+func bookingListSQL(f FilterParams) (string, []any) {
+	where, args, idx := bookingFilterWhere(f)
+	var sb strings.Builder
+	sb.WriteString(bookingListSelect)
+	sb.WriteString(bookingFilterFrom)
+	sb.WriteString(" WHERE 1=1")
+	sb.WriteString(where)
+	sb.WriteString(bookingOrder(f.Sort))
+	switch {
+	case f.Page > 0:
+		sb.WriteString(fmt.Sprintf(" LIMIT $%d OFFSET $%d", idx, idx+1))
+		args = append(args, PageSize, (f.Page-1)*PageSize)
+	case f.Limit > 0:
 		sb.WriteString(fmt.Sprintf(" LIMIT $%d", idx))
 		args = append(args, f.Limit)
 	}
+	return sb.String(), args
+}
 
-	rows, err := r.pool.Query(ctx, sb.String(), args...)
+// bookingCountSQL counts the rows the same filter matches, without the page
+// window, so the pager's "of Y" describes the whole filtered set.
+func bookingCountSQL(f FilterParams) (string, []any) {
+	where, args, _ := bookingFilterWhere(f)
+	return "SELECT count(*)" + bookingFilterFrom + " WHERE 1=1" + where, args
+}
+
+func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domain.Booking, error) {
+	q, args := bookingListSQL(f)
+	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +300,17 @@ func (r *BookingRepo) ListFiltered(ctx context.Context, f FilterParams) ([]domai
 		out = append(out, b)
 	}
 	return out, rows.Err()
+}
+
+// CountFiltered returns how many bookings the filter matches, ignoring the page
+// window. The portal pager uses it for "Page X of Y".
+func (r *BookingRepo) CountFiltered(ctx context.Context, f FilterParams) (int, error) {
+	q, args := bookingCountSQL(f)
+	var n int
+	if err := r.pool.QueryRow(ctx, q, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func (r *BookingRepo) scanList(ctx context.Context, q string, arg any) ([]domain.Booking, error) {

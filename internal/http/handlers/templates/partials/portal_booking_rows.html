@@ -34,4 +34,23 @@
 {{else}}
 <tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">{{t .Lang "p.br.mt"}}</td></tr>
 {{end}}
+{{if or .PrevURL .NextURL}}
+<tr>
+  <td colspan="8" style="padding:0.75rem 0.25rem;">
+    <div style="display:flex; justify-content:flex-end; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+      {{if .PrevURL}}
+        <a href="{{.PrevURL}}" hx-get="{{.PrevURL}}" hx-target="#booking-rows" hx-swap="innerHTML" hx-push-url="true" class="btn secondary on-light btn-sm">{{t .Lang "p.pg.prev"}}</a>
+      {{else}}
+        <button type="button" class="btn secondary on-light btn-sm" disabled>{{t .Lang "p.pg.prev"}}</button>
+      {{end}}
+      <span class="muted">{{printf (t .Lang "p.pg.x") .Page .TotalPages}}</span>
+      {{if .NextURL}}
+        <a href="{{.NextURL}}" hx-get="{{.NextURL}}" hx-target="#booking-rows" hx-swap="innerHTML" hx-push-url="true" class="btn secondary on-light btn-sm">{{t .Lang "p.pg.next"}}</a>
+      {{else}}
+        <button type="button" class="btn secondary on-light btn-sm" disabled>{{t .Lang "p.pg.next"}}</button>
+      {{end}}
+    </div>
+  </td>
+</tr>
+{{end}}
 {{end}}

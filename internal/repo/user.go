@@ -136,17 +136,12 @@ func (r *UserRepo) ListByRole(ctx context.Context, role domain.Role) ([]domain.U
 	return out, rows.Err()
 }
 
-func (r *UserRepo) ListCustomers(ctx context.Context, q string) ([]domain.User, error) {
-	q = strings.TrimSpace(q)
-	if q == "" {
-		return r.ListByRole(ctx, domain.RoleCustomer)
-	}
-	like := "%" + strings.ToLower(q) + "%"
-	const sql = `SELECT id, email, password_hash, full_name, phone, role, is_active, baby_name, baby_dob, mom_condition, medical_notes, photo_url, photo_path, created_at, updated_at
-		FROM users
-		WHERE role='customer' AND (lower(email) LIKE $1 OR lower(full_name) LIKE $1 OR phone LIKE $1 OR lower(baby_name) LIKE $1)
-		ORDER BY full_name`
-	rows, err := r.pool.Query(ctx, sql, like)
+// ListCustomers returns one page of the customer directory. page is 1-based;
+// the roster is ordered by name with an id tiebreak so a page boundary is
+// stable across requests. Search matches name, email, phone or baby name.
+func (r *UserRepo) ListCustomers(ctx context.Context, q string, page int) ([]domain.User, error) {
+	query, args := customerListSQL(q, page)
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +159,52 @@ func (r *UserRepo) ListCustomers(ctx context.Context, q string) ([]domain.User, 
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+// CountCustomers counts the directory rows the same search matches, ignoring
+// the page window. The portal pager uses it for "Page X of Y".
+func (r *UserRepo) CountCustomers(ctx context.Context, q string) (int, error) {
+	query, args := customerCountSQL(q)
+	var n int
+	if err := r.pool.QueryRow(ctx, query, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// customerColumns is the profile shape every directory scan reads.
+const customerColumns = `id, email, password_hash, full_name, phone, role, is_active, baby_name, baby_dob, mom_condition, medical_notes, photo_url, photo_path, created_at, updated_at`
+
+// customerSearchWhere is the directory's search predicate. The same fragment
+// feeds the paged list and its count, so the pager cannot promise pages the
+// rows do not have.
+func customerSearchWhere(q string) (string, []any) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return "", nil
+	}
+	like := "%" + strings.ToLower(q) + "%"
+	return " AND (lower(email) LIKE $1 OR lower(full_name) LIKE $1 OR phone LIKE $1 OR lower(baby_name) LIKE $1)", []any{like}
+}
+
+// customerListSQL builds one SQL page of the directory. Page is 1-based; the
+// LIMIT/OFFSET window keeps the list bounded as the roster grows.
+func customerListSQL(q string, page int) (string, []any) {
+	where, args := customerSearchWhere(q)
+	if page < 1 {
+		page = 1
+	}
+	n := len(args)
+	query := "SELECT " + customerColumns + " FROM users WHERE role='customer'" + where +
+		fmt.Sprintf(" ORDER BY full_name, id LIMIT $%d OFFSET $%d", n+1, n+2)
+	args = append(args, PageSize, (page-1)*PageSize)
+	return query, args
+}
+
+// customerCountSQL counts the filtered directory without the page window.
+func customerCountSQL(q string) (string, []any) {
+	where, args := customerSearchWhere(q)
+	return "SELECT count(*) FROM users WHERE role='customer'" + where, args
 }
 
 // SearchCustomers finds customers by name/email/phone/baby for the booking

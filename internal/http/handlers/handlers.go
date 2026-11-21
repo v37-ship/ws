@@ -675,28 +675,110 @@ func (s *Server) PortalDashboard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// portalBookingList / portalBookingCount are the bookings page's data
+// dependency pair. They are variables for the same reason queueBookings is:
+// the repos are concrete pgx types, so the handler test pins the filter and the
+// window without a database.
+var portalBookingList = func(s *Server, r *http.Request, f repo.FilterParams) ([]domain.Booking, error) {
+	return s.book.ListFiltered(r.Context(), f)
+}
+
+var portalBookingCount = func(s *Server, r *http.Request, f repo.FilterParams) (int, error) {
+	return s.book.CountFiltered(r.Context(), f)
+}
+
+// List-load failures answer through staffFail: an HTMX pagination/filter swap
+// that cannot load rows must toast instead of leaving the old page in place
+// (the app's HTMX config drops non-2xx bodies, so http.Error would be silent).
+const (
+	failBookings  = "Could not load bookings. Refresh the page and try again."
+	failCustomers = "Could not load customers. Refresh the page and try again."
+)
+
 func (s *Server) PortalBookings(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
-	date := r.URL.Query().Get("date")
-	status := domain.BookingStatus(r.URL.Query().Get("status"))
-	payment := r.URL.Query().Get("payment")
-	sortBy := normalizeBookingSort(r.URL.Query().Get("sort"))
-	list, err := s.book.ListFiltered(r.Context(), repo.FilterParams{
-		Search: q, Date: date, Status: status, Payment: payment, Sort: sortBy, Limit: 100,
-	})
+	qs := r.URL.Query()
+	q := qs.Get("q")
+	date := qs.Get("date")
+	status := domain.BookingStatus(qs.Get("status"))
+	payment := qs.Get("payment")
+	sortBy := normalizeBookingSort(qs.Get("sort"))
+	page := normalizePage(qs.Get("page"))
+	filter := repo.FilterParams{
+		Search: q, Date: date, Status: status, Payment: payment, Sort: sortBy, Page: page,
+	}
+	total, err := portalBookingCount(s, r, filter)
 	if err != nil {
-		http.Error(w, "failed to load bookings", http.StatusInternalServerError)
+		s.staffFail(w, r, http.StatusInternalServerError, failBookings)
 		return
 	}
+	list, err := portalBookingList(s, r, filter)
+	if err != nil {
+		s.staffFail(w, r, http.StatusInternalServerError, failBookings)
+		return
+	}
+	pages := totalPages(total)
 	data := pageData{
-		"Bookings": list,
-		"Search":   q,
-		"Date":     date,
-		"Status":   string(status),
-		"Payment":  payment,
-		"Sort":     sortBy,
+		"Bookings":   list,
+		"Search":     q,
+		"Date":       date,
+		"Status":     string(status),
+		"Payment":    payment,
+		"Sort":       sortBy,
+		"Page":       page,
+		"TotalPages": pages,
+		"PrevURL":    "",
+		"NextURL":    "",
+	}
+	if page > 1 {
+		data["PrevURL"] = pageURL("/portal/bookings", qs, page-1)
+	}
+	if page < pages {
+		data["NextURL"] = pageURL("/portal/bookings", qs, page+1)
 	}
 	s.renderAuto(w, r, "portal_booking_rows.html", "portal_bookings.html", data)
+}
+
+// normalizePage reads the 1-based page query param. Anything non-numeric or
+// below 1 falls back to the first page rather than reaching SQL.
+func normalizePage(v string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 1 {
+		return 1
+	}
+	return n
+}
+
+// totalPages is the number of SQL pages for total rows. An empty list still
+// renders "Page 1 of 1" rather than a zero page count.
+func totalPages(total int) int {
+	if total <= 0 {
+		return 1
+	}
+	return (total + repo.PageSize - 1) / repo.PageSize
+}
+
+// pageURL rebuilds a list URL with the active filters and the target page.
+// Empty form fields are dropped so a filter submit does not litter every pager
+// link with `status=`; page 1 drops the param so the first page keeps a clean
+// address and a stale page value is replaced, never duplicated.
+func pageURL(path string, query url.Values, page int) string {
+	v := url.Values{}
+	for k, vals := range query {
+		if k == "page" {
+			continue
+		}
+		if len(vals) == 1 && vals[0] == "" {
+			continue
+		}
+		v[k] = vals
+	}
+	if page > 1 {
+		v.Set("page", strconv.Itoa(page))
+	}
+	if enc := v.Encode(); enc != "" {
+		return path + "?" + enc
+	}
+	return path
 }
 
 // normalizeBookingSort validates the portal's sort query param. "newest" is
@@ -1100,17 +1182,38 @@ func (s *Server) PortalCorrectBooking(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/portal/bookings/%s?success=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }
 
+// portalCustomerList is the customer directory's single data call (page + the
+// total match count). A variable for the same reason queueBookings is: the
+// repos are concrete pgx types, so the handler test swaps this, not a database.
+var portalCustomerList = func(s *Server, r *http.Request, q string, page int) ([]domain.User, int, error) {
+	return s.auth.ListCustomers(r.Context(), q, page)
+}
+
 func (s *Server) PortalCustomers(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
-	list, err := s.auth.ListCustomers(r.Context(), q)
+	qs := r.URL.Query()
+	q := qs.Get("q")
+	page := normalizePage(qs.Get("page"))
+	list, total, err := portalCustomerList(s, r, q, page)
 	if err != nil {
-		http.Error(w, "failed to load customers", http.StatusInternalServerError)
+		s.staffFail(w, r, http.StatusInternalServerError, failCustomers)
 		return
 	}
-	s.render(w, r, "portal_customers.html", pageData{
-		"Customers": list,
-		"Query":     q,
-	})
+	pages := totalPages(total)
+	data := pageData{
+		"Customers":  list,
+		"Query":      q,
+		"Page":       page,
+		"TotalPages": pages,
+		"PrevURL":    "",
+		"NextURL":    "",
+	}
+	if page > 1 {
+		data["PrevURL"] = pageURL("/portal/customers", qs, page-1)
+	}
+	if page < pages {
+		data["NextURL"] = pageURL("/portal/customers", qs, page+1)
+	}
+	s.render(w, r, "portal_customers.html", data)
 }
 
 func (s *Server) PortalNewCustomerForm(w http.ResponseWriter, r *http.Request) {

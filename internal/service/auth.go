@@ -205,8 +205,18 @@ func (s *AuthService) EnsureCS(ctx context.Context, email, password, fullName st
 	return s.users.EnsureCS(ctx, strings.ToLower(email), hash, fullName)
 }
 
-func (s *AuthService) ListCustomers(ctx context.Context, query string) ([]domain.User, error) {
-	return s.users.ListCustomers(ctx, query)
+// ListCustomers returns one page of the customer directory plus the total
+// match count, so the portal pager can say "Page X of Y".
+func (s *AuthService) ListCustomers(ctx context.Context, query string, page int) ([]domain.User, int, error) {
+	list, err := s.users.ListCustomers(ctx, query, page)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.users.CountCustomers(ctx, query)
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 func (s *AuthService) SearchCustomers(ctx context.Context, query string) ([]domain.User, error) {

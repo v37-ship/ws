@@ -741,6 +741,12 @@ func (s *BookingService) ListFiltered(ctx context.Context, filter repo.FilterPar
 	return s.bookings.ListFiltered(ctx, filter)
 }
 
+// CountFiltered returns the total rows the filter matches, ignoring the page
+// window. The portal pager uses it for "Page X of Y".
+func (s *BookingService) CountFiltered(ctx context.Context, filter repo.FilterParams) (int, error) {
+	return s.bookings.CountFiltered(ctx, filter)
+}
+
 func (s *BookingService) ListLogs(ctx context.Context, bookingID uuid.UUID) ([]domain.BookingLog, error) {
 	return s.bookings.ListLogs(ctx, bookingID)
 }

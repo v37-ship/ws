@@ -390,6 +390,14 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if name == "portal_queue_rows.html" {
 					data = queueSweepData(lang)
 				}
+				if name == "portal_booking_rows.html" {
+					// Empty page + pager data renders the empty state and every
+					// pager label, so the key-leak scan below covers p.pg.*.
+					data = pageData{
+						"Lang": lang, "Page": 2, "TotalPages": 2,
+						"PrevURL": "/portal/bookings", "NextURL": "/portal/bookings?page=3",
+					}
+				}
 				var buf bytes.Buffer
 				if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 					t.Errorf("execute partial %s (%s): %v", name, lang, err)
@@ -400,6 +408,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					"slots.title", "slots.hint", "svc2.service", "pay.wait", "pay.status",
 					"book.legend", "book.no_slots", "p.q.mt", "p.br.mt", "p.clm.n",
 					"p.clm.mt", "p.clm.nr", "p.det.cff", "p.undo.l",
+					"p.pg.x", "p.pg.prev", "p.pg.next",
 				} {
 					if contains(out, `"`+key+`"`) || contains(out, ">"+key+"<") {
 						t.Errorf("partial %s (%s): missing translation for key %s", name, lang, key)

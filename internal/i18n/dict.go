@@ -750,6 +750,9 @@ var dict = map[string]map[string]string{
 		"p.clm.nr":   "No receipt uploaded",
 		"p.br.ed":    "Edit / Status",
 		"p.br.mt":    "No bookings found matching filters.",
+		"p.pg.x":     "Page %d of %d",
+		"p.pg.prev":  "◀ Prev",
+		"p.pg.next":  "Next ▶",
 		"p.bk.guest": "Guest",
 		// ---- Phase 2: reports ----
 		"r.nav":          "Reports",
@@ -1752,6 +1755,9 @@ var dict = map[string]map[string]string{
 		"p.clm.nr":   "Belum ada bukti transfer",
 		"p.br.ed":    "Ubah / Status",
 		"p.br.mt":    "Tidak ada booking yang cocok dengan filter.",
+		"p.pg.x":     "Halaman %d dari %d",
+		"p.pg.prev":  "◀ Sebelumnya",
+		"p.pg.next":  "Berikutnya ▶",
 		"p.bk.guest": "Tamu",
 		// ---- Phase 2: reports ----
 		"r.nav":          "Laporan",
