@@ -165,11 +165,17 @@ func TestTemplatesExecute(t *testing.T) {
 		"services_partial.html", "staff_partial.html", "slots_partial.html",
 		"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
-		"promo_preview.html", "tv_queue_rows.html",
+		"promo_preview.html", "tv_queue_rows.html", "tv_queue_panel.html",
+		"tv_slides.html", "tv_slide_services.html", "tv_slide_testimonials.html",
+		"tv_slide_food.html", "tv_slide_review.html",
 	}
 	for _, name := range partials {
+		data := pageData{"Lang": "id"}
+		if strings.HasPrefix(name, "tv_") {
+			data = tvSweepData("id")
+		}
 		var buf bytes.Buffer
-		if err := s.tpl.ExecuteTemplate(&buf, name, pageData{"Lang": "id"}); err != nil {
+		if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 			t.Errorf("execute %s: %v", name, err)
 		}
 	}
@@ -446,6 +452,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					"tv.title", "tv.live", "tv.now.h", "tv.next.h", "tv.day.h",
 					"tv.now.empty", "tv.nxt.empty", "tv.day.empty",
 					"tv.st.conf", "tv.st.arr", "tv.st.svc", "tv.st.done",
+					"tv.sl.svc", "tv.sl.tm", "tv.sl.food", "tv.sl.rev", "tv.sl.revx",
 				} {
 					if contains(out, ">"+key+"<") {
 						t.Errorf("tv_view.html (%s): missing translation for %s", lang, key)
@@ -484,7 +491,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				"services_partial.html", "staff_partial.html", "slots_partial.html",
 				"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 				"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
-				"customer_search_rows.html", "tv_queue_rows.html",
+				"customer_search_rows.html", "tv_queue_rows.html", "tv_queue_panel.html",
+				"tv_slides.html", "tv_slide_services.html", "tv_slide_testimonials.html",
+				"tv_slide_food.html", "tv_slide_review.html",
 			} {
 				// The queue row only renders its action controls when it has a
 				// booking; feed the sweep every conditional block.
@@ -492,7 +501,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if name == "portal_queue_rows.html" {
 					data = queueSweepData(lang)
 				}
-				if name == "tv_queue_rows.html" {
+				if strings.HasPrefix(name, "tv_") {
 					data = tvSweepData(lang)
 				}
 				if name == "portal_booking_rows.html" {
@@ -625,6 +634,8 @@ func TestNoEmojiIcons(t *testing.T) {
 		"pay_status.html", "toast.html", "service_cards.html", "staff_cards.html",
 		"slot_groups.html", "portal_queue_rows.html", "portal_booking_rows.html",
 		"customer_search_rows.html", "promo_preview.html", "tv_queue_rows.html",
+		"tv_queue_panel.html", "tv_slides.html", "tv_slide_services.html",
+		"tv_slide_testimonials.html", "tv_slide_food.html", "tv_slide_review.html",
 	}
 	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
@@ -726,7 +737,7 @@ func TestNoEmojiIcons(t *testing.T) {
 			if name == "portal_queue_rows.html" {
 				data = queueSweepData(lang)
 			}
-			if name == "tv_queue_rows.html" {
+			if strings.HasPrefix(name, "tv_") {
 				data = tvSweepData(lang)
 			}
 			var buf bytes.Buffer

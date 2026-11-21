@@ -1,0 +1,14 @@
+{{define "tv_slide_testimonials.html"}}
+<section class="tv-slide tv-slide-testimonials">
+  <h2 class="tv-slide-title">{{t .Lang "tv.sl.tm"}}</h2>
+  <ul class="tv-tm-list">
+    {{range .Testimonials}}
+    <li class="tv-tm">
+      <p class="tv-tm-stars" role="img" aria-label="{{.Rating}}/5">{{stars .Rating}}</p>
+      <p class="tv-tm-msg">“{{.Message}}”</p>
+      <p class="tv-tm-name">— {{.Name}}</p>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}

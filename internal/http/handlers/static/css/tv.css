@@ -24,6 +24,11 @@ html:not([data-theme]) body.tv-body {
 }
 
 .tv-shell {
+  /* app.css caps every <main> at 1120px for reading comfort; a wall screen
+     must fill the panel instead, so the kiosk opts out of that rule. */
+  width: 100%;
+  max-width: none;
+  margin: 0;
   min-height: 100vh;
   padding: clamp(1.25rem, 2.4vw, 2.75rem);
   display: grid;
@@ -215,7 +220,261 @@ html:not([data-theme]) body.tv-body {
   padding: 0.4rem 0;
 }
 
+/* Layout shells ------------------------------------------------------------
+   Split (default) pins the queue left at ~60% and rotates the marketing deck
+   right; rotate hands the whole screen to one slide at a time, queue included.
+   One slide set, one poll wrapper, two arrangements (ruling #6). */
+
+.tv-split {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: clamp(1.25rem, 2.4vw, 2.5rem);
+  align-items: stretch;
+  min-height: 0;
+}
+
+.tv-queue-pane {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: clamp(0.9rem, 2vh, 1.75rem);
+}
+
+/* No marketing data: the queue keeps the whole width instead of leaving an
+   empty right-hand column. */
+.tv-queue-pane:only-child { grid-column: 1 / -1; }
+
+.tv-slide-pane { min-width: 0; min-height: 0; }
+
+.tv-shell-rotate {
+  position: relative;
+  grid-template-rows: 1fr;
+}
+
+.tv-rotate-brand {
+  position: absolute;
+  top: clamp(1rem, 2vh, 2rem);
+  left: clamp(1.25rem, 2.4vw, 2.75rem);
+  z-index: 2;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-deep, #e91e63);
+  opacity: 0.75;
+  font-size: clamp(0.85rem, 1.1vw, 1.15rem);
+}
+
+/* Deck + slides ------------------------------------------------------------ */
+
+.tv-deck {
+  display: grid;
+  min-height: 0;
+}
+
+/* Every slide occupies the deck's single cell; the component only decides
+   which one is visible. Before Alpine runs, the first slide stays visible so
+   a blocked/absent JS bundle cannot blank the screen. */
+.tv-deck .tv-slide {
+  grid-area: 1 / 1;
+  display: none;
+}
+
+.tv-deck:not([data-ready]) .tv-slide:first-child { display: flex; }
+.tv-deck .tv-slide.is-live { display: flex; }
+
+.tv-slide {
+  flex-direction: column;
+  gap: clamp(0.9rem, 2vh, 1.6rem);
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(1.1rem, 2vw, 2rem);
+  border-radius: var(--radius, 1.35rem);
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(42, 36, 48, 0.06);
+  overflow: hidden;
+}
+
+.tv-deck-rotate .tv-slide {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.tv-deck-rotate .tv-slide-queue {
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  overflow-y: auto;
+}
+
+/* A rotate slide owns the whole panel, so its copy scales up: the split
+   deck is read from across a room too, but has roughly half the width. */
+.tv-deck-rotate .tv-slide-title { font-size: clamp(2rem, 3vw, 3.4rem); }
+.tv-deck-rotate .tv-svc-name { font-size: clamp(1.3rem, 1.8vw, 2rem); }
+.tv-deck-rotate .tv-svc-meta { font-size: clamp(1rem, 1.2vw, 1.35rem); }
+.tv-deck-rotate .tv-tm-msg { font-size: clamp(1.4rem, 2vw, 2.2rem); }
+.tv-deck-rotate .tv-food { font-size: clamp(1.3rem, 1.7vw, 2rem); }
+.tv-deck-rotate .tv-qr-hint { font-size: clamp(1.2rem, 1.6vw, 1.8rem); }
+
+/* The flex column shrinks blocks to content width; give the list slides a
+   deliberate measure so a two-item catalog does not look like a phone list. */
+.tv-deck-rotate .tv-svc-grid {
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 26rem));
+  justify-content: center;
+}
+
+.tv-deck-rotate .tv-tm-list { width: min(100%, 56rem); }
+
+/* A menu reads as one column: names wrap at the price on a narrow cell. */
+.tv-deck-rotate .tv-food-list {
+  width: min(100%, 64rem);
+  margin-inline: auto;
+  grid-template-columns: 1fr;
+}
+
+.tv-slide-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.4rem, 2.2vw, 2.4rem);
+  line-height: 1.1;
+  color: var(--accent-deep, #e91e63);
+}
+
+/* Slide: treatments -------------------------------------------------------- */
+
+.tv-svc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: clamp(0.5rem, 1.2vh, 0.9rem);
+  align-content: start;
+  overflow: hidden;
+}
+
+.tv-svc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: clamp(0.5rem, 1vh, 0.85rem) clamp(0.7rem, 1.2vw, 1.1rem);
+  border-radius: 1rem;
+  background: #fff9f5;
+  border-left: 7px solid #ffb020;
+}
+
+.tv-svc-name {
+  font-weight: 700;
+  font-size: clamp(1.05rem, 1.4vw, 1.5rem);
+  line-height: 1.2;
+}
+
+.tv-svc-meta {
+  color: #6d6475;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(0.85rem, 1vw, 1.05rem);
+}
+
+/* Slide: testimonials ------------------------------------------------------ */
+
+.tv-tm-list {
+  display: grid;
+  gap: clamp(0.7rem, 1.6vh, 1.25rem);
+  align-content: start;
+  overflow: hidden;
+}
+
+.tv-tm {
+  display: grid;
+  gap: 0.3rem;
+  padding: clamp(0.6rem, 1.2vh, 1rem) clamp(0.8rem, 1.4vw, 1.25rem);
+  border-radius: 1rem;
+  background: #fff9f5;
+  border-left: 7px solid #20c5b5;
+}
+
+.tv-deck-rotate .tv-tm { justify-items: center; }
+
+.tv-tm-stars {
+  color: #f59e0b;
+  letter-spacing: 0.12em;
+  font-size: clamp(1.05rem, 1.3vw, 1.45rem);
+}
+
+.tv-tm-msg {
+  font-size: clamp(1.05rem, 1.4vw, 1.5rem);
+  line-height: 1.35;
+}
+
+.tv-tm-name {
+  color: #6d6475;
+  font-weight: 700;
+  font-size: clamp(0.9rem, 1.1vw, 1.15rem);
+}
+
+/* Slide: Bu Nah's kitchen -------------------------------------------------- */
+
+.tv-food-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0 clamp(1.25rem, 2.4vw, 2.25rem);
+  align-content: start;
+  overflow: hidden;
+}
+
+.tv-food {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(0.4rem, 0.9vh, 0.7rem) 0;
+  border-top: 1px solid rgba(42, 36, 48, 0.1);
+  font-size: clamp(1.05rem, 1.35vw, 1.45rem);
+}
+
+.tv-food-name { font-weight: 700; }
+
+.tv-food-price {
+  color: var(--accent-deep, #e91e63);
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slide: review QR --------------------------------------------------------- */
+
+.tv-slide-review { align-items: center; text-align: center; }
+
+.tv-qr {
+  display: grid;
+  place-items: center;
+  padding: clamp(0.6rem, 1.4vh, 1rem);
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 3px rgba(42, 36, 48, 0.08);
+}
+
+.tv-qr canvas,
+.tv-qr img {
+  display: block;
+  width: min(38vh, 320px);
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.tv-qr-hint {
+  color: #6d6475;
+  font-size: clamp(1rem, 1.3vw, 1.4rem);
+}
+
 /* Narrow hosts (an admin previewing the TV on a laptop) ------------------- */
+
+@media (max-width: 1400px) {
+  /* Below TV widths the two panes squeeze the five queue columns into each
+     other (the deck would paint over the badge). Stack instead: an admin
+     previewing on a laptop scrolls, a wall screen (1920+) never hits this. */
+  .tv-split { grid-template-columns: 1fr; }
+  .tv-deck-split { min-height: 55vh; }
+}
 
 @media (max-width: 900px) {
   .tv-head { flex-direction: column; align-items: flex-start; }

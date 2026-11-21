@@ -5,10 +5,34 @@
   <title>{{t .Lang "tv.title"}} — Wangga Spa Baby, Mom, & Woman</title>
   {{template "head" .}}
   <link rel="stylesheet" href="{{static "css/tv.css"}}">
+  {{if .ReviewURL}}
+  {{/* Vendored QR renderer: davidshimjs/qrcodejs v1.0.0 (MIT), minified
+       single file, unchanged from
+       https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js
+       (sha256 c541ef06327885a8415bca8df6071e14189b4855336def4f36db54bde8484f36).
+       It renders the review slide's QR client-side; no build step. */}}
+  <script src="{{static "js/qrcode.min.js"}}" defer></script>
+  {{end}}
   <meta name="robots" content="noindex">
 </head>
 <body class="tv-body">
-  <main class="tv-shell">
+  {{/* Two shells, one queue and one slide set (ruling #6). Split is the
+       default: the queue + bands stay pinned left while the marketing deck
+       rotates right. Rotate gives every slide the whole screen and adds the
+       queue to the rotation. Both keep the same 30s poll and the same
+       partials. */}}
+  {{if eq .Layout "rotate"}}
+  <main class="tv-shell tv-shell-rotate">
+    <p class="tv-rotate-brand">Wangga Spa</p>
+    <div class="tv-deck tv-deck-rotate" x-data="tvDeck(15000)">
+      <section class="tv-slide tv-slide-queue">
+        {{template "tv_queue_panel.html" .}}
+      </section>
+      {{template "tv_slides.html" .}}
+    </div>
+  </main>
+  {{else}}
+  <main class="tv-shell tv-shell-split">
     <header class="tv-head">
       <div>
         <p class="tv-brand">Wangga Spa</p>
@@ -17,14 +41,72 @@
       <p class="tv-live">{{t .Lang "tv.live"}}</p>
     </header>
 
-    {{/* The poll replaces this element's innerHTML; hx-get lives on the
-         wrapper so the token URL survives every swap. */}}
-    <div class="tv-live-wrap" id="tv-live"
-         hx-get="/tv/queue?t={{.TVToken}}" hx-trigger="every 30s"
-         hx-target="#tv-live" hx-swap="innerHTML">
-      {{template "tv_queue_rows.html" .}}
+    <div class="tv-split">
+      <section class="tv-queue-pane">
+        {{template "tv_queue_panel.html" .}}
+      </section>
+      {{if or .Services .Testimonials .Food .ReviewURL}}
+      <aside class="tv-slide-pane tv-deck tv-deck-split" x-data="tvDeck(15000)">
+        {{template "tv_slides.html" .}}
+      </aside>
+      {{end}}
     </div>
   </main>
+  {{end}}
+
+  <script>
+  /* Kiosk slide rotation. Alpine (shipped by head.html) owns the timer; this
+     file only provides the component. Every slide is in the DOM so the 30s
+     queue poll never fights the rotation, and the component just moves the
+     .is-live class among direct .tv-slide children. A deck with zero or one
+     slide never starts a timer. */
+  window.tvDeck = function (ms) {
+    return {
+      i: 0,
+      timer: null,
+      init: function () {
+        var deck = this.$el;
+        var slides = Array.prototype.slice.call(deck.querySelectorAll(".tv-slide"));
+        if (!slides.length) return;
+        var paint = function (n) {
+          for (var k = 0; k < slides.length; k++) {
+            slides[k].classList.toggle("is-live", k === n);
+          }
+          deck.setAttribute("data-ready", "1");
+        };
+        paint(0);
+        if (slides.length > 1) {
+          this.timer = setInterval(function () {
+            this.i = (this.i + 1) % slides.length;
+            paint(this.i);
+          }.bind(this), ms);
+        }
+      },
+      destroy: function () {
+        if (this.timer) clearInterval(this.timer);
+      }
+    };
+  };
+
+  /* Review QR: the vendored renderer turns the slide's data-qr URL into a
+     canvas. The slide (and this script) only exist when the settings service
+     has a review URL, so the function is a no-op everywhere else. */
+  function __wanggaTVQr() {
+    try {
+      var box = document.getElementById("tv-qr");
+      if (!box || box.getAttribute("data-qr-done") === "1") return;
+      var url = box.getAttribute("data-qr");
+      if (!url || typeof QRCode === "undefined") return;
+      box.setAttribute("data-qr-done", "1");
+      new QRCode(box, { text: url, width: 320, height: 320, correctLevel: QRCode.CorrectLevel.M });
+    } catch (e) {}
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", __wanggaTVQr);
+  } else {
+    __wanggaTVQr();
+  }
+  </script>
 </body>
 </html>
 {{end}}

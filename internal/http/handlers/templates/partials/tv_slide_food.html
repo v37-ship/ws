@@ -1,0 +1,17 @@
+{{define "tv_slide_food.html"}}
+<section class="tv-slide tv-slide-food">
+  <h2 class="tv-slide-title">{{t .Lang "tv.sl.food"}}</h2>
+  <ul class="tv-food-list">
+    {{range .Food}}
+    <li class="tv-food">
+      <span class="tv-food-name">{{.Name}}</span>
+      <span class="tv-food-price">
+        {{if and .HasM .HasL}}{{t $.Lang "fd.med"}} {{formatIDR .M}} · {{t $.Lang "fd.lg"}} {{formatIDR .L}}
+        {{else if .HasL}}{{t $.Lang "fd.lg"}} {{formatIDR .L}}
+        {{else}}{{formatIDR .M}}{{end}}
+      </span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}

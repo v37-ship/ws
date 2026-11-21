@@ -1,0 +1,13 @@
+{{define "tv_slide_services.html"}}
+<section class="tv-slide tv-slide-services">
+  <h2 class="tv-slide-title">{{t .Lang "tv.sl.svc"}}</h2>
+  <ul class="tv-svc-grid">
+    {{range .Services}}
+    <li class="tv-svc-item">
+      <span class="tv-svc-name">{{.DisplayName $.Lang}}</span>
+      <span class="tv-svc-meta">{{formatIDR .PriceIDR}} · {{.DurationMin}} {{t $.Lang "unit.min"}}</span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}

@@ -63,7 +63,18 @@ func tvSweepData(lang string) pageData {
 		TimeLabel: "09:00", NameRedacted: "Nur A.", ServiceName: "Baby Massage",
 		StaffFirst: "Bidan", StatusLabel: "tv.st.done",
 	})
-	return pageData{"Lang": lang, "TVToken": tvTestToken, "Now": []tvRow{now}, "Next": next, "Day": day}
+	priceM, priceL := int64(25000), int64(35000)
+	return pageData{
+		"Lang": lang, "TVToken": tvTestToken, "Now": []tvRow{now}, "Next": next, "Day": day,
+		// Marketing data for the slide partials: the sweeps must reach every
+		// slide (and the QR include) in both languages.
+		"Services": []domain.Service{{Name: "Pijat Balinese", NameID: "Pijat Bali", PriceIDR: 275000, DurationMin: 90}},
+		"Testimonials": []domain.Testimonial{{
+			Name: "Rina Kartika", Rating: 5, Message: "Enak sekali, bayi saya tenang.",
+		}},
+		"Food":      []domain.FoodItem{{Name: "Nasgor Bu Nah", PriceM: &priceM, PriceL: &priceL}},
+		"ReviewURL": tvReviewTestURL,
+	}
 }
 
 // tvQueueBooking builds a booking the way ListFiltered returns one: the joined

@@ -77,7 +77,12 @@ Goose + Midtrans QRIS.
   (confirmed/checked_in/in_service/completed) and the label set, and
   `place='homecare'` never appears; a hostile-fixture render test pins the
   whole page. Kiosk styles live in `static/css/tv.css` (fullscreen layout,
-  >=28px rows, pinned light).
+  >=28px rows, pinned light). `?layout=rotate` opts into full-screen slide
+  rotation (~15s, Alpine `tvDeck`); the default `split` pins the queue left
+  and rotates the marketing slides right. Slides are catalog prices,
+  approved testimonials, Bu Nah's menu and a review QR rendered client-side
+  by vendored qrcodejs v1.0.0 from `wa_settings.review_url` (slide omitted
+  when empty) — catalog/marketing data only, never a booking.
 - Single app replica only (native Postgres sessions, no Redis).
 
 ## Payments & mail

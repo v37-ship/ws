@@ -1,0 +1,8 @@
+{{define "tv_slide_review.html"}}
+<section class="tv-slide tv-slide-review">
+  <h2 class="tv-slide-title">{{t .Lang "tv.sl.rev"}}</h2>
+  <div class="tv-qr" id="tv-qr" data-qr="{{.ReviewURL}}"
+       role="img" aria-label="{{t .Lang "tv.sl.revx"}}"></div>
+  <p class="tv-qr-hint">{{t .Lang "tv.sl.revx"}}</p>
+</section>
+{{end}}

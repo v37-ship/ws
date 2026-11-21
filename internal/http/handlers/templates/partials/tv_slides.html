@@ -1,0 +1,10 @@
+{{define "tv_slides.html"}}
+{{/* The marketing deck shared by both shells. A slide is emitted only when it
+     has content, so an empty catalog/menu/testimonial set leaves the kiosk
+     with no blank panel, and the review slide is absent unless the settings
+     service carries a URL. */}}
+{{if .Services}}{{template "tv_slide_services.html" .}}{{end}}
+{{if .Testimonials}}{{template "tv_slide_testimonials.html" .}}{{end}}
+{{if .Food}}{{template "tv_slide_food.html" .}}{{end}}
+{{if .ReviewURL}}{{template "tv_slide_review.html" .}}{{end}}
+{{end}}

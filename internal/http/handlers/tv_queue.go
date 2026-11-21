@@ -203,7 +203,17 @@ func (s *Server) TVView(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, "tv_invalid.html", pageData{})
 		return
 	}
-	data := pageData{"TVToken": tok.Token}
+	// The layout rides the token URL (the admin page shows both variants);
+	// the queue is the same in both shells and only its placement changes.
+	data := pageData{
+		"TVToken": tok.Token,
+		"Layout":  normalizeTVLayout(r.URL.Query().Get("layout")),
+	}
+	slides := tvLoadSlides(s, r.Context(), tok.LocationID)
+	data["Services"] = slides.Services
+	data["Testimonials"] = slides.Testimonials
+	data["Food"] = slides.Food
+	data["ReviewURL"] = slides.ReviewURL
 	now, next, day, err := s.tvQueueRows(r.Context(), tok.LocationID)
 	if err != nil {
 		// The kiosk has no staff to read an error page; keep the shell and let

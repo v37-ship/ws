@@ -1,0 +1,10 @@
+{{define "tv_queue_panel.html"}}
+{{/* The queue's poll wrapper. It appears once per layout (pinned left in
+     split, a slide of its own in rotate), and hx-get lives on the wrapper so
+     the token URL survives every 30s innerHTML swap. */}}
+<div class="tv-live-wrap" id="tv-live"
+     hx-get="/tv/queue?t={{.TVToken}}" hx-trigger="every 30s"
+     hx-target="#tv-live" hx-swap="innerHTML">
+  {{template "tv_queue_rows.html" .}}
+</div>
+{{end}}
