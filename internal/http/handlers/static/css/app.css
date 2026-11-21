@@ -467,6 +467,13 @@ input:focus, select:focus, textarea:focus {
   color: var(--accent-deep);
   transform: translateY(-1px);
 }
+/* Touch targets: at the default 0.6rem padding the time chips render ~36-40px
+   tall, under the 44px phone guideline. Grow the real slot buttons on touch
+   widths only (the `.legend` demo chip stays compact); desktop spacing is
+   unchanged. */
+@media (max-width: 720px) {
+  .slot-grid .slot { padding: 0.75rem 0.9rem; min-height: 44px; }
+}
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td {
   text-align: left;
