@@ -319,17 +319,20 @@ func insertBooking(t *testing.T, pool *pgxpool.Pool, seed bookingSeed) uuid.UUID
 // paymentSeed is the writable subset insertPayment accepts. Required:
 // BookingID, AmountIDR. Zero values: Status "paid", Method "qris", Purpose
 // "full", and a generated unique OrderID; a paid row without PaidAt gets
-// now() so refund/report tests have a real window.
+// now() so refund/report tests have a real window. CustomerReportedAt is the
+// manual-QRIS "customer says they paid" stamp the portal's claim filter reads
+// (it never changes the status, which stays pending until staff confirm).
 type paymentSeed struct {
-	BookingID   uuid.UUID
-	OrderID     string
-	AmountIDR   int64
-	Status      string
-	Method      string
-	Purpose     string
-	PaidAt      *time.Time
-	Reference   string
-	ReceiptPath string
+	BookingID          uuid.UUID
+	OrderID            string
+	AmountIDR          int64
+	Status             string
+	Method             string
+	Purpose            string
+	PaidAt             *time.Time
+	Reference          string
+	ReceiptPath        string
+	CustomerReportedAt *time.Time
 }
 
 // insertPayment writes one payment row (one per booking, per the unique
@@ -359,14 +362,15 @@ func insertPayment(t *testing.T, pool *pgxpool.Pool, seed paymentSeed) uuid.UUID
 	id := uuid.New()
 	const q = `INSERT INTO payments (
 			id, booking_id, order_id, amount_idr, status, payment_method, payment_purpose,
-			reference, receipt_path, paid_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`
+			reference, receipt_path, paid_at, customer_reported_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, err := pool.Exec(ctx, q,
 		id, seed.BookingID, seed.OrderID, seed.AmountIDR, seed.Status,
 		seed.Method, seed.Purpose, seed.Reference, seed.ReceiptPath, seed.PaidAt,
+		seed.CustomerReportedAt,
 	); err != nil {
 		t.Fatalf("insertPayment: %v", err)
 	}
