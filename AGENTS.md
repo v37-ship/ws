@@ -19,7 +19,9 @@ Goose + Midtrans QRIS.
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
   validation), `internal/i18n` (EN+ID maps, 1060 keys each), `internal/email`
   (SMTP sender), `internal/payment` (Midtrans QRIS client),
-  `internal/whatsapp` (Evolution client, phone normalization, message copy).
+  `internal/whatsapp` (Evolution client, phone normalization, message copy),
+  `internal/integration` (build-tagged execution suite against a disposable
+  Postgres; harness + first-wave groups, see Commands).
 - `internal/http/handlers` — `Routes()` + `render`/`renderPartial`/`renderAuto`
   + `templates/` (73 files: layouts 3, pages 15, partials 20, admin 11,
   portal 24) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
@@ -33,9 +35,26 @@ Goose + Midtrans QRIS.
 ## Commands
 
 - Verify like CI before pushing: `./scripts/ci-local.sh`
-  (gofmt check, `go vet`, `go test -race -count=1`, `go build`, docker build,
-  compose config). `make ci` runs the same script. `make test`/`vet`/`fmt`
-  run the Go steps individually.
+  (gofmt check, `go vet`, `go test -race -count=1`, the integration suite
+  against compose Postgres, `go build`, docker build, compose config).
+  `make ci` runs the same script. `make test`/`vet`/`fmt` run the Go steps
+  individually — the Go-only path when the Docker engine is down.
+- Integration suite (real SQL, build tag `integration`, one package
+  `internal/integration`): `TestMain` drops schema `public` and replays the
+  embedded Goose chain from blank, then each DB test starts with `TruncateAll`.
+  Run it with a disposable DB:
+  `docker compose up -d postgres`,
+  `docker compose exec postgres createdb -U spa spa_test` (once),
+  `TEST_DATABASE_URL=postgres://spa:spa@localhost:5432/spa_test go vet -tags=integration ./...`
+  then the same env plus
+  `go test -tags=integration -race -count=1 -p 1 ./...`. **`-p 1` is
+  mandatory** (one shared DB, so packages must not overlap). The guard is an
+  allowlist: the database must be `spa_test` or end in `_test`, and the host
+  must be loopback or `postgres`; anything else hard-fails with the URL
+  redacted (so `spa`, `umami`, `evolution` can never be wiped). Unset
+  `TEST_DATABASE_URL` skips the DB tests with a visible message, but fails
+  when `CI=true` — CI runs the same two commands against a `postgres:16-alpine`
+  service with `POSTGRES_DB=spa_test`.
 - Ship: `./scripts/deploy-local.sh` (rebuilds, `mkdir uploads` + chown to
   `65534:65534` for the `nobody` app user, restarts app, waits ~3 min for
   health, smoke-tests). `APP_URL` overrides the target (default
