@@ -494,10 +494,13 @@ off `main` (created with OpenCode's worktree tools, which place it outside the
 repo under `~/.local/share/opencode/worktree/`) on branch `sdd/<slug>`, merged
 back fast-forward — never on `main`, because `deploy-vps.sh` pulls `main`.
 
-Model tiers (OpenCode Go) — **owner decision 2026-11-23: all three roles on
-deepseek-flash** (`opencode-go/deepseek-v4.1-flash`) for cost; the review
-seats are still separate sessions, just not separated by model tier anymore.
-Flip any role back by editing this line. An implementer never reviews its own
-work. The per-plan ledger is `.superpowers/sdd/<plan>/progress.md`
+Model tiers (OpenCode Go) — **owner decision 2026-11-23: orchestrator and
+implementer on deepseek-flash** (`opencode-go/deepseek-v4.1-flash`) for cost;
+**task reviewers on `opencode-go/glm-5.3`** (the owner wants an independent
+tier on every task diff). The whole-branch reviewer stays flash unless edited
+here. Vision gates are exempt: `deepseek-flash` cannot accept images — dispatch
+any screenshot/card check on a vision-capable model (e.g. `glm-5.3-flash`).
+An implementer never reviews its own work. The per-plan ledger is
+`.superpowers/sdd/<plan>/progress.md`
 (git-ignored) — after a compaction, trust it and `git log`, not memory.
 
