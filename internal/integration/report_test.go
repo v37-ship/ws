@@ -142,6 +142,19 @@ func (fx *moneyFixture) countRefunds(t *testing.T, bookingID uuid.UUID) int {
 	return n
 }
 
+// paymentStatus reads the booking's single payment row, so a refused refund can
+// be proven not to have touched the money side either.
+func (fx *moneyFixture) paymentStatus(t *testing.T, bookingID uuid.UUID) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var status string
+	if err := fx.pool.QueryRow(ctx, `SELECT status FROM payments WHERE booking_id=$1`, bookingID).Scan(&status); err != nil {
+		t.Fatalf("payment status: %v", err)
+	}
+	return status
+}
+
 // monthOf names the Asia/Jakarta month a timestamp falls in — exactly the
 // bucket the report SQL assigns it to (paid_at for payments, created_at for
 // refunds). Deriving assertions from the row's own timestamp keeps the tests
@@ -226,6 +239,7 @@ func TestRefundCeiling(t *testing.T) {
 
 	// One rupiah past the paid amount is the ceiling, with the exact copy the
 	// portal shows.
+	logsBefore := len(fx.mustLogs(t, bookingID))
 	_, err = fx.svc.RecordRefund(ctx, bookingID, 75_001, "one over", &fx.actor)
 	if !errors.Is(err, service.ErrValidation) {
 		t.Fatalf("over-ceiling refund error = %v, want ErrValidation", err)
@@ -236,6 +250,13 @@ func TestRefundCeiling(t *testing.T) {
 	}
 	if got := fx.countRefunds(t, bookingID); got != 1 {
 		t.Errorf("refunds after the refused over-ceiling try = %d, want 1", got)
+	}
+	// The refusal is read-only on both the money side and the audit trail.
+	if got := fx.paymentStatus(t, bookingID); got != string(domain.PaymentPaid) {
+		t.Errorf("payment status after the refused refund = %q, want paid", got)
+	}
+	if got := len(fx.mustLogs(t, bookingID)); got != logsBefore {
+		t.Errorf("refused refund wrote %d booking_logs rows", got-logsBefore)
 	}
 
 	// The whole paid amount remains reachable; the border is exact.
@@ -498,6 +519,43 @@ func TestCashBasisMonthBoundaries(t *testing.T) {
 		if !containsString(months, want) {
 			t.Errorf("available months %v missing %s", months, want)
 		}
+	}
+}
+
+// TestMonthlyReportUsesJakartaMonthBucket pins the AT TIME ZONE conversion
+// itself. Every other case in this file pins an instant well inside a month, so
+// WIB and UTC agree there and a dropped conversion would go unnoticed. This
+// payment sits at 02:00 WIB on the first of the month — 19:00 UTC on the last
+// day of the previous month — so only the conversion puts it in January (the
+// suite's Postgres sessions run in UTC).
+func TestMonthlyReportUsesJakartaMonthBucket(t *testing.T) {
+	fx := newMoneyFixture(t)
+
+	// January 1st 02:00 WIB == December 31st 19:00 UTC.
+	rollover := time.Date(2026, 1, 1, 2, 0, 0, 0, wib)
+	if got := rollover.UTC().Format("2006-01"); got != "2025-12" {
+		t.Fatalf("fixture premise broken: %s WIB is UTC month %s, want 2025-12",
+			rollover.Format(time.RFC3339), got)
+	}
+	bookingID, _ := fx.paidBooking(t, 123_000, rollover, "")
+
+	// The Jakarta month holds the payment...
+	sum, lines, refunds := fx.month(t, "2026-01")
+	assertMonth(t, sum, "2026-01", 123_000, 0, 123_000, 1, 0)
+	assertNoRefunds(t, "2026-01", refunds)
+	if len(lines) != 1 || lines[0].BookingID != bookingID {
+		t.Fatalf("2026-01 lines = %+v, want the rollover payment", lines)
+	}
+	if got := monthOf(t, lines[0].PaidAt); got != "2026-01" {
+		t.Errorf("line paid_at bucket = %s, want 2026-01", got)
+	}
+
+	// ...and the UTC month does not: dropping AT TIME ZONE from the report SQL
+	// would bucket this row in December and fail both readings.
+	dec, decLines, _ := fx.month(t, "2025-12")
+	assertMonth(t, dec, "2025-12", 0, 0, 0, 0, 0)
+	if len(decLines) != 0 {
+		t.Errorf("2025-12 lines = %+v, want none in the WIB reading", decLines)
 	}
 }
 

@@ -253,9 +253,9 @@ func TestUndoRestoresPreviousStatus(t *testing.T) {
 // real rows: because the revert itself is a status change, the chain now ends
 // at confirmed, and the next undo derives checked_in — one step, not a rewind
 // through the whole history. Undo can therefore toggle, but it can never skip a
-// status. (The task brief expected a refusal here; the production parser has no
-// marker for "this row was an undo", so a refusal would require a production
-// change, see the task report.)
+// status: the revert is logged in the same "Status changed to X" form as any
+// move, and the parser has no marker for "this row was an undo", so refusing
+// here would require a production change.
 func TestSecondUndoIsOneStep(t *testing.T) {
 	fx := newUndoFixture(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -289,18 +289,28 @@ func TestSecondUndoIsOneStep(t *testing.T) {
 }
 
 // TestUndoRefusesWhenChainMoved is the concurrency guard. A status change that
-// bypassed the logging update (the repo's unlogged UpdateStatus, as a stray
-// write or a failed activity insert would leave it) makes the newest logged
-// status disagree with the row; undo must refuse and touch nothing, rather than
-// overwrite the change it cannot account for.
+// bypassed the logging update (the repo's unlogged UpdateStatus, the seam this
+// test uses directly and the 1-minute ticker's raw ExpireHolds UPDATE) makes the
+// newest logged status disagree with the row; undo must refuse and touch
+// nothing, rather than overwrite the change it cannot account for.
 func TestUndoRefusesWhenChainMoved(t *testing.T) {
 	fx := newUndoFixture(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// One logged move first, so the trail really has a predecessor: without it
+	// the parser could refuse merely because the chain is too short, and the
+	// chain-match guard would go untested.
+	if err := fx.svc.UpdateStatus(ctx, fx.booking.ID, domain.BookingCheckedIn, &fx.actorID, "arrived"); err != nil {
+		t.Fatalf("logged move to checked_in: %v", err)
+	}
+
 	// Out-of-band move: the row changes, the audit trail does not.
-	if err := fx.bookings.UpdateStatus(ctx, fx.booking.ID, domain.BookingCheckedIn); err != nil {
+	if err := fx.bookings.UpdateStatus(ctx, fx.booking.ID, domain.BookingInService); err != nil {
 		t.Fatalf("out-of-band status write: %v", err)
+	}
+	if got := fx.reload(t).Status; got != domain.BookingInService {
+		t.Fatalf("status after the out-of-band write = %q, want in_service", got)
 	}
 	before := fx.countLogs(t)
 
@@ -314,8 +324,8 @@ func TestUndoRefusesWhenChainMoved(t *testing.T) {
 	if !strings.Contains(err.Error(), "no undoable status change") {
 		t.Errorf("undo error = %q, want the no-undoable-status-change copy", err.Error())
 	}
-	if got := fx.reload(t).Status; got != domain.BookingCheckedIn {
-		t.Errorf("status after a refused undo = %q, want the out-of-band checked_in", got)
+	if got := fx.reload(t).Status; got != domain.BookingInService {
+		t.Errorf("status after a refused undo = %q, want the out-of-band in_service", got)
 	}
 	if got := fx.countLogs(t); got != before {
 		t.Errorf("refused undo wrote %d audit rows", got-before)

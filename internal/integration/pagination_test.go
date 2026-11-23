@@ -325,6 +325,20 @@ func TestBookingPaginationMatchesCount(t *testing.T) {
 		})
 	}
 
+	t.Run("claim ids are a subset of unpaid ids", func(t *testing.T) {
+		unpaid, _ := listAllPages(t, fx.bookings, repo.FilterParams{Payment: "unpaid"})
+		claims, _ := listAllPages(t, fx.bookings, repo.FilterParams{Payment: "claim"})
+		if len(claims) != pageClaimRows {
+			t.Fatalf("claim filter returned %d rows, want %d", len(claims), pageClaimRows)
+		}
+		unpaidSet := idSet(idsOf(unpaid))
+		for _, id := range idsOf(claims) {
+			if _, ok := unpaidSet[id]; !ok {
+				t.Fatalf("claim booking %s is not in the unpaid result (%d rows)", id, len(unpaid))
+			}
+		}
+	})
+
 	t.Run("unfiltered page math is 25 then 5", func(t *testing.T) {
 		_, sizes := listAllPages(t, fx.bookings, repo.FilterParams{})
 		if len(sizes) != 2 || sizes[0] != 25 || sizes[1] != 5 {
@@ -360,8 +374,8 @@ func TestBookingPageBeyondEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
-	if total != 30 {
-		t.Fatalf("unfiltered count = %d, want 30", total)
+	if want := len(fx.confirmed) + len(fx.checkedIn); total != want {
+		t.Fatalf("unfiltered count = %d, want the %d seeded rows", total, want)
 	}
 
 	past, err := fx.bookings.ListFiltered(ctx, repo.FilterParams{Page: 3})
