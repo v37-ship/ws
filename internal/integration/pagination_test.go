@@ -422,6 +422,101 @@ func TestBookingPageBeyondEnd(t *testing.T) {
 	}
 }
 
+// TestBookingDateFilterUsesJakartaDay pins the AT TIME ZONE conversion in the
+// date filter. Every booking the pager fixture seeds sits at 08:00-17:00 WIB,
+// where the WIB and UTC dates agree, so dropping the conversion would pass
+// unnoticed. These two rows straddle the boundaries instead:
+//
+//	02:00 WIB on 1 Dec  = 19:00 UTC on 30 Nov  (previous UTC day)
+//	00:30 WIB on 2 Dec  = 17:30 UTC on 1 Dec   (still 1 Dec in UTC)
+//
+// so a naive UTC read pushes the 02:00 row off 1 Dec and pulls the 00:30 row
+// onto 1 Dec; only the conversion puts each on its Jakarta date.
+func TestBookingDateFilterUsesJakartaDay(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+
+	loc := insertLocation(t, pool, "Jakarta Day Branch")
+	svcID := insertService(t, pool, loc, "Jakarta Day Treatment", 150_000)
+	bookings := repo.NewBookingRepo(pool)
+
+	// The two rows sit 22.5 hours apart; a distinct therapist per seed keeps
+	// the fixture independent of the exclusion window.
+	earlyStaff := insertStaff(t, pool, loc, "Jakarta Day Early")
+	lateStaff := insertStaff(t, pool, loc, "Jakarta Day Late")
+
+	early := time.Date(2026, 12, 1, 2, 0, 0, 0, wib) // 2026-11-30 19:00 UTC
+	late := time.Date(2026, 12, 2, 0, 30, 0, 0, wib) // 2026-12-01 17:30 UTC
+	if got := early.UTC().Format("2006-01-02"); got != "2026-11-30" {
+		t.Fatalf("fixture premise broken: %s is UTC date %s, want 2026-11-30", early.Format(time.RFC3339), got)
+	}
+	if got := late.UTC().Format("2006-01-02"); got != "2026-12-01" {
+		t.Fatalf("fixture premise broken: %s is UTC date %s, want 2026-12-01", late.Format(time.RFC3339), got)
+	}
+
+	earlyID := insertBooking(t, pool, bookingSeed{
+		LocationID: loc,
+		ServiceID:  svcID,
+		StaffID:    earlyStaff,
+		StartAt:    early,
+		PriceIDR:   150_000,
+		Status:     string(domain.BookingConfirmed),
+		GuestName:  "Jakarta Day Early Guest",
+	})
+	lateID := insertBooking(t, pool, bookingSeed{
+		LocationID: loc,
+		ServiceID:  svcID,
+		StaffID:    lateStaff,
+		StartAt:    late,
+		PriceIDR:   150_000,
+		Status:     string(domain.BookingConfirmed),
+		GuestName:  "Jakarta Day Late Guest",
+	})
+
+	cases := []struct {
+		date string
+		want []uuid.UUID
+	}{
+		// 2026-12-01 must hold the 02:00 row (30 Nov in UTC) and must not
+		// absorb the 00:30 row that UTC still calls 1 Dec.
+		{date: "2026-12-01", want: []uuid.UUID{earlyID}},
+		// 2026-12-02 must hold the 00:30 row (1 Dec in UTC), not 2026-12-01.
+		{date: "2026-12-02", want: []uuid.UUID{lateID}},
+		// The UTC date of the early row holds nothing in the Jakarta reading.
+		{date: "2026-11-30", want: nil},
+	}
+	for _, c := range cases {
+		t.Run(c.date, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			count, err := bookings.CountFiltered(ctx, repo.FilterParams{Date: c.date})
+			if err != nil {
+				t.Fatalf("count: %v", err)
+			}
+			if count != len(c.want) {
+				t.Fatalf("CountFiltered(date %s) = %d, want %d", c.date, count, len(c.want))
+			}
+			rows, _ := listAllPages(t, bookings, repo.FilterParams{Date: c.date})
+			got := idSet(idsOf(rows))
+			want := idSet(c.want)
+			if len(got) != len(want) {
+				t.Fatalf("date %s returned %d rows, want %d (%v)", c.date, len(got), len(want), idsOf(rows))
+			}
+			for id := range want {
+				if _, ok := got[id]; !ok {
+					t.Fatalf("date %s is missing booking %s", c.date, id)
+				}
+			}
+			for id := range got {
+				if _, ok := want[id]; !ok {
+					t.Fatalf("date %s includes booking %s from the neighbouring day", c.date, id)
+				}
+			}
+		})
+	}
+}
+
 // TestStaffNoDoubleBookExclusion executes the migration-003 EXCLUDE constraint:
 // the second active booking on one therapist's slot fails with Postgres 23P01,
 // the service maps that to ErrConflict, and the inactive/edge cases (cancelled,
@@ -548,14 +643,60 @@ func TestStaffNoDoubleBookExclusion(t *testing.T) {
 		t.Fatalf("booking over a pending_payment hold error = %v, want service.ErrConflict", err)
 	}
 
+	// The two middle active statuses are in the exclusion predicate too, not
+	// just the two ends of the lifecycle. Without these rows a constraint
+	// narrowed to ('pending_payment','confirmed') would still pass the suite,
+	// letting a checked_in or in_service visit be double-booked.
+	for i, status := range []domain.BookingStatus{domain.BookingCheckedIn, domain.BookingInService} {
+		slot := start.Add(time.Duration(8+i) * time.Hour)
+		insertBooking(t, pool, bookingSeed{
+			CustomerID: &customer,
+			LocationID: loc,
+			ServiceID:  serviceID,
+			StaffID:    staff,
+			StartAt:    slot,
+			Status:     string(status),
+			PriceIDR:   200_000,
+		})
+
+		// Raw insert first: the constraint itself must answer 23P01.
+		middleOverlap := &domain.Booking{
+			CustomerID: &customer,
+			LocationID: loc,
+			ServiceID:  serviceID,
+			StaffID:    staff,
+			StartAt:    slot.Add(15 * time.Minute),
+			EndAt:      slot.Add(75 * time.Minute),
+			Status:     domain.BookingConfirmed,
+			PriceIDR:   200_000,
+		}
+		overlapErr := bookings.Create(ctx, middleOverlap)
+		var pgErr *pgconn.PgError
+		if !errors.As(overlapErr, &pgErr) {
+			t.Fatalf("overlap on a %s slot error %T %v is not a pgconn.PgError", status, overlapErr, overlapErr)
+		}
+		if pgErr.Code != "23P01" {
+			t.Fatalf("overlap on a %s slot SQLSTATE = %q, want 23P01 (exclusion_violation)", status, pgErr.Code)
+		}
+
+		// Then the customer-facing path: the service maps the same violation to
+		// ErrConflict instead of leaking the pg error.
+		_, _, err := svc.CreatePending(ctx, customer, loc, serviceID, staff, slot.Add(15*time.Minute),
+			"over a "+string(status)+" fixture", domain.PlaceOnsite, "", "", nil)
+		if !errors.Is(err, service.ErrConflict) {
+			t.Fatalf("booking over a %s slot error = %v, want service.ErrConflict", status, err)
+		}
+	}
+
 	// Only the successful creations exist: 1 first + 1 back-to-back + 3 over the
-	// inactive rows + the 3 inactive/cancelled rows seeded directly + 1 hold.
-	// The three rejected attempts wrote nothing.
+	// inactive rows + the 3 inactive/cancelled rows seeded directly + 1 hold
+	// + the 2 middle-status rows seeded below. The rejected attempts wrote
+	// nothing.
 	var rows int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM bookings WHERE staff_id=$1`, staff).Scan(&rows); err != nil {
 		t.Fatalf("count bookings: %v", err)
 	}
-	const wantRows = 1 + 1 + 3 + 3 + 1
+	const wantRows = 1 + 1 + 3 + 3 + 1 + 2
 	if rows != wantRows {
 		t.Fatalf("bookings for the therapist = %d, want %d (rejected creates must leave no row)", rows, wantRows)
 	}

@@ -37,21 +37,35 @@ type undoFixture struct {
 	actorID  uuid.UUID
 }
 
+// undoStaffGroupJID is a real Evolution group-JID shape. The undo assertions
+// use it so a fan-out would have somewhere to write: unless the correction is
+// quiet, a revert to confirmed pings the group and the row count moves.
+const undoStaffGroupJID = "120363000000000000@g.us"
+
 // newUndoService wires BookingService the way cmd/server does, with the test
-// pool's repos. The only stubs are the two dependencies the exercised paths
-// never touch: midtrans (manual-payment mode confirms without charging) and the
-// mailer (none of create/status/undo sends mail). The WhatsApp notifier is the
-// REAL WaService over the REAL outbox repo in mock mode (enabled=false), so
-// scheduling and cancellation write and update genuine wa_outbox rows without a
-// paired instance.
+// pool's repos, and no staff group. The only stubs are the two dependencies
+// the exercised paths never touch: midtrans (manual-payment mode confirms
+// without charging) and the mailer (none of create/status/undo sends mail). The
+// WhatsApp notifier is the REAL WaService over the REAL outbox repo in mock
+// mode (enabled=false), so scheduling and cancellation write and update
+// genuine wa_outbox rows without a paired instance.
 func newUndoService(t *testing.T, pool *pgxpool.Pool) *service.BookingService {
+	t.Helper()
+	return newUndoServiceWithGroup(t, pool, "")
+}
+
+// newUndoServiceWithGroup is newUndoService with a staff group JID wired into
+// BookingOptions. The fixture creates its booking with the group-less service
+// and hands the group-wired one to the test body: a staff_booking dedupe key is
+// permanent, so a group wired from creation would make the undo's repeated ping
+// a silent no-op and the quiet-undo assertion toothless.
+func newUndoServiceWithGroup(t *testing.T, pool *pgxpool.Pool, staffGroup string) *service.BookingService {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	bookings := repo.NewBookingRepo(pool)
 	catalog := repo.NewCatalogRepo(pool)
 	// Customer messaging and the review ask are switched on so the completion
-	// path really schedules its review row; the group JID stays empty, which
-	// switches the staff pings off.
+	// path really schedules its review row.
 	wa := service.NewWaService(repo.NewWaRepo(pool), nil, log, false, 0, nil)
 	return service.NewBookingService(
 		bookings,
@@ -70,6 +84,7 @@ func newUndoService(t *testing.T, pool *pgxpool.Pool) *service.BookingService {
 			PaymentMode: "qris_manual",
 			Wa:          wa,
 			CustomerWA:  true,
+			StaffGroup:  staffGroup,
 			ReviewURL:   "https://g.page/r/integration-test/review",
 			RemindHour:  18,
 		},
@@ -115,8 +130,11 @@ func newUndoFixture(t *testing.T) *undoFixture {
 	}
 
 	return &undoFixture{
-		pool:     pool,
-		svc:      bookingSvc,
+		pool: pool,
+		// From here on the group is wired: creation's pings already used their
+		// permanent dedupe keys, so any *new* staff row after a status move can
+		// only come from a fan-out the test is meant to observe.
+		svc:      newUndoServiceWithGroup(t, pool, undoStaffGroupJID),
 		bookings: repo.NewBookingRepo(pool),
 		booking:  b,
 		actorID:  actor,
@@ -223,6 +241,15 @@ func TestUndoRestoresPreviousStatus(t *testing.T) {
 		t.Fatalf("move to checked_in: %v", err)
 	}
 
+	// The revert is quiet (ruling 3): a fan-out on undo would re-run the
+	// confirmed lifecycle and, because the fixture wires a staff group, insert a
+	// staff_booking row the creation path never queued. The count is the
+	// observable that tells the two behaviours apart.
+	beforeOutbox := countOutbox(t, fx.pool, fx.booking.ID)
+	if beforeOutbox == 0 {
+		t.Fatal("fixture queued no outbox rows, so the quiet-undo assertion would be vacuous")
+	}
+
 	prev, err := fx.svc.UndoLastStatus(ctx, fx.booking.ID, &fx.actorID)
 	if err != nil {
 		t.Fatalf("undo: %v", err)
@@ -232,6 +259,9 @@ func TestUndoRestoresPreviousStatus(t *testing.T) {
 	}
 	if got := fx.reload(t).Status; got != domain.BookingConfirmed {
 		t.Fatalf("status after undo = %q, want confirmed", got)
+	}
+	if got := countOutbox(t, fx.pool, fx.booking.ID); got != beforeOutbox {
+		t.Errorf("quiet undo changed the outbox count: %d -> %d (a fan-out would ping the staff group)", beforeOutbox, got)
 	}
 
 	logs := fx.logs(t)

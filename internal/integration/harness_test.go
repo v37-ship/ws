@@ -55,10 +55,28 @@ func TestMain(m *testing.M) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	pool, err := db.Connect(ctx, testDSN)
+	pool, err := connectTestPool(ctx, testDSN)
 	if err != nil {
 		cancel()
 		fmt.Fprintf(os.Stderr, "integration: connect: %v\n", err)
+		os.Exit(1)
+	}
+	// The report rollover test's premise is that a naive read of a timestamptz
+	// agrees with UTC: only then does the WIB conversion visibly move the row.
+	// A dev cluster whose default TimeZone is Asia/Jakarta would make the two
+	// readings agree and quietly disarm that test, so pin it and prove it.
+	var sessionTZ string
+	if err := pool.QueryRow(ctx, `SHOW TimeZone`).Scan(&sessionTZ); err != nil {
+		cancel()
+		pool.Close()
+		fmt.Fprintf(os.Stderr, "integration: read session TimeZone: %v\n", err)
+		os.Exit(1)
+	}
+	if !strings.EqualFold(sessionTZ, "UTC") {
+		cancel()
+		pool.Close()
+		fmt.Fprintf(os.Stderr, "integration: refusing to run: session TimeZone is %q, want UTC "+
+			"(the harness pins it; a pool without that pin would disarm the report rollover test)\n", sessionTZ)
 		os.Exit(1)
 	}
 	if err := resetSchema(ctx, pool, testDSN); err != nil {
@@ -73,6 +91,29 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	pool.Close()
 	os.Exit(code)
+}
+
+// connectTestPool opens the guarded pool with every session's TimeZone pinned
+// to UTC. db.Connect cannot express that, and a one-shot `SET TIME ZONE` only
+// touches one pooled connection, so the setting belongs in the conn config.
+func connectTestPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.ConnConfig.RuntimeParams == nil {
+		cfg.ConnConfig.RuntimeParams = map[string]string{}
+	}
+	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC"
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
 }
 
 // ciEnvSet reports whether the environment looks like CI (GitHub Actions sets
@@ -124,11 +165,18 @@ func parseSafeDB(raw string) (*url.URL, error) {
 		return nil, fmt.Errorf("%s: host %q is not loopback or `postgres`", redactedURL(u), host)
 	}
 
-	// libpq/pgx let these query parameters override the URL's host/database,
-	// which would slip past the two checks above.
-	for _, key := range []string{"host", "hostaddr", "dbname", "service", "servicefile"} {
-		if _, ok := u.Query()[key]; ok {
-			return nil, fmt.Errorf("%s: query parameter %q may override the guarded host/database", redactedURL(u), key)
+	// pgx canonicalises libpq keywords — a `dbname` parameter is renamed to
+	// `database` — and query parameters merge AFTER the URL path, so both
+	// `?dbname=spa` and `?database=spa` re-point this connection at the live
+	// database the mirrored path says is spa_test. A deny-list cannot track
+	// that (nor `?host`, `?password`, `?user`, `?options`), so only the three
+	// harmless tuning keys are allowed and every other key is a hard failure.
+	// Do not widen this without re-checking pgx's keyword canonicalisation.
+	for key := range u.Query() {
+		switch key {
+		case "sslmode", "connect_timeout", "application_name":
+		default:
+			return nil, fmt.Errorf("%s: query parameter %q is not on the harness allowlist (sslmode, connect_timeout, application_name)", redactedURL(u), key)
 		}
 	}
 
@@ -495,9 +543,17 @@ func TestRequireSafeDB(t *testing.T) {
 		"mysql://spa:spa@localhost:5432/spa_test",
 		"not a url",
 		"",
-		// Query overrides would sidestep the host/database checks.
+		// Query overrides would sidestep the host/database checks. pgx renames
+		// dbname to database and merges query params after the path, so both
+		// spellings must fail, as must every key outside the allowlist.
 		"postgres://spa:spa@localhost:5432/spa_test?host=evil.example.com",
 		"postgres://spa:spa@localhost:5432/spa_test?dbname=spa",
+		"postgres://spa:spa@localhost:5432/spa_test?database=spa",
+		"postgres://spa:spa@localhost:5432/spa_test?host=evil",
+		"postgres://spa:spa@localhost:5432/spa_test?password=x",
+		"postgres://spa:spa@localhost:5432/spa_test?user=postgres",
+		"postgres://spa:spa@localhost:5432/spa_test?options=-csearch_path%3Dspa",
+		"postgres://spa:spa@localhost:5432/spa_test?unknown_key=1",
 	}
 	for _, raw := range reject {
 		if _, err := parseSafeDB(raw); err == nil {
@@ -508,6 +564,7 @@ func TestRequireSafeDB(t *testing.T) {
 	accept := []string{
 		"postgres://spa:spa@localhost:5432/spa_test",
 		"postgres://spa:spa@127.0.0.1:5432/spa_test?sslmode=disable",
+		"postgres://spa:spa@127.0.0.1:5432/spa_test?sslmode=disable&connect_timeout=5&application_name=integration",
 		"postgres://spa:spa@[::1]:5432/spa_test",
 		"postgres://spa:spa@postgres:5432/spa_test",
 		"postgresql://spa:spa@localhost:5432/scratch_test",
@@ -578,10 +635,14 @@ func TestHarnessSeedingRoundTrip(t *testing.T) {
 
 	TruncateAll(t, pool)
 	var remaining int
-	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM bookings) + (SELECT count(*) FROM payments) + (SELECT count(*) FROM booking_logs)`).Scan(&remaining); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT
+			(SELECT count(*) FROM bookings) + (SELECT count(*) FROM payments) +
+			(SELECT count(*) FROM booking_logs) + (SELECT count(*) FROM users) +
+			(SELECT count(*) FROM locations) + (SELECT count(*) FROM services) +
+			(SELECT count(*) FROM staff)`).Scan(&remaining); err != nil {
 		t.Fatalf("read after truncate: %v", err)
 	}
 	if remaining != 0 {
-		t.Fatalf("TruncateAll left %d rows behind", remaining)
+		t.Fatalf("TruncateAll left %d rows behind across bookings, payments, booking_logs, users, locations, services and staff", remaining)
 	}
 }
