@@ -186,20 +186,23 @@
           {{end}}
           </tbody>
           <tfoot>
+            {{/* data-label keeps the summary readable when .table-cards stacks
+                 the cells on a phone: the hidden header row cannot caption
+                 them there. */}}
             <tr>
               <th>{{t .Lang "pr.total"}}</th>
-              <th style="text-align:center;">{{.Sessions}}</th>
-              <th style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalGrossIDR}}</th>
-              <th style="text-align:right; white-space:nowrap;">{{if .Report.TotalRefundIDR}}−{{formatIDR .Report.TotalRefundIDR}}{{else}}—{{end}}</th>
+              <th data-label="{{t .Lang "pr.th.sess"}}" style="text-align:center;">{{.Sessions}}</th>
+              <th data-label="{{t .Lang "pr.th.gross"}}" style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalGrossIDR}}</th>
+              <th data-label="{{t .Lang "pr.th.refund"}}" style="text-align:right; white-space:nowrap;">{{if .Report.TotalRefundIDR}}−{{formatIDR .Report.TotalRefundIDR}}{{else}}—{{end}}</th>
               <th></th>
-              <th style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalCommissionIDR}}</th>
-              <th style="text-align:right; white-space:nowrap;">{{if .Report.TotalFixedIDR}}{{formatIDR .Report.TotalFixedIDR}}{{else}}—{{end}}</th>
-              <th style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalIDR}}</th>
+              <th data-label="{{t .Lang "pr.th.comm"}}" style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalCommissionIDR}}</th>
+              <th data-label="{{t .Lang "pr.th.fixed"}}" style="text-align:right; white-space:nowrap;">{{if .Report.TotalFixedIDR}}{{formatIDR .Report.TotalFixedIDR}}{{else}}—{{end}}</th>
+              <th data-label="{{t .Lang "pr.th.total"}}" style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalIDR}}</th>
               <th></th>
             </tr>
             <tr>
-              <th colspan="7" style="text-align:right;">{{t .Lang "pr.unpd.sum"}}</th>
-              <th style="text-align:right; white-space:nowrap;">{{formatIDR .UnpaidIDR}}</th>
+              <th colspan="7" class="tfoot-lbl" style="text-align:right;">{{t .Lang "pr.unpd.sum"}}</th>
+              <th data-label="{{t .Lang "pr.unpd.sum"}}" style="text-align:right; white-space:nowrap;">{{formatIDR .UnpaidIDR}}</th>
               <th></th>
             </tr>
           </tfoot>

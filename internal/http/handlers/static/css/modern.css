@@ -72,6 +72,12 @@ html[data-theme="dark"] option { background: #2a1f30; color: #f8eff5; }
     border-radius: 1rem; margin-bottom: .75rem; padding: .75rem 1rem;
   }
   .table-cards td { border: 0; padding: .15rem 0; }
+  /* A footer cell cannot rely on the (hidden) header row for its caption. */
+  .table-cards tfoot th[data-label]::before {
+    content: attr(data-label) ": "; color: var(--muted); font-weight: 600;
+  }
+  /* The labelled amount cell already carries the sentence; drop the duplicate. */
+  .table-cards tfoot th.tfoot-lbl { display: none; }
 }
 
 /* ---- Booking wizard ---- */
