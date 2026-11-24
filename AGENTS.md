@@ -224,7 +224,7 @@ Goose + Midtrans QRIS.
   free-text staff resends from the booking detail page, staff-triggered
   reminder resends (kind `remind`), automatic customer lifecycle messages
   (`booking_remind` H-1 at `WA_REMINDER_HOUR` WIB, `booking_cancelled`,
-  `booking_rescheduled`, `booking_expired`, `review_request` +2h after a
+  `booking_rescheduled`, `booking_expired`, `review_request` +24h after a
   completed visit); scheduling uses `UpsertScheduled`/`CancelPending`
   (never a bare `Enqueue` for a key that must move), plus the group pings
   `staff_booking` (new online booking) and `staff_cancelled`/

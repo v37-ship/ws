@@ -540,7 +540,7 @@ func (s *BookingService) UpdateStatus(ctx context.Context, bookingID uuid.UUID, 
 // UndoLastStatus reverts the booking's most recent status change. It is
 // deliberately quiet toward the customer (ruling 3): the reverted transition
 // runs no lifecycle fan-out, so it never sends a new message. Un-finishing a
-// visit drops the pending +2h review request, because a review ask for an
+// visit drops the pending +24h review request, because a review ask for an
 // unfinished visit is wrong. Un-cancelling sends nothing — the original
 // confirmation dedupe key is permanent — so the handler's toast tells staff to
 // resend the confirmation from the detail page instead.

@@ -363,7 +363,7 @@ func TestUndoRefusesWhenChainMoved(t *testing.T) {
 }
 
 // TestUndoCompletedCancelsReviewRequest covers the side effect unique to
-// un-finishing a visit: completing queues the +2h review ask in the real
+// un-finishing a visit: completing queues the +24h review ask in the real
 // outbox; undoing to in_service must cancel that pending row (asking for a
 // review of a visit that is no longer complete is wrong) and enqueue nothing
 // new — undo is quiet toward the customer.

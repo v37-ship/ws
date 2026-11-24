@@ -231,7 +231,7 @@ func TestReviewRequestScheduledAfterVisit(t *testing.T) {
 	if !call.Upsert || call.Dedupe != "review:"+b.ID.String() {
 		t.Errorf("call = %+v", call)
 	}
-	if want := fixedNow.Add(2 * time.Hour); !call.At.Equal(want) {
+	if want := fixedNow.Add(24 * time.Hour); !call.At.Equal(want) {
 		t.Errorf("scheduled at %s, want %s", call.At, want)
 	}
 	if call.Payload["review_url"] != svc.opts.ReviewURL {
@@ -242,13 +242,15 @@ func TestReviewRequestScheduledAfterVisit(t *testing.T) {
 func TestReviewRequestClampedToMorning(t *testing.T) {
 	wa := &fakeNotifier{}
 	svc := newNotifyService(wa)
-	svc.now = func() time.Time { return time.Date(2026, 10, 24, 19, 30, 0, 0, wib) }
-	b := guestBooking(wibAt(19, 0))
+	// A visit finished after the 20:00 cutoff: +24h lands at 20:30 the next
+	// evening, which the waking-hours clamp pushes to 07:00 the morning after.
+	svc.now = func() time.Time { return time.Date(2026, 10, 24, 20, 30, 0, 0, wib) }
+	b := guestBooking(wibAt(20, 0))
 	b.Status = domain.BookingCompleted
 	svc.notifyReviewRequest(context.Background(), b)
 
 	call, _ := wa.findCall("review_request")
-	if want := time.Date(2026, 10, 25, sendWindowStart, 0, 0, 0, wib); !call.At.Equal(want) {
+	if want := time.Date(2026, 10, 26, sendWindowStart, 0, 0, 0, wib); !call.At.Equal(want) {
 		t.Errorf("scheduled at %s, want the next 07:00 WIB", call.At)
 	}
 }

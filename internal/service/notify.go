@@ -70,6 +70,9 @@ const (
 	sendWindowStart = 7  // automatic customer messages never go out before 07:00 WIB
 	sendWindowEnd   = 20 // ... or after 20:00 WIB
 	remindMinLead   = 12 * time.Hour
+	// reviewDelay is how long after a visit is completed the review ask goes
+	// out: a day later, so the customer has settled back into their day.
+	reviewDelay = 24 * time.Hour
 )
 
 // clampSendTime moves a send into the 07:00-20:00 WIB window so automatic
@@ -280,7 +283,7 @@ func (s *BookingService) ReschedulePendingReminders(ctx context.Context) (int, e
 	return n, nil
 }
 
-// notifyReviewRequest queues the post-visit review ask (two hours after the
+// notifyReviewRequest queues the post-visit review ask (a day after the
 // visit, clamped to waking hours).
 func (s *BookingService) notifyReviewRequest(ctx context.Context, b *domain.Booking) {
 	cfg := s.waCfg(ctx)
@@ -297,7 +300,7 @@ func (s *BookingService) notifyReviewRequest(ctx context.Context, b *domain.Book
 		"staff":      b.StaffName,
 		"review_url": cfg.ReviewURL,
 	}
-	at := clampSendTime(s.nowWIB().Add(2 * time.Hour))
+	at := clampSendTime(s.nowWIB().Add(reviewDelay))
 	if _, err := s.opts.Wa.UpsertScheduled(ctx, phone, "review_request", payload, &b.ID,
 		reviewKey(b.ID), at); err != nil {
 		s.log.Warn("wa schedule review request", "booking", b.ID, "err", err)
