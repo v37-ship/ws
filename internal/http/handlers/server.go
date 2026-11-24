@@ -61,7 +61,7 @@ type Server struct {
 	// concrete repos (it writes the append-only timeline), so its tests swap
 	// the seam functions instead.
 	payroll     payrollReporter
-	payouts     payoutReader
+	payouts     payoutStore
 	payrollRepo *repo.PayrollRepo   // rate form: every staff member, any branch
 	staffComps  *repo.StaffCompRepo // the append-only rate timeline
 	tpl         *template.Template
@@ -836,6 +836,9 @@ func (s *Server) Routes(r chi.Router) {
 		// numbers. Also admin-only — a rate is salary data.
 		ar.Get("/payroll/rates", s.AdminPayrollRates)
 		ar.Post("/payroll/rates", s.AdminPayrollRateCreate)
+		// Mark-paid: recomputes the period and freezes the row as an immutable
+		// snapshot; the unique key makes it once per therapist and period.
+		ar.Post("/payroll/pay", s.AdminPayrollPay)
 
 		// Waiting-room TV kiosk links (generate, show, revoke).
 		ar.Get("/tv", s.AdminTVPage)

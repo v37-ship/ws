@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS staff_payouts (
     period_start DATE NOT NULL,
     period_end DATE NOT NULL CHECK (period_end >= period_start),
     gross_idr BIGINT NOT NULL DEFAULT 0 CHECK (gross_idr >= 0),
+    -- refund_idr is the capped deduction the report applied; net_idr is
+    -- gross minus refund and is deliberately SIGNED: a period whose only money
+    -- is a late refund on an earlier visit can be negative, and the snapshot
+    -- must be able to say so.
+    refund_idr BIGINT NOT NULL DEFAULT 0 CHECK (refund_idr >= 0),
+    net_idr BIGINT NOT NULL DEFAULT 0,
     percent_bp INT NOT NULL DEFAULT 0 CHECK (percent_bp BETWEEN 0 AND 10000),
     fixed_idr BIGINT NOT NULL DEFAULT 0 CHECK (fixed_idr >= 0),
     commission_idr BIGINT NOT NULL DEFAULT 0,

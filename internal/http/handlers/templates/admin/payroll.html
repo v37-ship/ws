@@ -19,6 +19,17 @@
       <p class="muted" style="margin-top:0;">{{t .Lang "pr.sub"}}</p>
     </div>
 
+    {{if .Success}}
+    <div class="panel" style="border-left:4px solid var(--ok);">
+      <strong>{{icon "check-circle"}} {{t .Lang .Success}}</strong>
+    </div>
+    {{end}}
+    {{if .Error}}
+    <div class="panel" style="border-left:4px solid var(--danger);">
+      <strong>{{icon "alert"}} {{t .Lang .Error}}</strong>
+    </div>
+    {{end}}
+
     <div class="panel no-print" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
       <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
         <a class="btn secondary on-light btn-sm" href="{{.PrevURL}}">{{t .Lang "pr.prev"}}</a>
@@ -83,11 +94,24 @@
               <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .TotalIDR}}</td>
               <td>
                 {{if .Paid}}
-                  <span class="badge">{{icon "check-circle"}} {{t $.Lang "pr.paid"}}</span>
+                  <span class="badge">{{icon "check-circle"}} {{t $.Lang "pr.paid"}} · {{formatIDR .Paid.TotalIDR}}</span>
                   <br><small class="muted">{{t $.Lang "pr.paidat"}} {{formatTime .Paid.PaidAt "2 Jan 2006 15:04"}}</small>
                   {{if .Paid.Note}}<br><small class="muted">{{t $.Lang "pr.note"}}: {{.Paid.Note}}</small>{{end}}
+                  {{if .SnapshotDiff}}<br><small class="muted">{{t $.Lang "pr.snapdiff"}}</small>{{end}}
                 {{else}}
                   <span class="muted">{{t $.Lang "pr.unpaid"}}</span>
+                  {{if .RateMissing}}
+                    <br><small class="muted">{{t $.Lang "pr.payrate"}}</small>
+                  {{else}}
+                    <form method="post" action="/admin/payroll/pay" class="no-print" style="margin-top:0.35rem; display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
+                      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                      <input type="hidden" name="staff" value="{{.StaffID}}">
+                      <input type="hidden" name="kind" value="{{$.Kind}}">
+                      <input type="hidden" name="start" value="{{$.Start}}">
+                      <input type="text" name="note" maxlength="500" placeholder="{{t $.Lang "pr.note"}}" aria-label="{{t $.Lang "pr.note"}}" style="max-width:11rem;">
+                      <button class="btn secondary on-light btn-sm" type="submit">{{t $.Lang "pr.pay"}}</button>
+                    </form>
+                  {{end}}
                 {{end}}
               </td>
             </tr>
@@ -150,6 +174,9 @@
           </tfoot>
         </table>
       </div>
+      {{/* R14: the snapshot is final. A mistake is an adjustment in a later
+           period, never an edit or a second mark-paid. */}}
+      <p class="muted" style="margin:0.75rem 0 0;"><small>{{t .Lang "pr.corr"}}</small></p>
     </div>
   </main>
   {{template "footer" .}}

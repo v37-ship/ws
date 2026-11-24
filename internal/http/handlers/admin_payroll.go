@@ -7,13 +7,18 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"spa-booking/internal/domain"
+	"spa-booking/internal/http/htmx"
+	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/i18n"
 	"spa-booking/internal/service"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // The payroll page is the admin-only accrual report: what each therapist earned
@@ -30,10 +35,12 @@ type payrollReporter interface {
 	Report(ctx context.Context, kind string, start time.Time) (service.PayrollReport, error)
 }
 
-// payoutReader resolves the paid snapshot for one therapist's period
-// (repo.StaffPayoutRepo). (nil, nil) means the period is still unpaid.
-type payoutReader interface {
+// payoutStore resolves the paid snapshot for one therapist's period and writes
+// the one that marks it paid (repo.StaffPayoutRepo). ForPeriod returns
+// (nil, nil) while the period is still unpaid.
+type payoutStore interface {
 	ForPeriod(ctx context.Context, staffID uuid.UUID, kind string, periodStart time.Time) (*domain.StaffPayout, error)
+	Create(ctx context.Context, p *domain.StaffPayout) error
 }
 
 const payrollDayLayout = "2006-01-02"
@@ -42,11 +49,14 @@ const payrollDayLayout = "2006-01-02"
 var payrollWIB = time.FixedZone("WIB", 7*3600)
 
 // payrollRowView is one computed row plus the paid snapshot the page badges.
-// R19: this task renders the state only; the mark-paid POST arrives with
-// Task 5, so there is no dead endpoint behind a button here.
 type payrollRowView struct {
 	service.PayrollRow
 	Paid *domain.StaffPayout
+	// SnapshotDiff marks a closed period whose frozen total no longer matches
+	// the recomputed row (a late refund, or a rate row added afterwards). The
+	// page keeps showing the snapshot and says the difference is corrected in
+	// a later period; it never silently rewrites either figure.
+	SnapshotDiff bool
 }
 
 // payrollPage is everything one period render needs.
@@ -125,6 +135,16 @@ func payrollPeriodLabel(lang string, period service.PayrollPeriod) string {
 	return fmt.Sprintf("%s %d", i18n.MonthShort(lang, start.Month()), start.Year())
 }
 
+// payrollPayoutKind maps the page's view kind (week/month) to the payout and
+// rate vocabulary (weekly/monthly). They are deliberately different: a weekly
+// fixed can appear on the month view, so the view kind is not a cadence.
+func payrollPayoutKind(kind string) string {
+	if kind == service.PayrollKindWeek {
+		return domain.PeriodWeekly
+	}
+	return domain.PeriodMonthly
+}
+
 // loadPayroll reads the period report and each row's paid state. ForPeriod is
 // called per row (there is no bulk read that matches the page's period), and a
 // page-level read error is an outage, not an empty payroll.
@@ -144,11 +164,12 @@ func (s *Server) loadPayroll(ctx context.Context, kind string, start time.Time) 
 	for _, row := range report.Rows {
 		view := payrollRowView{PayrollRow: row}
 		if s.payouts != nil {
-			paid, err := s.payouts.ForPeriod(ctx, row.StaffID, report.Period.Kind, report.Period.Start)
+			paid, err := s.payouts.ForPeriod(ctx, row.StaffID, payrollPayoutKind(report.Period.Kind), report.Period.Start)
 			if err != nil {
 				return payrollPage{}, err
 			}
 			view.Paid = paid
+			view.SnapshotDiff = paid != nil && paid.TotalIDR != row.TotalIDR
 		}
 		if row.RateMissing {
 			page.Missing = append(page.Missing, row.StaffName)
@@ -182,16 +203,29 @@ func payrollPageData(lang string, page payrollPage) pageData {
 	}
 }
 
-// AdminPayroll renders the period page. RequireAdmin owns the staff gate.
-func (s *Server) AdminPayroll(w http.ResponseWriter, r *http.Request) {
-	kind, start := payrollParams(r)
+// renderPayroll renders one period with an optional inline error or success
+// banner. Reads fail loudly: an outage is not an empty payroll.
+func (s *Server) renderPayroll(w http.ResponseWriter, r *http.Request, kind string, start time.Time, errKey, okKey string) {
 	page, err := s.loadPayroll(r.Context(), kind, start)
 	if err != nil {
 		s.log.Error("admin payroll", "err", err)
 		http.Error(w, "Could not load payroll", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "admin_payroll.html", payrollPageData(payrollLang(r), page))
+	data := payrollPageData(payrollLang(r), page)
+	data["Error"] = errKey
+	data["Success"] = okKey
+	s.render(w, r, "admin_payroll.html", data)
+}
+
+// AdminPayroll renders the period page. RequireAdmin owns the staff gate.
+func (s *Server) AdminPayroll(w http.ResponseWriter, r *http.Request) {
+	kind, start := payrollParams(r)
+	okKey := ""
+	if r.URL.Query().Get("ok") != "" {
+		okKey = "pr.payok"
+	}
+	s.renderPayroll(w, r, kind, start, "", okKey)
 }
 
 // AdminPayrollCSV exports the same period: localized header, one row per
@@ -288,4 +322,149 @@ func payrollPaidLabel(lang string, paid *domain.StaffPayout) string {
 		label += ": " + paid.Note
 	}
 	return label
+}
+
+// payrollNoteMaxRunes bounds the free-text note on a paid snapshot. It is a
+// soft guard on a single-line note, not a document store.
+const payrollNoteMaxRunes = 500
+
+// payrollFormPeriod parses a mark-paid POST's period. Unlike the GET's
+// payrollParams, a write never guesses: an unknown kind or a malformed start is
+// refused, and the caller re-renders the default page with the inline error.
+func payrollFormPeriod(kindRaw, startRaw string) (string, time.Time, bool) {
+	kind := strings.TrimSpace(kindRaw)
+	if kind != service.PayrollKindWeek && kind != service.PayrollKindMonth {
+		return "", time.Time{}, false
+	}
+	start, err := time.ParseInLocation(payrollDayLayout, strings.TrimSpace(startRaw), payrollWIB)
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	period, err := service.PayrollPeriodFor(kind, start)
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	return period.Kind, period.Start, true
+}
+
+// payrollPayFail is an inline refusal: the operator can fix it on the page, so
+// it is not a session or server fault. Plain forms get the page at 200 with the
+// translated message; HTMX gets a toast and keeps the last good DOM, because
+// the app's HTMX config would silently swallow a bare 4xx.
+func (s *Server) payrollPayFail(w http.ResponseWriter, r *http.Request, kind string, start time.Time, errKey string) {
+	if isHTMX(r) {
+		s.toast(w, "error", i18n.T(payrollLang(r), errKey))
+		htmx.Reswap(w, "none")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	s.renderPayroll(w, r, kind, start, errKey, "")
+}
+
+// AdminPayrollPay marks one therapist's period paid. The period is recomputed
+// here and the row found by staff id — a posted amount is never trusted — and
+// the resulting numbers are frozen as an immutable snapshot. The database's
+// unique key owns "once": a second submit answers "already paid" inline, never
+// a 500. A rate-less row is refused because its payout would be meaningless.
+func (s *Server) AdminPayrollPay(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	if u == nil || u.Role != domain.RoleAdmin {
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
+		return
+	}
+	if s.payroll == nil || s.payouts == nil {
+		s.log.Error("admin payroll pay: payroll not configured")
+		s.staffFail(w, r, http.StatusInternalServerError, failPayPay)
+		return
+	}
+
+	kind, start, ok := payrollFormPeriod(r.FormValue("kind"), r.FormValue("start"))
+	if !ok {
+		// A bad period cannot name a page to return to; fall back to the
+		// page's own default so the operator still sees a form.
+		fbKind, fbStart := payrollParams(r)
+		s.payrollPayFail(w, r, fbKind, fbStart, "pr.per.bad")
+		return
+	}
+	refuse := func(key string) { s.payrollPayFail(w, r, kind, start, key) }
+
+	staffID, err := uuid.Parse(strings.TrimSpace(r.FormValue("staff")))
+	if err != nil {
+		refuse("pr.staff.bad")
+		return
+	}
+	note := strings.TrimSpace(r.FormValue("note"))
+	if utf8.RuneCountInString(note) > payrollNoteMaxRunes {
+		refuse("pr.paynote")
+		return
+	}
+
+	report, err := s.payroll.Report(r.Context(), kind, start)
+	if err != nil {
+		s.log.Error("admin payroll pay report", "err", err)
+		s.staffFail(w, r, http.StatusInternalServerError, failPayPay)
+		return
+	}
+	var row *service.PayrollRow
+	for i := range report.Rows {
+		if report.Rows[i].StaffID == staffID {
+			row = &report.Rows[i]
+			break
+		}
+	}
+	if row == nil {
+		refuse("pr.nostaff")
+		return
+	}
+	if row.RateMissing {
+		// R25: no rate means no commission, so a snapshot would record a
+		// number nobody agreed to. The rate page is the fix.
+		refuse("pr.payrate")
+		return
+	}
+
+	payout := &domain.StaffPayout{
+		StaffID:       row.StaffID,
+		PeriodKind:    payrollPayoutKind(report.Period.Kind),
+		PeriodStart:   report.Period.Start,
+		PeriodEnd:     report.Period.End,
+		GrossIDR:      row.GrossIDR,
+		RefundIDR:     row.RefundIDR,
+		NetIDR:        row.NetIDR,
+		PercentBp:     row.PercentBp,
+		FixedIDR:      row.FixedIDR,
+		CommissionIDR: row.CommissionIDR,
+		TotalIDR:      row.TotalIDR,
+		Note:          note,
+		PaidBy:        &u.ID,
+		PaidAt:        time.Now(),
+	}
+	if err := s.payouts.Create(r.Context(), payout); err != nil {
+		if isDuplicatePayout(err) {
+			refuse("pr.already")
+			return
+		}
+		s.log.Error("admin payroll pay", "err", err)
+		s.staffFail(w, r, http.StatusInternalServerError, failPayPay)
+		return
+	}
+	s.redirectHTMX(w, r, payrollURL(report.Period.Kind, report.Period.Start)+"&ok=1")
+}
+
+const failPayPay = "Could not mark the period paid. Try again."
+
+// isDuplicatePayout reports whether err is the unique period key losing a race
+// (a double click or two tabs). Only that constraint is "already paid"; an FK
+// or another table's unique key is a real fault.
+func isDuplicatePayout(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23505" && pgErr.ConstraintName == "staff_payouts_period_key"
 }

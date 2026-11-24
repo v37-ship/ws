@@ -226,6 +226,8 @@ type StaffPayout struct {
 	PeriodStart   time.Time // date-only
 	PeriodEnd     time.Time // date-only
 	GrossIDR      int64
+	RefundIDR     int64 // the capped deduction applied in the period
+	NetIDR        int64 // gross − refund; may be negative
 	PercentBp     int
 	FixedIDR      int64
 	CommissionIDR int64

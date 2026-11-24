@@ -565,7 +565,10 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				if !contains(out, payrollPeriodLabel(lang, payrollTestPeriod(service.PayrollKindWeek))) {
 					t.Errorf("admin_payroll.html (%s): missing the period label", lang)
 				}
-				for _, key := range []string{"pr.miss.w", "pr.fixed.mo", "pr.paid", "pr.unpaid", "pr.rule"} {
+				for _, key := range []string{
+					"pr.miss.w", "pr.fixed.mo", "pr.paid", "pr.unpaid", "pr.rule",
+					"pr.pay", "pr.corr", "pr.snapdiff", "pr.payok", "pr.already",
+				} {
 					if contains(out, ">"+key+"<") {
 						t.Errorf("admin_payroll.html (%s): missing translation for %s", lang, key)
 					}

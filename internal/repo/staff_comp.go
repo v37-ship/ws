@@ -140,13 +140,13 @@ type StaffPayoutRepo struct{ pool *pgxpool.Pool }
 func NewStaffPayoutRepo(pool *pgxpool.Pool) *StaffPayoutRepo { return &StaffPayoutRepo{pool: pool} }
 
 const staffPayoutCols = `id, staff_id, period_kind, period_start, period_end,
-	gross_idr, percent_bp, fixed_idr, commission_idr, total_idr, note, paid_by, paid_at`
+	gross_idr, refund_idr, net_idr, percent_bp, fixed_idr, commission_idr, total_idr, note, paid_by, paid_at`
 
 func scanStaffPayout(row pgx.Row) (*domain.StaffPayout, error) {
 	var p domain.StaffPayout
 	if err := row.Scan(&p.ID, &p.StaffID, &p.PeriodKind, &p.PeriodStart,
-		&p.PeriodEnd, &p.GrossIDR, &p.PercentBp, &p.FixedIDR, &p.CommissionIDR,
-		&p.TotalIDR, &p.Note, &p.PaidBy, &p.PaidAt); err != nil {
+		&p.PeriodEnd, &p.GrossIDR, &p.RefundIDR, &p.NetIDR, &p.PercentBp, &p.FixedIDR,
+		&p.CommissionIDR, &p.TotalIDR, &p.Note, &p.PaidBy, &p.PaidAt); err != nil {
 		return nil, err
 	}
 	return &p, nil
@@ -165,13 +165,14 @@ func (r *StaffPayoutRepo) Create(ctx context.Context, p *domain.StaffPayout) err
 		paidAt = &p.PaidAt
 	}
 	const q = `INSERT INTO staff_payouts
-			(id, staff_id, period_kind, period_start, period_end, gross_idr,
-			 percent_bp, fixed_idr, commission_idr, total_idr, note, paid_by, paid_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13, now()))
+			(id, staff_id, period_kind, period_start, period_end, gross_idr, refund_idr,
+			 net_idr, percent_bp, fixed_idr, commission_idr, total_idr, note, paid_by, paid_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,COALESCE($15, now()))
 		RETURNING paid_at`
 	if err := r.pool.QueryRow(ctx, q, p.ID, p.StaffID, p.PeriodKind,
-		dateOnly(p.PeriodStart), dateOnly(p.PeriodEnd), p.GrossIDR, p.PercentBp,
-		p.FixedIDR, p.CommissionIDR, p.TotalIDR, p.Note, p.PaidBy, paidAt,
+		dateOnly(p.PeriodStart), dateOnly(p.PeriodEnd), p.GrossIDR, p.RefundIDR,
+		p.NetIDR, p.PercentBp, p.FixedIDR, p.CommissionIDR, p.TotalIDR, p.Note,
+		p.PaidBy, paidAt,
 	).Scan(&p.PaidAt); err != nil {
 		return fmt.Errorf("create staff payout: %w", err)
 	}

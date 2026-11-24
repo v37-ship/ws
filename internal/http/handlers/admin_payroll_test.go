@@ -42,17 +42,28 @@ func (f *fakePayrollReporter) Report(_ context.Context, kind string, start time.
 	return f.report, f.err
 }
 
-type fakePayoutReader struct {
-	byKey map[string]*domain.StaffPayout
-	calls int
+type fakePayoutStore struct {
+	byKey     map[string]*domain.StaffPayout
+	createErr error
+	created   []domain.StaffPayout
+	calls     int
+	logs      *bytes.Buffer
 }
 
-func (f *fakePayoutReader) ForPeriod(_ context.Context, staffID uuid.UUID, kind string, periodStart time.Time) (*domain.StaffPayout, error) {
+func (f *fakePayoutStore) ForPeriod(_ context.Context, staffID uuid.UUID, kind string, periodStart time.Time) (*domain.StaffPayout, error) {
 	f.calls++
 	if f.byKey == nil {
 		return nil, nil
 	}
 	return f.byKey[payrollPayoutKey(staffID, kind, periodStart)], nil
+}
+
+func (f *fakePayoutStore) Create(_ context.Context, p *domain.StaffPayout) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	f.created = append(f.created, *p)
+	return nil
 }
 
 func payrollPayoutKey(staffID uuid.UUID, kind string, start time.Time) string {
@@ -61,9 +72,13 @@ func payrollPayoutKey(staffID uuid.UUID, kind string, start time.Time) string {
 
 // newPayrollServer wires the real router with the fake reads, the same shape
 // admin_routes_test uses for its URL pins.
-func newPayrollServer(t *testing.T, rep payrollReporter, payouts payoutReader) http.Handler {
+func newPayrollServer(t *testing.T, rep payrollReporter, payouts payoutStore) http.Handler {
 	t.Helper()
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	logs := &bytes.Buffer{}
+	if store, ok := payouts.(*fakePayoutStore); ok {
+		store.logs = logs
+	}
+	s, err := New(config.Config{}, slog.New(slog.NewTextHandler(logs, nil)), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -164,9 +179,16 @@ func payrollContactData() pageData {
 func payrollSweepData(lang string) pageData {
 	report, rows := payrollTestReport(service.PayrollKindWeek)
 	report.Rows = nil // the page reads Rows; Report carries the totals
+	// The paid snapshot differs from the recomputed row on purpose: the sweep
+	// must render the snapshot-wins line (a refund landed after payment).
+	rows[0].Paid.TotalIDR = 60_000
+	rows[0].SnapshotDiff = true
 	start := report.Period.Start.Format(payrollDayLayout)
 	return pageData{
 		"Lang":        lang,
+		"CSRF":        "tok",
+		"Success":     "pr.payok",
+		"Error":       "pr.already",
 		"Contact":     payrollContactData(),
 		"Kind":        report.Period.Kind,
 		"Start":       start,
@@ -212,7 +234,7 @@ func payrollEmptySweepData(lang string) pageData {
 // export, and an anonymous request is sent to login (never a payroll shell).
 func TestAdminPayrollRequiresAdmin(t *testing.T) {
 	report, _ := payrollTestReport(service.PayrollKindMonth)
-	h := newPayrollServer(t, &fakePayrollReporter{report: report}, &fakePayoutReader{})
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, &fakePayoutStore{})
 
 	for _, path := range []string{"/admin/payroll", "/admin/payroll.csv"} {
 		if rec := asUser(h, path, domain.RoleCS); rec.Code != http.StatusForbidden {
@@ -231,8 +253,8 @@ func TestAdminPayrollRequiresAdmin(t *testing.T) {
 
 func TestAdminPayrollRenders(t *testing.T) {
 	report, rows := payrollTestReport(service.PayrollKindWeek)
-	payouts := &fakePayoutReader{byKey: map[string]*domain.StaffPayout{
-		payrollPayoutKey(rows[0].StaffID, report.Period.Kind, report.Period.Start): rows[0].Paid,
+	payouts := &fakePayoutStore{byKey: map[string]*domain.StaffPayout{
+		payrollPayoutKey(rows[0].StaffID, payrollPayoutKind(report.Period.Kind), report.Period.Start): rows[0].Paid,
 	}}
 	h := newPayrollServer(t, &fakePayrollReporter{report: report}, payouts)
 
@@ -343,8 +365,8 @@ func TestPayrollParams(t *testing.T) {
 
 func TestAdminPayrollCSV(t *testing.T) {
 	report, rows := payrollTestReport(service.PayrollKindMonth)
-	payouts := &fakePayoutReader{byKey: map[string]*domain.StaffPayout{
-		payrollPayoutKey(rows[0].StaffID, report.Period.Kind, report.Period.Start): rows[0].Paid,
+	payouts := &fakePayoutStore{byKey: map[string]*domain.StaffPayout{
+		payrollPayoutKey(rows[0].StaffID, payrollPayoutKind(report.Period.Kind), report.Period.Start): rows[0].Paid,
 	}}
 	h := newPayrollServer(t, &fakePayrollReporter{report: report}, payouts)
 
@@ -441,7 +463,7 @@ func TestPayrollNotOnStaffFacingTemplates(t *testing.T) {
 func TestAdminPayrollPassesPeriodToService(t *testing.T) {
 	report, _ := payrollTestReport(service.PayrollKindWeek)
 	rep := &fakePayrollReporter{report: report}
-	h := newPayrollServer(t, rep, &fakePayoutReader{})
+	h := newPayrollServer(t, rep, &fakePayoutStore{})
 
 	if rec := adminGet(t, h, "/admin/payroll?kind=week&start=2026-11-25"); rec.Code != http.StatusOK {
 		t.Fatalf("week status = %d, want 200; body: %s", rec.Code, rec.Body.String())
@@ -530,7 +552,7 @@ func TestAdminPayrollCSVLogsWriteErrors(t *testing.T) {
 		t.Fatalf("new server: %v", err)
 	}
 	s.payroll = &fakePayrollReporter{report: report}
-	s.payouts = &fakePayoutReader{}
+	s.payouts = &fakePayoutStore{}
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/payroll.csv?kind=month&start=2026-11-01", nil)
 	s.AdminPayrollCSV(&failingWriter{header: http.Header{}}, req)
