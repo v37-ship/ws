@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,18 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// slogCapture keeps every record so a test can assert on exactly what reached
+// the logs.
+type slogCapture struct{ records []slog.Record }
+
+func (h *slogCapture) Enabled(context.Context, slog.Level) bool { return true }
+func (h *slogCapture) Handle(_ context.Context, r slog.Record) error {
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+func (h *slogCapture) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *slogCapture) WithGroup(string) slog.Handler      { return h }
 
 type fakeWaStore struct {
 	batches [][]repo.WaOutboxItem
@@ -95,6 +108,54 @@ func testItem(phone, key, text string, attempts, max int) repo.WaOutboxItem {
 
 func newTestWaService(store waStore, sender WhatsAppSender, enabled bool) *WaService {
 	return NewWaService(store, sender, slog.New(slog.NewTextHandler(io.Discard, nil)), enabled, 0, nil)
+}
+
+// TestWaDrainMockLogsMaskedTarget pins ruling R13 end to end: the send path
+// logs only the masked target and the template key, never the full number or
+// the rendered body (mock mode used to log both).
+func TestWaDrainMockLogsMaskedTarget(t *testing.T) {
+	const raw = "0812-3456-7890" // normalizes to 6281234567890
+	const body = "halo bunda, sampai jumpa besok"
+	item := testItem(raw, "test", body, 1, 5)
+	store := &fakeWaStore{batches: [][]repo.WaOutboxItem{{item}}}
+	var logs slogCapture
+	svc := NewWaService(store, &fakeSender{}, slog.New(&logs), false, 0, nil)
+
+	svc.Drain(context.Background())
+
+	if len(store.sent) != 1 {
+		t.Fatalf("sent = %v, want the mock row marked sent", store.sent)
+	}
+	if len(logs.records) != 1 {
+		t.Fatalf("got %d log records, want exactly one: %v", len(logs.records), logs.records)
+	}
+	rec := logs.records[0]
+	if rec.Message != "wa mock send" {
+		t.Errorf("message = %q, want wa mock send", rec.Message)
+	}
+	attrs := map[string]string{}
+	rec.Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.String()
+		return true
+	})
+	if got := attrs["phone"]; got != "…7890" {
+		t.Errorf("phone attr = %q, want the masked tail", got)
+	}
+	if got := attrs["template"]; got != "test" {
+		t.Errorf("template attr = %q, want the template key", got)
+	}
+	if _, ok := attrs["text"]; ok {
+		t.Error("mock send must not log the rendered body")
+	}
+	joined := rec.Message
+	for _, v := range attrs {
+		joined += " " + v
+	}
+	for _, leak := range []string{"6281234567890", raw, body} {
+		if strings.Contains(joined, leak) {
+			t.Errorf("log leaked %q: %q", leak, joined)
+		}
+	}
 }
 
 func TestWaDrainMockMode(t *testing.T) {

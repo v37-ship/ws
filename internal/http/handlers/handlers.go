@@ -971,7 +971,10 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 	if pay != nil && pay.Status == domain.PaymentPaid {
 		refundable = pay.AmountIDR - refundedTotal
 	}
-	msgs, _ := s.waOutbox.ListByBooking(r.Context(), b.ID, 6)
+	var msgs []repo.WaOutboxItem
+	if s.waOutbox != nil {
+		msgs, _ = s.waOutbox.ListByBooking(r.Context(), b.ID, 6)
+	}
 	zones, _ := s.distance.ListActive(r.Context())
 	mapsOrigin := ""
 	if loc, err := s.catalog.GetLocation(r.Context(), b.LocationID); err == nil && loc != nil {

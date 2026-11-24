@@ -160,9 +160,10 @@
 
     <div class="panel stack">
       <h2>{{t .Lang "a.wa.recent"}}</h2>
+      <p class="muted">{{t .Lang "a.wa.pend"}} {{.QueuePending}} · {{t .Lang "a.wa.fail"}} {{.QueueFailed}}</p>
       {{if .Recent}}
       <table class="table">
-        <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th><th>{{t .Lang "a.wa.state"}}</th></tr></thead>
+        <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th><th>{{t .Lang "a.wa.state"}}</th><th>{{t .Lang "a.wa.act"}}</th></tr></thead>
         <tbody>
         {{range .Recent}}
           <tr>
@@ -170,6 +171,14 @@
             <td>{{.Phone}}</td>
             <td><code>{{.TemplateKey}}</code></td>
             <td>{{.Status}}{{if .LastError}} · <span class="muted">{{.LastError}}</span>{{end}}</td>
+            <td>
+              {{if or (eq .Status "failed") (eq .Status "cancelled")}}
+              <form method="post" action="/admin/whatsapp/outbox/{{.ID}}/retry">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <button class="btn secondary on-light btn-sm" type="submit">{{t $.Lang "a.wa.retry"}}</button>
+              </form>
+              {{else}}<span class="muted">—</span>{{end}}
+            </td>
           </tr>
         {{end}}
         </tbody>

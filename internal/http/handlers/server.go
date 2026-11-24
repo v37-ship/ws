@@ -50,7 +50,7 @@ type Server struct {
 	paySettings *service.PaymentSettingsService
 	waSettings  *service.WaSettingsService
 	wa          *service.WaService
-	waOutbox    *repo.WaRepo
+	waOutbox    waOutboxStore
 	digest      *service.DigestService
 	tvTokens    *repo.TVTokenRepo
 	tvPairings  *repo.TVPairingRepo
@@ -304,9 +304,15 @@ func New(
 	}
 	srv := &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
-		distance: distance, paySettings: paySettings, waSettings: waSettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
+		distance: distance, paySettings: paySettings, waSettings: waSettings, wa: waSvc, digest: digest,
 		tvTokens: tvTokens, tvPairings: tvPairings, tvDevices: tvDevices,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
+	}
+	// The outbox is an interface so the admin page and its retry action are
+	// testable without a database. A typed nil must not become a non-nil
+	// interface (the same trap the payroll wiring guards against).
+	if waOutbox != nil {
+		srv.waOutbox = waOutbox
 	}
 	// Typed nils must not become non-nil interfaces: a test server or a box
 	// without payroll wiring must see "not configured", not a panic.
@@ -865,6 +871,8 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Post("/whatsapp/reschedule", s.AdminRescheduleWhatsApp)
 		ar.Post("/whatsapp/template", s.AdminSaveWaTemplate)
 		ar.Post("/whatsapp/template/reset", s.AdminResetWaTemplate)
+		// Retry one failed/cancelled outbox row (the same row flips to pending).
+		ar.Post("/whatsapp/outbox/{id}/retry", s.AdminRetryWaOutbox)
 
 		// CS Accounts Management
 		ar.Get("/cs", s.AdminCSList)

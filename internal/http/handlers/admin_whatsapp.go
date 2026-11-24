@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,8 +11,27 @@ import (
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/i18n"
+	"spa-booking/internal/repo"
 	"spa-booking/internal/whatsapp"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
+
+// waOutboxStore is the outbox surface the admin page needs. An interface so the
+// page and its retry action are testable without a database.
+type waOutboxStore interface {
+	ListUpcoming(ctx context.Context, templateKey string, limit int) ([]repo.WaOutboxItem, error)
+	ListRecent(ctx context.Context, limit int) ([]repo.WaOutboxItem, error)
+	ListByBooking(ctx context.Context, bookingID uuid.UUID, limit int) ([]repo.WaOutboxItem, error)
+	RetryFailed(ctx context.Context, id uuid.UUID) (bool, error)
+	QueueSummary(ctx context.Context) (pending, failed int, err error)
+}
+
+// failWaRetry is the delivery-action failure; refusals are a page notice, so
+// this one is only for a database error.
+const failWaRetry = "Could not retry that message. Try again."
 
 // waTemplateView is one editable message on the admin page.
 type waTemplateView struct {
@@ -122,22 +142,69 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 			conn = c
 		}
 	}
-	next, _ := s.waOutbox.ListUpcoming(ctx, "booking_remind", 20)
-	recent, _ := s.waOutbox.ListRecent(ctx, 20)
+	var next, recent []repo.WaOutboxItem
+	var pending, failed int
+	if s.waOutbox != nil {
+		next, _ = s.waOutbox.ListUpcoming(ctx, "booking_remind", 20)
+		recent, _ = s.waOutbox.ListRecent(ctx, 20)
+		pending, failed, _ = s.waOutbox.QueueSummary(ctx)
+	}
 
 	templates := waTemplateViews(overrides)
 
 	s.render(w, r, "admin_whatsapp.html", pageData{
-		"Settings":  cfg,
-		"Raw":       raw,
-		"Defaults":  s.waSettings.Defaults(),
-		"Templates": templates,
-		"Conn":      conn,
-		"Next":      next,
-		"Recent":    recent,
-		"Success":   success,
-		"Error":     errMsg,
+		"Settings":     cfg,
+		"Raw":          raw,
+		"Defaults":     s.waSettings.Defaults(),
+		"Templates":    templates,
+		"Conn":         conn,
+		"Next":         next,
+		"Recent":       recent,
+		"QueuePending": pending,
+		"QueueFailed":  failed,
+		"Success":      success,
+		"Error":        errMsg,
 	})
+}
+
+// AdminRetryWaOutbox re-queues one failed or cancelled message (ruling R6):
+// the same row flips back to pending, so the dedupe key and history stay put.
+// A row that is already sent/claimed and an unknown id are both refused with a
+// page notice instead of a silent success.
+func (s *Server) AdminRetryWaOutbox(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
+		return
+	}
+	if middleware.UserFrom(r.Context()) == nil {
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
+		return
+	}
+	lang := i18n.Resolve(r)
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		// An unparseable id cannot name a row: same notice as any non-retryable
+		// message rather than a bare 400 on a plain form.
+		http.Redirect(w, r, "/admin/whatsapp?error="+url.QueryEscape(i18n.T(lang, "a.wa.rtyno")), http.StatusSeeOther)
+		return
+	}
+	if s.waOutbox == nil {
+		s.log.Error("wa outbox retry: outbox not configured", "id", id)
+		s.staffFail(w, r, http.StatusInternalServerError, failWaRetry)
+		return
+	}
+	ok, err := s.waOutbox.RetryFailed(r.Context(), id)
+	if err != nil {
+		s.log.Error("wa outbox retry", "id", id, "err", err)
+		s.staffFail(w, r, http.StatusInternalServerError, failWaRetry)
+		return
+	}
+	flag, key := "success", "a.wa.rtyok"
+	if !ok {
+		flag, key = "error", "a.wa.rtyno"
+	}
+	http.Redirect(w, r, "/admin/whatsapp?"+flag+"="+url.QueryEscape(i18n.T(lang, key)), http.StatusSeeOther)
 }
 
 func (s *Server) AdminSaveWhatsApp(w http.ResponseWriter, r *http.Request) {

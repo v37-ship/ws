@@ -180,7 +180,10 @@ func (s *WaService) deliver(ctx context.Context, it repo.WaOutboxItem) bool {
 	}
 
 	if !s.enabled {
-		s.log.Info("wa mock send", "phone", phone, "template", it.TemplateKey, "text", text)
+		// Ruling R13: the send path never logs the recipient or the rendered
+		// body. The masked target identifies the destination for support and
+		// the template key is enough to debug mock mode.
+		s.log.Info("wa mock send", "phone", whatsapp.MaskTarget(phone), "template", it.TemplateKey)
 		s.markSent(ctx, it)
 		return false
 	}
@@ -193,12 +196,12 @@ func (s *WaService) deliver(ctx context.Context, it repo.WaOutboxItem) bool {
 	id, err := s.sender.SendText(sendCtx, phone, text)
 	cancel()
 	if err != nil {
-		s.log.Warn("wa send failed", "phone", phone, "template", it.TemplateKey,
+		s.log.Warn("wa send failed", "phone", whatsapp.MaskTarget(phone), "template", it.TemplateKey,
 			"attempt", it.Attempts, "err", err)
 		s.retryOrFail(ctx, it, err)
 		return false
 	}
-	s.log.Info("wa sent", "phone", phone, "template", it.TemplateKey, "wa_message_id", id)
+	s.log.Info("wa sent", "phone", whatsapp.MaskTarget(phone), "template", it.TemplateKey, "wa_message_id", id)
 	s.markSent(ctx, it)
 	return true
 }
@@ -218,7 +221,8 @@ func (s *WaService) markSent(ctx context.Context, it repo.WaOutboxItem) {
 }
 
 func (s *WaService) fail(ctx context.Context, it repo.WaOutboxItem, reason string) {
-	s.log.Warn("wa message failed", "phone", it.Phone, "template", it.TemplateKey, "reason", reason)
+	// Masked like every other delivery log line (ruling R13).
+	s.log.Warn("wa message failed", "phone", whatsapp.MaskTarget(it.Phone), "template", it.TemplateKey, "reason", reason)
 	if err := s.store.MarkFailed(ctx, it.ID, reason); err != nil {
 		s.log.Warn("wa outbox mark failed", "id", it.ID, "err", err)
 	}

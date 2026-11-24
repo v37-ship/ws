@@ -122,6 +122,9 @@ func TestTemplatesExecute(t *testing.T) {
 			data["Defaults"] = service.WaConfig{}
 			data["Conn"] = "mock"
 			data["Templates"] = waTemplatesSweep()
+			data["Recent"] = waQueueSweep()
+			data["QueuePending"] = 2
+			data["QueueFailed"] = 1
 		case "admin_payroll.html":
 			for k, v := range payrollSweepData("id") {
 				data[k] = v
@@ -272,6 +275,11 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Defaults"] = service.WaConfig{}
 				data["Conn"] = "mock"
 				data["Templates"] = waTemplatesSweep()
+				// One row per retry branch so the outbox panel (counters, retry
+				// form on failed/cancelled only) is translated in both languages.
+				data["Recent"] = waQueueSweep()
+				data["QueuePending"] = 2
+				data["QueueFailed"] = 1
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":
@@ -340,6 +348,18 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				}
 				if !contains(out, want) {
 					t.Errorf("admin_whatsapp.html (%s): missing segmentation counter %q", lang, want)
+				}
+				// The outbox panel's queue counters and the retry action on a
+				// failed/cancelled row read in the page language too.
+				counters, retry := "pending 2 · failed 1", ">Retry<"
+				if lang == "id" {
+					counters, retry = "menunggu 2 · gagal 1", ">Kirim ulang<"
+				}
+				if !contains(out, counters) {
+					t.Errorf("admin_whatsapp.html (%s): missing queue counters %q", lang, counters)
+				}
+				if !contains(out, retry) {
+					t.Errorf("admin_whatsapp.html (%s): missing retry action %q", lang, retry)
 				}
 			}
 			if (name == "home.html" || name == "login.html") && contains(out, "theme-btn nav-toggle") {
@@ -820,6 +840,11 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Defaults"] = service.WaConfig{}
 				data["Conn"] = "mock"
 				data["Templates"] = waTemplatesSweep()
+				// One row per retry branch so the outbox panel (counters, retry
+				// form on failed/cancelled only) is translated in both languages.
+				data["Recent"] = waQueueSweep()
+				data["QueuePending"] = 2
+				data["QueueFailed"] = 1
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":

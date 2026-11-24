@@ -172,6 +172,33 @@ func (r *WaRepo) RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time,
 	return err
 }
 
+// RetryFailed flips a failed or cancelled row back to pending so the worker
+// claims it on its next pass: attempts reset, the error cleared, scheduled now.
+// Only those two statuses are retryable (ruling R6) — a sent row must never be
+// re-sent, and a pending/sending row is already in play, so both are a no-op.
+// The dedupe key is untouched: the row identity is that key.
+func (r *WaRepo) RetryFailed(ctx context.Context, id uuid.UUID) (bool, error) {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE wa_outbox SET status='pending', attempts=0, last_error='',
+		        scheduled_at=now(), updated_at=now()
+		 WHERE id=$1 AND status IN ('failed', 'cancelled')`, id)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// QueueSummary counts the rows still waiting (pending) and the rows that gave
+// up (failed) for the admin page header. Cancelled rows are deliberately not
+// failures: a cancelled send was withdrawn, not rejected.
+func (r *WaRepo) QueueSummary(ctx context.Context) (pending, failed int, err error) {
+	err = r.pool.QueryRow(ctx,
+		`SELECT count(*) FILTER (WHERE status = 'pending'),
+		        count(*) FILTER (WHERE status = 'failed')
+		 FROM wa_outbox`).Scan(&pending, &failed)
+	return pending, failed, err
+}
+
 func (r *WaRepo) MarkFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
 	_, err := r.pool.Exec(ctx, `UPDATE wa_outbox SET status='failed', last_error=$2, updated_at=now() WHERE id=$1`, id, errMsg)
 	return err

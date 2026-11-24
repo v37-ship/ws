@@ -110,6 +110,11 @@ func waTestRender(t *testing.T, s *Server, lang string, views []waTemplateView) 
 		"Defaults":  service.WaConfig{},
 		"Conn":      "mock",
 		"Templates": views,
+		// One row per retry branch (failed, sent, cancelled) plus the counters
+		// so every page render covers the outbox panel's real shape.
+		"Recent":       waQueueSweep(),
+		"QueuePending": 2,
+		"QueueFailed":  1,
 	}
 	var buf bytes.Buffer
 	if err := s.tpl.ExecuteTemplate(&buf, "admin_whatsapp.html", data); err != nil {
@@ -135,6 +140,24 @@ func waTemplatesSweep() []waTemplateView {
 		views[i].Preview = "Halo Bunda"
 	}
 	return views
+}
+
+// waSweepFailedID etc. are fixed ids so a test can name the row it expects a
+// retry form for; a random id would differ between the two sweep calls.
+var (
+	waSweepFailedID    = uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	waSweepSentID      = uuid.MustParse("22222222-2222-4222-8222-222222222222")
+	waSweepCancelledID = uuid.MustParse("33333333-3333-4333-8333-333333333333")
+)
+
+// waQueueSweep returns one recent row per retry branch, stamped like the copy
+// audit fixtures so the sweep renders deterministically.
+func waQueueSweep() []repo.WaOutboxItem {
+	return []repo.WaOutboxItem{
+		{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "booking_remind", Status: "failed", LastError: "boom", CreatedAt: waAuditWhen},
+		{ID: waSweepSentID, Phone: "6281200000002", TemplateKey: "booking_confirm", Status: "sent", CreatedAt: waAuditWhen},
+		{ID: waSweepCancelledID, Phone: "6281200000003", TemplateKey: "booking_cancelled", Status: "cancelled", CreatedAt: waAuditWhen},
+	}
 }
 
 func TestAdminWhatsAppCounterRendersOnlyWhenSegmented(t *testing.T) {
