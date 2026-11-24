@@ -133,30 +133,12 @@ func TestTemplatesExecute(t *testing.T) {
 			data["ErrorCode"] = 403
 			data["ErrorMessage"] = "Only an admin can do that."
 		case "portal_reports.html":
-			data["Summary"] = domain.ReportSummary{
-				StaffRows: []domain.StaffRow{{
-					StaffID: uuid.New(), Name: "Bidan Ayu", Sessions: 1,
-					UniqueCustomers: 1, GrossIDR: 100000, NetIDR: 100000, AvgIDR: 100000,
-					Services:    []domain.StaffServiceRow{{Name: "Baby Massage", Count: 1, Total: 100000}},
-					TopServices: []domain.StaffServiceRow{{Name: "Baby Massage", Count: 1, Total: 100000}},
-					Lines: []domain.ReportLine{{
-						CustomerName: "Mom", ServiceName: "Baby Massage", StaffName: "Bidan Ayu",
-						PaymentMethod: domain.PaymentMethodCash, AmountIDR: 100000,
-						PaidAt: time.Now(), Status: domain.BookingConfirmed,
-					}},
-					Refunds: []domain.ReportRefund{{
-						Refund:       domain.Refund{AmountIDR: 50000, Reason: "cancel", CreatedBy: "CS", CreatedAt: time.Now()},
-						CustomerName: "Mom", ServiceName: "Baby Massage",
-					}},
-				}},
+			// Staff tab: the widest panel, so the sweep also executes the
+			// by-staff table and both detail modals. report_tabs_test renders
+			// every tab in both languages.
+			for k, v := range reportsSweepData("staff") {
+				data[k] = v
 			}
-			data["Month"] = "2026-09"
-			data["Year"] = "2026"
-			data["Mon"] = "09"
-			data["Years"] = []string{"2026", "2025"}
-			data["ShowLoc"] = true
-			data["Lines"] = []domain.ReportLine{}
-			data["Refunds"] = []domain.ReportRefund{}
 		}
 		var buf bytes.Buffer
 		if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
@@ -299,13 +281,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			case "admin_job_applications.html":
 				data["Job"] = domain.Job{}
 			case "portal_reports.html":
-				data["Summary"] = domain.ReportSummary{}
-				data["Month"] = "2026-09"
-				data["Year"] = "2026"
-				data["Mon"] = "09"
-				data["Years"] = []string{"2026", "2025"}
-				data["Lines"] = []domain.ReportLine{}
-				data["Refunds"] = []domain.ReportRefund{}
+				for k, v := range reportsSweepData("revenue") {
+					data[k] = v
+				}
 			case "admin_tv.html":
 				// One live token so the sweep covers the URL block, the branch
 				// name, the revoke form and the create form, not just the empty
@@ -693,12 +671,17 @@ func contains(s, sub string) bool {
 // Exempt by design: text glyphs (stars, checkmarks, hamburger, close),
 // the JS theme map in head.html, and WhatsApp message content (the waURL
 // href carries the slip text, which renders in WhatsApp, not in our UI).
+// uiEmoji is the glyph list the UI-chrome scan forbids: icons are inline SVG
+// ({{icon}}), never emoji. Shared so the reports tab sweep can scan every panel
+// (only one panel renders per request) with the same list.
+var uiEmoji = []string{
+	"🏠", "👶", "👩", "💬", "📍", "📞", "💆", "🏥", "📝", "📊", "📅", "➕",
+	"❌", "✅", "⚙", "✨", "🏢", "💼", "💵", "📱", "📈", "🖨", "🔑", "👥",
+	"🤰", "🍽", "🖼", "🎟", "👑", "⚠", "🆕", "✉", "📸", "🕒", "💡", "⬇",
+}
+
 func TestNoEmojiIcons(t *testing.T) {
-	forbidden := []string{
-		"🏠", "👶", "👩", "💬", "📍", "📞", "💆", "🏥", "📝", "📊", "📅", "➕",
-		"❌", "✅", "⚙", "✨", "🏢", "💼", "💵", "📱", "📈", "🖨", "🔑", "👥",
-		"🤰", "🍽", "🖼", "🎟", "👑", "⚠", "🆕", "✉", "📸", "🕒", "💡", "⬇",
-	}
+	forbidden := uiEmoji
 	pages := []string{
 		"home.html", "services.html", "book.html", "bookings.html", "login.html",
 		"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
@@ -791,13 +774,9 @@ func TestNoEmojiIcons(t *testing.T) {
 			case "admin_job_applications.html":
 				data["Job"] = domain.Job{}
 			case "portal_reports.html":
-				data["Summary"] = domain.ReportSummary{}
-				data["Month"] = "2026-09"
-				data["Year"] = "2026"
-				data["Mon"] = "09"
-				data["Years"] = []string{"2026", "2025"}
-				data["Lines"] = []domain.ReportLine{}
-				data["Refunds"] = []domain.ReportRefund{}
+				for k, v := range reportsSweepData("revenue") {
+					data[k] = v
+				}
 			case "admin_tv.html":
 				// One live token so the sweep covers the URL block, the branch
 				// name, the revoke form and the create form, not just the empty

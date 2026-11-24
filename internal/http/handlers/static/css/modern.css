@@ -584,6 +584,53 @@ html[data-theme="dark"] code { background: #3a2b41; }
   tr { break-inside: avoid; }
 }
 
+/* Reports tab shell: the month's money stays pinned under the sticky site
+   header while a long tab scrolls, and the panels sit in one column under the
+   tab bar. Offsets mirror the header (~5rem) the sidebar uses at 6rem. */
+.report-strip {
+  position: sticky;
+  top: 5rem;
+  z-index: 9;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  padding: 0.5rem 0;
+  background: var(--bg);
+}
+.report-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 0.25rem;
+}
+.report-tab {
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+.report-tab:hover, .report-tab.active { color: var(--accent-deep); border-color: var(--accent-deep); text-decoration: none; }
+.tab-shell { display: grid; gap: 1rem; }
+.report-pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+}
+
+/* Printing a report prints the ACTIVE tab: the tabs themselves are chrome
+   (.no-print) and any panel that is not the chosen view stays off the paper.
+   The strip unpins so it prints once, in flow, above the panel. */
+@media print {
+  .tab-shell .tab-panel:not(.active) { display: none !important; }
+  .report-strip { position: static; background: #fff; padding: 0 0 0.5rem; }
+  .report-pager { display: none !important; }
+}
+
 /* Day agenda printing: the dashboard queue is what the counter pins up, so
    the live-refresh chrome, row actions and WhatsApp buttons (dead on paper)
    drop out and the table unfurls to the full page width instead of scrolling. */

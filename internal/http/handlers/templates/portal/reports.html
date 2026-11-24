@@ -19,10 +19,11 @@
     </div>
 
     <form class="panel no-print" method="get" action="/portal/reports" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+      <input type="hidden" name="tab" value="{{.Tab}}">
       <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap;">
-        <a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Prev}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.prev"}}</a>
-        {{if .IsCurrent}}{{else}}<a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Today}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.today"}}</a>
-        <a class="btn secondary on-light btn-sm" href="/portal/reports?month={{.Next}}{{if ne .LocID "00000000-0000-0000-0000-000000000000"}}&location_id={{.LocID}}{{end}}">{{t .Lang "r.next"}}</a>{{end}}
+        <a class="btn secondary on-light btn-sm" href="{{.PrevMonthURL}}">{{t .Lang "r.prev"}}</a>
+        {{if .IsCurrent}}{{else}}<a class="btn secondary on-light btn-sm" href="{{.TodayURL}}">{{t .Lang "r.today"}}</a>
+        <a class="btn secondary on-light btn-sm" href="{{.NextMonthURL}}">{{t .Lang "r.next"}}</a>{{end}}
       </div>
       <label>{{t .Lang "r.year"}}
         <select name="year">
@@ -56,144 +57,181 @@
       <button class="btn secondary on-light" type="button" onclick="window.print()">{{icon "printer"}} {{t .Lang "r.print"}}</button>
     </form>
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+    {{/* Sticky summary strip: the month's money, unchanged from the single-page
+         ledger, pinned under the header so it stays in view on every tab. */}}
+    <div class="report-strip">
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.gross"}} ({{.Summary.Count}}×)</div><div style="font-size:1.4rem; font-weight:800;">{{formatIDR .Summary.GrossIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.refunds"}} ({{.Summary.RefundCnt}}×)</div><div style="font-size:1.4rem; font-weight:800; color:var(--danger);">−{{formatIDR .Summary.RefundIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.net"}}</div><div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Summary.NetIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">QRIS / {{t .Lang "r.cash"}}</div><div style="font-weight:700;">{{formatIDR .Summary.QRISIDR}} / {{formatIDR .Summary.CashIDR}}</div></div>
     </div>
 
-    <div class="panel" x-data="{openId:null}" @keydown.escape.window="openId=null">
-      <h2>{{t .Lang "r.bystaff"}}</h2>
-      <div style="overflow-x:auto;">
+    <nav class="report-tabs no-print" aria-label="{{t .Lang "r.tabs"}}">
+      {{range .Tabs}}<a class="report-tab{{if .Active}} active{{end}}" href="{{.URL}}" data-tab="{{.ID}}"{{if .Active}} aria-current="page"{{end}}>{{t $.Lang (printf "r.tab.%s" .Key)}}</a>{{end}}
+    </nav>
+
+    <div class="tab-shell">
+    {{if eq .Tab "revenue"}}
+    <section class="tab-panel active" data-tab-panel="revenue">
+      <div class="panel">
+        <h2>{{t .Lang "r.bysvc"}}</h2>
         <table class="table">
-          <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th><th></th></tr></thead>
           <tbody>
-          {{range .Summary.StaffRows}}
-            <tr>
-              <td><strong>{{if .Name}}{{.Name}}{{else}}-{{end}}</strong>{{if .TopServices}}<br><small class="muted">{{range $i, $s := .TopServices}}{{if $i}} · {{end}}{{$s.Name}} {{$s.Count}}×{{end}}{{if .MoreCount}} · +{{.MoreCount}} {{t $.Lang "r.more"}}{{end}}</small>{{end}}</td>
-              <td style="text-align:center;">{{.Sessions}}</td>
-              <td style="text-align:center;">{{.UniqueCustomers}}</td>
-              <td style="text-align:right; white-space:nowrap;">{{formatIDR .AvgIDR}}</td>
-              <td style="text-align:right; white-space:nowrap;">{{formatIDR .GrossIDR}}</td>
-              <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}} <small class="muted">(−{{formatIDR .RefundIDR}})</small>{{end}}</td>
-              <td><button type="button" class="btn secondary on-light btn-sm" @click="openId='{{.StaffID}}'">{{t $.Lang "r.detail"}}</button></td>
-            </tr>
+          {{range .Summary.ServiceRows}}
+            <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
           {{else}}
-            <tr><td colspan="7" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+            <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
           {{end}}
           </tbody>
         </table>
       </div>
-      {{range .Summary.StaffRows}}
-      <div class="modal-backdrop no-print" x-show="openId==='{{.StaffID}}'" x-transition style="display:none;">
-        <div class="modal wide" role="dialog" aria-modal="true" aria-label="{{if .Name}}{{.Name}}{{else}}-{{end}}" @click.outside="openId=null">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.5rem;">
-            <h2 style="margin:0;">{{if .Name}}{{.Name}}{{else}}-{{end}} · {{$.Month}}</h2>
-            <button type="button" class="btn secondary on-light btn-sm" @click="openId=null" aria-label="{{t $.Lang "p.nav.close"}}">✕</button>
-          </div>
-          <p class="muted" style="margin-top:0;">{{.Sessions}}× · {{formatIDR .GrossIDR}}{{if .RefundIDR}} − {{formatIDR .RefundIDR}}{{end}} = <strong>{{formatIDR .NetIDR}}</strong> · {{.UniqueCustomers}} {{t $.Lang "r.th.uniq"}}</p>
-          <div style="overflow-x:auto;">
-            <table class="table">
-              <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.svc"}}</th>{{if $.ShowLoc}}<th>{{t $.Lang "r.loc"}}</th>{{end}}<th>{{t $.Lang "r.th.meth"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
-              <tbody>
-              {{range .Lines}}
-                <tr>
-                  <td><small>{{slotLabel $.Lang .PaidAt}}</small></td>
-                  <td>{{.CustomerName}}</td>
-                  <td>{{.ServiceName}}{{if eq (printf "%s" .Status) "cancelled"}} <span class="badge cancelled">{{.Status.Display}}</span>{{end}}</td>
-                  {{if $.ShowLoc}}<td><small>{{.LocationName}}</small></td>{{end}}
-                  <td>{{.PaymentMethod}}</td>
-                  <td style="text-align:right; font-weight:700;">{{formatIDR .AmountIDR}}</td>
-                </tr>
-              {{else}}
-                <tr><td colspan="{{if $.ShowLoc}}6{{else}}5{{end}}" class="muted">{{t $.Lang "r.empty"}}</td></tr>
-              {{end}}
-              </tbody>
-            </table>
-          </div>
-          {{if .Refunds}}
-          <h3 style="margin:1rem 0 0.5rem;">{{t $.Lang "r.reflines"}}</h3>
-          <div style="overflow-x:auto;">
-            <table class="table">
-              <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.reason"}}</th><th>{{t $.Lang "r.th.by"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
-              <tbody>
-              {{range .Refunds}}
-                <tr>
-                  <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
-                  <td>{{.CustomerName}}</td>
-                  <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
-                  <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
-                  <td style="text-align:right; font-weight:700; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
-                </tr>
-              {{end}}
-              </tbody>
-            </table>
-          </div>
+
+      <div class="panel">
+        <h2>{{t .Lang "r.lines"}} ({{.LineTotal}})</h2>
+        <div style="overflow-x:auto;" class="table-cards">
+          <table class="table">
+            <thead><tr><th>{{t .Lang "r.th.date"}}</th><th>{{t .Lang "r.th.cust"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.staff"}}</th><th>{{t .Lang "r.th.meth"}}</th><th style="text-align:right;">{{t .Lang "r.th.amt"}}</th></tr></thead>
+            <tbody>
+            {{range .Lines}}
+              <tr>
+                <td><small>{{slotLabel $.Lang .PaidAt}}</small></td>
+                <td>{{.CustomerName}}</td>
+                <td>{{.ServiceName}}</td>
+                <td>{{.StaffName}}</td>
+                <td>{{.PaymentMethod}}</td>
+                <td style="text-align:right; font-weight:700;">{{formatIDR .AmountIDR}}</td>
+              </tr>
+            {{else}}
+              <tr><td colspan="6" class="muted">{{t .Lang "r.empty"}}</td></tr>
+            {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{if or .PrevURL .NextURL}}
+        <div class="report-pager">
+          {{if .PrevURL}}
+            <a href="{{.PrevURL}}" class="btn secondary on-light btn-sm">{{t .Lang "p.pg.prev"}}</a>
+          {{else}}
+            <button type="button" class="btn secondary on-light btn-sm" disabled>{{t .Lang "p.pg.prev"}}</button>
           {{end}}
+          <span class="muted">{{printf (t .Lang "p.pg.x") .Page .TotalPages}}</span>
+          {{if .NextURL}}
+            <a href="{{.NextURL}}" class="btn secondary on-light btn-sm">{{t .Lang "p.pg.next"}}</a>
+          {{else}}
+            <button type="button" class="btn secondary on-light btn-sm" disabled>{{t .Lang "p.pg.next"}}</button>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+
+      {{if .Refunds}}
+      <div class="panel">
+        <h2>{{t .Lang "r.reflines"}} ({{len .Refunds}})</h2>
+        <div style="overflow-x:auto;" class="table-cards">
+          <table class="table">
+            <thead><tr><th>{{t .Lang "r.th.date"}}</th><th>{{t .Lang "r.th.cust"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.reason"}}</th><th>{{t .Lang "r.th.by"}}</th><th style="text-align:right;">{{t .Lang "r.th.amt"}}</th></tr></thead>
+            <tbody>
+            {{range .Refunds}}
+              <tr>
+                <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
+                <td>{{.CustomerName}}</td>
+                <td>{{.ServiceName}}</td>
+                <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
+                <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
+                <td style="text-align:right; font-weight:700; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
+              </tr>
+            {{end}}
+            </tbody>
+          </table>
         </div>
       </div>
       {{end}}
-    </div>
-
-    <div class="panel">
-      <h2>{{t .Lang "r.bysvc"}}</h2>
-      <table class="table">
-        <tbody>
-        {{range .Summary.ServiceRows}}
-          <tr><td>{{if .Name}}{{.Name}}{{else}}-{{end}}</td><td style="text-align:right; font-weight:700;">{{formatIDR .Total}}</td></tr>
-        {{else}}
-          <tr><td class="muted">{{t $.Lang "r.empty"}}</td></tr>
+    </section>
+    {{else if eq .Tab "staff"}}
+    <section class="tab-panel active" data-tab-panel="staff">
+      <div class="panel" x-data="{openId:null}" @keydown.escape.window="openId=null">
+        <h2>{{t .Lang "r.bystaff"}}</h2>
+        <div style="overflow-x:auto;" class="table-cards">
+          <table class="table">
+            <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th><th></th></tr></thead>
+            <tbody>
+            {{range .Summary.StaffRows}}
+              <tr>
+                <td><strong>{{if .Name}}{{.Name}}{{else}}-{{end}}</strong>{{if .TopServices}}<br><small class="muted">{{range $i, $s := .TopServices}}{{if $i}} · {{end}}{{$s.Name}} {{$s.Count}}×{{end}}{{if .MoreCount}} · +{{.MoreCount}} {{t $.Lang "r.more"}}{{end}}</small>{{end}}</td>
+                <td style="text-align:center;">{{.Sessions}}</td>
+                <td style="text-align:center;">{{.UniqueCustomers}}</td>
+                <td style="text-align:right; white-space:nowrap;">{{formatIDR .AvgIDR}}</td>
+                <td style="text-align:right; white-space:nowrap;">{{formatIDR .GrossIDR}}</td>
+                <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}} <small class="muted">(−{{formatIDR .RefundIDR}})</small>{{end}}</td>
+                <td><button type="button" class="btn secondary on-light btn-sm" @click="openId='{{.StaffID}}'">{{t $.Lang "r.detail"}}</button></td>
+              </tr>
+            {{else}}
+              <tr><td colspan="7" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+            {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{range .Summary.StaffRows}}
+        <div class="modal-backdrop no-print" x-show="openId==='{{.StaffID}}'" x-transition style="display:none;">
+          <div class="modal wide" role="dialog" aria-modal="true" aria-label="{{if .Name}}{{.Name}}{{else}}-{{end}}" @click.outside="openId=null">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.5rem;">
+              <h2 style="margin:0;">{{if .Name}}{{.Name}}{{else}}-{{end}} · {{$.Month}}</h2>
+              <button type="button" class="btn secondary on-light btn-sm" @click="openId=null" aria-label="{{t $.Lang "p.nav.close"}}">✕</button>
+            </div>
+            <p class="muted" style="margin-top:0;">{{.Sessions}}× · {{formatIDR .GrossIDR}}{{if .RefundIDR}} − {{formatIDR .RefundIDR}}{{end}} = <strong>{{formatIDR .NetIDR}}</strong> · {{.UniqueCustomers}} {{t $.Lang "r.th.uniq"}}</p>
+            <div style="overflow-x:auto;" class="table-cards">
+              <table class="table">
+                <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.svc"}}</th>{{if $.ShowLoc}}<th>{{t $.Lang "r.loc"}}</th>{{end}}<th>{{t $.Lang "r.th.meth"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
+                <tbody>
+                {{range .Lines}}
+                  <tr>
+                    <td><small>{{slotLabel $.Lang .PaidAt}}</small></td>
+                    <td>{{.CustomerName}}</td>
+                    <td>{{.ServiceName}}{{if eq (printf "%s" .Status) "cancelled"}} <span class="badge cancelled">{{.Status.Display}}</span>{{end}}</td>
+                    {{if $.ShowLoc}}<td><small>{{.LocationName}}</small></td>{{end}}
+                    <td>{{.PaymentMethod}}</td>
+                    <td style="text-align:right; font-weight:700;">{{formatIDR .AmountIDR}}</td>
+                  </tr>
+                {{else}}
+                  <tr><td colspan="{{if $.ShowLoc}}6{{else}}5{{end}}" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+                {{end}}
+                </tbody>
+              </table>
+            </div>
+            {{if .Refunds}}
+            <h3 style="margin:1rem 0 0.5rem;">{{t $.Lang "r.reflines"}}</h3>
+            <div style="overflow-x:auto;" class="table-cards">
+              <table class="table">
+                <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.reason"}}</th><th>{{t $.Lang "r.th.by"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
+                <tbody>
+                {{range .Refunds}}
+                  <tr>
+                    <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
+                    <td>{{.CustomerName}}</td>
+                    <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
+                    <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
+                    <td style="text-align:right; font-weight:700; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
+                  </tr>
+                {{end}}
+                </tbody>
+              </table>
+            </div>
+            {{end}}
+          </div>
+        </div>
         {{end}}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="panel">
-      <h2>{{t .Lang "r.lines"}} ({{len .Lines}})</h2>
-      <div style="overflow-x:auto;">
-        <table class="table">
-          <thead><tr><th>{{t .Lang "r.th.date"}}</th><th>{{t .Lang "r.th.cust"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.staff"}}</th><th>{{t .Lang "r.th.meth"}}</th><th style="text-align:right;">{{t .Lang "r.th.amt"}}</th></tr></thead>
-          <tbody>
-          {{range .Lines}}
-            <tr>
-              <td><small>{{slotLabel $.Lang .PaidAt}}</small></td>
-              <td>{{.CustomerName}}</td>
-              <td>{{.ServiceName}}</td>
-              <td>{{.StaffName}}</td>
-              <td>{{.PaymentMethod}}</td>
-              <td style="text-align:right; font-weight:700;">{{formatIDR .AmountIDR}}</td>
-            </tr>
-          {{else}}
-            <tr><td colspan="6" class="muted">{{t .Lang "r.empty"}}</td></tr>
-          {{end}}
-          </tbody>
-        </table>
       </div>
-    </div>
-
-    {{if .Refunds}}
-    <div class="panel">
-      <h2>{{t .Lang "r.reflines"}} ({{len .Refunds}})</h2>
-      <div style="overflow-x:auto;">
-        <table class="table">
-          <thead><tr><th>{{t .Lang "r.th.date"}}</th><th>{{t .Lang "r.th.cust"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.reason"}}</th><th>{{t .Lang "r.th.by"}}</th><th style="text-align:right;">{{t .Lang "r.th.amt"}}</th></tr></thead>
-          <tbody>
-          {{range .Refunds}}
-            <tr>
-              <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
-              <td>{{.CustomerName}}</td>
-              <td>{{.ServiceName}}</td>
-              <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
-              <td><small>{{if .CreatedBy}}{{.CreatedBy}}{{else}}-{{end}}</small></td>
-              <td style="text-align:right; font-weight:700; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
-            </tr>
-          {{end}}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </section>
+    {{else if eq .Tab "ops"}}
+    <section class="tab-panel active" data-tab-panel="ops">
+      <div class="panel"><p class="muted" style="margin:0;">{{t .Lang "r.tab.soon"}}</p></div>
+    </section>
+    {{else}}
+    <section class="tab-panel active" data-tab-panel="daily">
+      <div class="panel"><p class="muted" style="margin:0;">{{t .Lang "r.tab.soon"}}</p></div>
+    </section>
     {{end}}
+    </div>
   </main>
   </div>
   {{template "footer" .}}

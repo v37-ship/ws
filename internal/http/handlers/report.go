@@ -10,9 +10,11 @@ import (
 	"strconv"
 	"time"
 
+	"spa-booking/internal/domain"
 	"spa-booking/internal/http/htmx"
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/i18n"
+	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
@@ -52,6 +54,165 @@ func (s *Server) reportParams(r *http.Request) (string, uuid.UUID) {
 	return month, locID
 }
 
+// reportTabs is the reports page's tab set in reading order. The ID is the
+// ?tab= value; the Key is the i18n suffix (r.tab.<key>) and stays short enough
+// for the dictionary's 12-char key budget.
+var reportTabs = []struct{ ID, Key string }{
+	{"daily", "daily"},
+	{"revenue", "rev"},
+	{"ops", "ops"},
+	{"staff", "staff"},
+}
+
+// reportTabLink is one tab in the shell's nav.
+type reportTabLink struct {
+	ID     string
+	Key    string
+	URL    string
+	Active bool
+}
+
+// normalizeReportTab keeps ?tab= on the whitelist. Anything else (a stale
+// bookmark, a typo, an empty param) falls back to "revenue" — the ledger the
+// page was before the tabs existed — so a bad link never renders a blank shell.
+func normalizeReportTab(v string) string {
+	for _, tb := range reportTabs {
+		if tb.ID == v {
+			return v
+		}
+	}
+	return "revenue"
+}
+
+// reportsInput is everything PortalReports hands to reportsData.
+type reportsInput struct {
+	Month     string
+	LocID     uuid.UUID
+	Summary   domain.ReportSummary
+	Lines     []domain.ReportLine
+	Refunds   []domain.ReportRefund
+	Tab       string
+	Page      int
+	Years     []string
+	Locations []domain.Location
+	Query     url.Values
+}
+
+// reportsData is the whole template payload for /portal/reports. Revenue is
+// copied straight out of the service's MonthlyReport result — nothing here
+// recomputes money, which is what keeps the tabbed page's figures identical to
+// the single-page ledger it replaced. Only the transactions table is windowed
+// (repo.PageSize rows/page); the summary, the staff rows and the service rows
+// always describe the whole month.
+func reportsData(in reportsInput) pageData {
+	month := in.Month
+	if !monthRe.MatchString(month) {
+		// The handler validates ?month= before this point; the guard keeps a
+		// future caller (or a fixture) from slicing a short string and
+		// panicking the whole page.
+		month = currentMonth()
+	}
+	// Tab is normalized here as well as in the handler so the pure builder can
+	// never render a panel the whitelist does not know.
+	tab := normalizeReportTab(in.Tab)
+	total := len(in.Lines)
+	pages := totalPages(total)
+	page := in.Page
+	if page < 1 {
+		page = 1
+	}
+	if page > pages {
+		page = pages
+	}
+	start := (page - 1) * repo.PageSize
+	if start > total {
+		start = total
+	}
+	end := start + repo.PageSize
+	if end > total {
+		end = total
+	}
+	window := in.Lines[start:end]
+
+	// links rebuild /portal/reports addresses that keep the month (canonical
+	// ?month=), the tab and the location. Legacy ?year=&mon= pairs and an
+	// explicit ?page= are dropped so no link disagrees about the month, and
+	// page 1 keeps a clean address.
+	base := func() url.Values {
+		v := url.Values{}
+		for k, vals := range in.Query {
+			switch k {
+			case "page", "tab", "month", "year", "mon":
+				continue
+			}
+			if len(vals) == 1 && vals[0] == "" {
+				continue
+			}
+			v[k] = vals
+		}
+		return v
+	}
+	tabURL := func(tab string, page int) string {
+		v := base()
+		v.Set("month", month)
+		v.Set("tab", tab)
+		return pageURL("/portal/reports", v, page)
+	}
+	monthURL := func(m string) string {
+		v := base()
+		v.Set("month", m)
+		v.Set("tab", tab)
+		return pageURL("/portal/reports", v, 1)
+	}
+
+	tabs := make([]reportTabLink, 0, len(reportTabs))
+	for _, tb := range reportTabs {
+		tabs = append(tabs, reportTabLink{
+			ID: tb.ID, Key: tb.Key, URL: tabURL(tb.ID, 1), Active: tb.ID == tab,
+		})
+	}
+
+	today := currentMonth()
+	prevMonth, nextMonth := service.PrevMonth(month), service.NextMonth(month)
+	if prevMonth == "" {
+		prevMonth = month
+	}
+	if nextMonth == "" {
+		nextMonth = month
+	}
+	data := pageData{
+		"Month":        month,
+		"Year":         month[:4],
+		"Mon":          month[5:7],
+		"Years":        in.Years,
+		"Today":        today,
+		"IsCurrent":    month == today,
+		"ShowLoc":      in.LocID == uuid.Nil,
+		"LocID":        in.LocID.String(),
+		"Locations":    in.Locations,
+		"Summary":      in.Summary,
+		"Lines":        window,
+		"LineTotal":    total,
+		"Refunds":      in.Refunds,
+		"Tab":          tab,
+		"Tabs":         tabs,
+		"Page":         page,
+		"TotalPages":   pages,
+		"PrevURL":      "",
+		"NextURL":      "",
+		"PrevMonthURL": monthURL(prevMonth),
+		"NextMonthURL": monthURL(nextMonth),
+		"TodayURL":     monthURL(today),
+	}
+	if page > 1 {
+		data["PrevURL"] = tabURL(tab, page-1)
+	}
+	if page < pages {
+		data["NextURL"] = tabURL(tab, page+1)
+	}
+	return data
+}
+
 // PortalReports renders the monthly revenue report (all portal staff).
 func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	month, locID := s.reportParams(r)
@@ -80,22 +241,19 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(years, func(i, j int) bool { return years[i] > years[j] })
 	locs, _ := s.catalog.ListLocations(r.Context(), true)
-	s.render(w, r, "portal_reports.html", pageData{
-		"Month":     month,
-		"Year":      month[:4],
-		"Mon":       month[5:7],
-		"Years":     years,
-		"Prev":      service.PrevMonth(month),
-		"Next":      service.NextMonth(month),
-		"Today":     today,
-		"IsCurrent": month == today,
-		"ShowLoc":   locID == uuid.Nil,
-		"LocID":     locID.String(),
-		"Locations": locs,
-		"Summary":   sum,
-		"Lines":     lines,
-		"Refunds":   refunds,
-	})
+	qs := r.URL.Query()
+	s.render(w, r, "portal_reports.html", reportsData(reportsInput{
+		Month:     month,
+		LocID:     locID,
+		Summary:   sum,
+		Lines:     lines,
+		Refunds:   refunds,
+		Tab:       normalizeReportTab(qs.Get("tab")),
+		Page:      normalizePage(qs.Get("page")),
+		Years:     years,
+		Locations: locs,
+		Query:     qs,
+	}))
 }
 
 // PortalReportsCSV exports the same monthly report as Excel-friendly CSV.
