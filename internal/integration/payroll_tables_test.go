@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -128,6 +129,57 @@ func TestStaffCompEffectiveResolution(t *testing.T) {
 	}
 	if len(all) != 2 {
 		t.Fatalf("ListAll = %d rows, want 2", len(all))
+	}
+
+	// A second staff member with a globally-newest rate proves ListAll groups
+	// by staff first: its row must not lead the list, and the first row of each
+	// staff group is that staff member's current rate.
+	otherStaff := insertStaff(t, pool, loc, "Second Therapist")
+	otherRate := &domain.StaffComp{
+		StaffID:        otherStaff,
+		PercentBp:      1500,
+		FixedIDR:       50_000,
+		Cadence:        domain.CompCadenceWeekly,
+		CommissionBase: domain.CompBaseNet,
+		EffectiveFrom:  payrollDate(2027, time.January, 1),
+	}
+	if err := comps.Create(ctx, otherRate); err != nil {
+		t.Fatalf("create second staff rate: %v", err)
+	}
+
+	all, err = comps.ListAll(ctx)
+	if err != nil {
+		t.Fatalf("ListAll after second staff: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("ListAll after second staff = %d rows, want 3", len(all))
+	}
+	// Order is (staff_id, effective_from DESC): staff ids ascend, and within a
+	// staff group effective dates descend. A global date sort (which would put
+	// otherRate first) fails this.
+	for i := 1; i < len(all); i++ {
+		prev, cur := all[i-1], all[i]
+		switch cmp := bytes.Compare(prev.StaffID[:], cur.StaffID[:]); {
+		case cmp > 0:
+			t.Fatalf("ListAll row %d belongs to a lower staff id than row %d: %v then %v",
+				i, i-1, prev.StaffID, cur.StaffID)
+		case cmp == 0 && cur.EffectiveFrom.After(prev.EffectiveFrom):
+			t.Fatalf("ListAll staff %v rates are not newest-first: %s then %s",
+				cur.StaffID, prev.EffectiveFrom.Format("2006-01-02"), cur.EffectiveFrom.Format("2006-01-02"))
+		}
+	}
+	// First row per staff group is what rate management shows as "current".
+	firstByStaff := map[uuid.UUID]uuid.UUID{}
+	for _, c := range all {
+		if _, ok := firstByStaff[c.StaffID]; !ok {
+			firstByStaff[c.StaffID] = c.ID
+		}
+	}
+	if firstByStaff[therapist] != newer.ID {
+		t.Fatalf("current rate for the first therapist = %v, want %v", firstByStaff[therapist], newer.ID)
+	}
+	if firstByStaff[otherStaff] != otherRate.ID {
+		t.Fatalf("current rate for the second therapist = %v, want %v", firstByStaff[otherStaff], otherRate.ID)
 	}
 }
 
@@ -301,6 +353,24 @@ func TestPayrollCheckConstraints(t *testing.T) {
 		})
 	}
 
+	// The design spec's default is net (commission on the discounted amount),
+	// not list. Pin it by inserting without naming the column: a future DDL
+	// edit that flips the default must fail here, not at the first marked-paid
+	// period.
+	t.Run("staff_comp/commission base defaults to net", func(t *testing.T) {
+		var base string
+		if err := pool.QueryRow(ctx, `INSERT INTO staff_comp (staff_id, effective_from)
+			VALUES ($1,$2) RETURNING commission_base`, therapist, eff).Scan(&base); err != nil {
+			t.Fatalf("insert with defaults: %v", err)
+		}
+		if base != "net" {
+			t.Fatalf("default commission_base = %q, want %q", base, "net")
+		}
+		if _, err := pool.Exec(ctx, `DELETE FROM staff_comp WHERE staff_id=$1`, therapist); err != nil {
+			t.Fatalf("cleanup staff_comp: %v", err)
+		}
+	})
+
 	payoutCases := []struct {
 		name      string
 		kind      string
@@ -352,8 +422,16 @@ func TestPayrollCheckConstraints(t *testing.T) {
 		1_000_000, 2500, 0, 25_000, 25_000, "", admin, time.Now()); err != nil {
 		t.Fatalf("seed payout for FK test: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM staff WHERE id=$1`, therapist); err == nil {
+	_, err := pool.Exec(ctx, `DELETE FROM staff WHERE id=$1`, therapist)
+	if err == nil {
 		t.Fatal("deleting a therapist with payout history was allowed; want a RESTRICT violation")
+	}
+	var pgErr *pgconn.PgError
+	// ON DELETE RESTRICT raises restrict_violation (23001); a NO ACTION FK would
+	// raise foreign_key_violation (23503). The FK contract is RESTRICT, so pin
+	// the code that actually proves it.
+	if !errors.As(err, &pgErr) || pgErr.Code != "23001" {
+		t.Fatalf("staff delete with payout history = %v, want SQLSTATE 23001 (restrict violation)", err)
 	}
 	if err := truncatePayrollRows(ctx, pool); err != nil {
 		t.Fatalf("clear payroll rows: %v", err)

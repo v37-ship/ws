@@ -214,9 +214,11 @@ type StaffComp struct {
 
 // StaffPayout is the immutable snapshot written when a staff member's period is
 // marked paid: the numbers are copied in, never recomputed later, so a rate
-// change or a late refund cannot rewrite a closed period (corrections are a new
-// payout row with a note). CommissionIDR and TotalIDR may be negative — a late
-// refund for an earlier visit can land in a period with no visits.
+// change or a late refund cannot rewrite a closed period. A mistaken mark-paid
+// is corrected by an adjustment payout for a later period (the note says what
+// it fixes); the unique key means the same period never gets a second snapshot.
+// CommissionIDR and TotalIDR may be negative — a late refund for an earlier
+// visit can land in a period with no visits.
 type StaffPayout struct {
 	ID            uuid.UUID
 	StaffID       uuid.UUID

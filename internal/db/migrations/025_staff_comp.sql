@@ -8,10 +8,13 @@
 --                   queues a raise). Resolution is "newest row with
 --                   effective_from <= the period's start".
 --   staff_payouts — the immutable "this period is paid" snapshot. The numbers
---                   are copied in at mark-paid time; a correction is a new row
---                   with a note, never an edit. The unique key makes a period
---                   payable exactly once, so a double click cannot write two
---                   snapshots.
+--                   are copied in at mark-paid time and never edited, so a
+--                   closed period cannot be rewritten by a later rate change or
+--                   a late refund. A mistaken mark-paid is corrected by an
+--                   ADJUSTMENT payout recorded for a later period, with a note
+--                   saying what it fixes — the unique key means one staff
+--                   member's period can never hold a second snapshot, so a
+--                   double click cannot write two.
 --
 -- Money is BIGINT IDR; percent_bp is basis points of a percent (2500 =
 -- 25.00%), so commission math never needs a float. A payout's commission and
@@ -26,14 +29,16 @@ CREATE TABLE IF NOT EXISTS staff_comp (
     percent_bp INT NOT NULL DEFAULT 0 CHECK (percent_bp BETWEEN 0 AND 10000),
     fixed_idr BIGINT NOT NULL DEFAULT 0 CHECK (fixed_idr >= 0),
     cadence TEXT NOT NULL DEFAULT 'monthly' CHECK (cadence IN ('weekly', 'monthly')),
-    commission_base TEXT NOT NULL DEFAULT 'list' CHECK (commission_base IN ('list', 'net')),
+    commission_base TEXT NOT NULL DEFAULT 'net' CHECK (commission_base IN ('list', 'net')),
     effective_from DATE NOT NULL,
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- EffectiveFor is a point lookup on (staff, date) newest-first; the history
--- read walks the same index backwards.
+-- EffectiveFor filters to one staff member's rows and reads newest-first. The
+-- index carries (staff_id, effective_from DESC); the created_at/id tie-breaks
+-- are applied as a sort over that staff member's filtered rows, which is what
+-- makes two rows sharing a date resolve deterministically.
 CREATE INDEX IF NOT EXISTS staff_comp_staff_effective_idx
     ON staff_comp (staff_id, effective_from DESC);
 
@@ -57,7 +62,8 @@ CREATE TABLE IF NOT EXISTS staff_payouts (
 );
 
 -- The paid badge (per staff) rides the unique key's index; the payout history
--- reads a date range across all staff, which this one serves.
+-- filters a period_start range with this one. Its paid_at/staff_id tie-breaks
+-- are a sort of the filtered rows, which stay few (one per staff per period).
 CREATE INDEX IF NOT EXISTS staff_payouts_period_idx
     ON staff_payouts (period_start DESC, period_kind);
 
