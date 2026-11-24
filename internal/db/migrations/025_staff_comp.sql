@@ -35,11 +35,14 @@ CREATE TABLE IF NOT EXISTS staff_comp (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- EffectiveFor filters to one staff member's rows and reads newest-first. The
--- index carries (staff_id, effective_from DESC); the created_at/id tie-breaks
--- are applied as a sort over that staff member's filtered rows, which is what
--- makes two rows sharing a date resolve deterministically.
-CREATE INDEX IF NOT EXISTS staff_comp_staff_effective_idx
+-- EffectiveFor filters to one staff member's rows and reads newest-first, and
+-- the UNIQUE key refuses a second row for the same staff + effective_from: the
+-- rate form's duplicate check is a friendly pre-flight, but two concurrent
+-- submits can both pass that read, and this index is what makes the timeline
+-- unambiguous in the end (a duplicate would otherwise resolve by the
+-- created_at tie-break). The DESC order is kept: Postgres accepts it on a
+-- unique index, and it serves the newest-first scan directly.
+CREATE UNIQUE INDEX IF NOT EXISTS staff_comp_staff_effective_idx
     ON staff_comp (staff_id, effective_from DESC);
 
 CREATE TABLE IF NOT EXISTS staff_payouts (

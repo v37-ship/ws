@@ -624,7 +624,90 @@ func TestPayrollRateSupersedeKeepsPastPeriod(t *testing.T) {
 	if len(hist) != 2 || hist[0].ID != nov.ID || hist[1].ID != jan.ID {
 		t.Fatalf("history = %+v, want the November row then the January row", hist)
 	}
+	// The DATE columns must read back as the dates that were written: a zone
+	// regression in dateOnly would shift them by a day and only a formatted
+	// assertion catches it (the ids above would still match).
+	if got, want := hist[0].EffectiveFrom.Format("2006-01-02"), "2026-11-24"; got != want {
+		t.Errorf("newest effective_from read back = %s, want %s", got, want)
+	}
+	if got, want := hist[1].EffectiveFrom.Format("2006-01-02"), "2026-01-01"; got != want {
+		t.Errorf("superseded effective_from read back = %s, want %s", got, want)
+	}
 	if hist[1].PercentBp != 2500 || hist[1].FixedIDR != 100_000 {
 		t.Fatalf("the superseded row was rewritten: %+v", hist[1])
+	}
+}
+
+// The unique (staff_id, effective_from) index is the real guarantee behind the
+// form's duplicate-date check: even when a caller bypasses the handler's
+// pre-flight read (the repo is what a second concurrent submit reaches), the
+// database refuses the second row. The assertion is the unique violation only —
+// an FK violation is a different SQLSTATE (23503) and must not mask this.
+func TestStaffCompUniqueEffectiveDate(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+
+	ctx := context.Background()
+	loc := insertLocation(t, pool, "Unique Rate Branch")
+	therapist := insertStaff(t, pool, loc, "Unique Rate Therapist")
+	other := insertStaff(t, pool, loc, "Other Rate Therapist")
+	comps := repo.NewStaffCompRepo(pool)
+
+	first := &domain.StaffComp{
+		StaffID:        therapist,
+		PercentBp:      2500,
+		FixedIDR:       100_000,
+		Cadence:        domain.CompCadenceMonthly,
+		CommissionBase: domain.CompBaseNet,
+		EffectiveFrom:  payrollDate(2026, time.January, 1),
+	}
+	if err := comps.Create(ctx, first); err != nil {
+		t.Fatalf("create first rate: %v", err)
+	}
+
+	dup := &domain.StaffComp{
+		StaffID:        therapist,
+		PercentBp:      3000,
+		FixedIDR:       150_000,
+		Cadence:        domain.CompCadenceMonthly,
+		CommissionBase: domain.CompBaseNet,
+		EffectiveFrom:  payrollDate(2026, time.January, 1),
+	}
+	err := comps.Create(ctx, dup)
+	if err == nil {
+		t.Fatal("a second row for the same staff and effective_from was accepted; want a unique violation")
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		t.Fatalf("duplicate rate error = %v, want a *pgconn.PgError", err)
+	}
+	if pgErr.Code != "23505" {
+		t.Fatalf("duplicate rate SQLSTATE = %s (%s), want 23505", pgErr.Code, pgErr.ConstraintName)
+	}
+	if pgErr.ConstraintName != "staff_comp_staff_effective_idx" {
+		t.Fatalf("duplicate rate constraint = %q, want staff_comp_staff_effective_idx", pgErr.ConstraintName)
+	}
+
+	// The same date for a different therapist, and a different date for the same
+	// therapist, are both legitimate rows.
+	okOther := *first
+	okOther.ID = uuid.Nil
+	okOther.StaffID = other
+	if err := comps.Create(ctx, &okOther); err != nil {
+		t.Fatalf("same date for another therapist must be allowed: %v", err)
+	}
+	okNext := *first
+	okNext.ID = uuid.Nil
+	okNext.EffectiveFrom = payrollDate(2026, time.February, 1)
+	if err := comps.Create(ctx, &okNext); err != nil {
+		t.Fatalf("next date for the same therapist must be allowed: %v", err)
+	}
+
+	hist, err := comps.HistoryFor(ctx, therapist)
+	if err != nil {
+		t.Fatalf("HistoryFor: %v", err)
+	}
+	if len(hist) != 2 {
+		t.Fatalf("history = %d rows, want the two accepted rows", len(hist))
 	}
 }

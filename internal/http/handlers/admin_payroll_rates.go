@@ -13,6 +13,7 @@ import (
 	"spa-booking/internal/http/middleware"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Rate management is the admin form over the append-only staff_comp timeline:
@@ -424,6 +425,13 @@ func (s *Server) AdminPayrollRateCreate(w http.ResponseWriter, r *http.Request) 
 	}
 	comp.CreatedBy = &u.ID
 	if err := payrollRateCreate(s, r, comp); err != nil {
+		// The pre-flight read above catches the normal duplicate; the unique
+		// index catches the race. Both answer the same inline message, so the
+		// operator sees one behaviour whichever path finds it.
+		if isDuplicateRate(err) {
+			s.renderPayrollRates(w, r, form, "pr.dup", "")
+			return
+		}
 		s.log.Error("payroll rate create", "err", err)
 		s.staffFail(w, r, http.StatusInternalServerError, failPayRates)
 		return
@@ -434,3 +442,15 @@ func (s *Server) AdminPayrollRateCreate(w http.ResponseWriter, r *http.Request) 
 const (
 	failPayRates = "Could not save the rate. Try again."
 )
+
+// isDuplicateRate reports whether err is the database's unique
+// (staff_id, effective_from) violation — another submit inserted the same date
+// between this form's pre-flight read and its insert. Only that index counts:
+// an FK violation is 23503 and belongs to the generic failure path.
+func isDuplicateRate(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23505" && pgErr.ConstraintName == "staff_comp_staff_effective_idx"
+}

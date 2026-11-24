@@ -2331,7 +2331,7 @@ var dict = map[string]map[string]string{
 		"pr.staff":      "Terapis",
 		"pr.pct":        "Persen (%)",
 		"pr.fixed":      "Tetap (IDR)",
-		"pr.cad":        "Irama",
+		"pr.cad":        "Periode",
 		"pr.base":       "Dasar",
 		"pr.eff":        "Berlaku mulai",
 		"pr.cur":        "Tarif saat ini",

@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Rate management is the admin form over the append-only staff_comp timeline:
@@ -453,6 +454,50 @@ func TestAdminPayrollRatesValidationInline(t *testing.T) {
 	}
 	if len(suite.created) != 0 {
 		t.Errorf("a duplicate post created %d rows", len(suite.created))
+	}
+}
+
+// A double submit that slips past the pre-flight read is still refused by the
+// database's unique (staff_id, effective_from) index; the loser of that race
+// gets the same inline duplicate message, never a 500.
+func TestAdminPayrollRatesDuplicateRace(t *testing.T) {
+	suite := newRatesSuite(t)
+	suite.createErr = &pgconn.PgError{
+		Code:           "23505",
+		ConstraintName: "staff_comp_staff_effective_idx",
+	}
+	rec := ratesPost(t, suite.handler, rateAdmin(), rateValidForm(), false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (inline duplicate); body: %s", rec.Code, rec.Body.String())
+	}
+	out := rec.Body.String()
+	if !strings.Contains(out, i18n.T("id", "pr.dup")) {
+		t.Errorf("page is missing the duplicate-date copy")
+	}
+	if !strings.Contains(out, `value="12,5"`) {
+		t.Errorf("submitted percent was not preserved")
+	}
+	if strings.Contains(suite.logs.String(), "payroll rate create") {
+		t.Errorf("a duplicate-date race was logged as a server fault: %q", suite.logs.String())
+	}
+
+	// Only this index counts as the duplicate: an FK violation (23503) or
+	// another table's unique key (23505) is a real failure, not a retry prompt.
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"foreign key violation", &pgconn.PgError{Code: "23503", ConstraintName: "staff_comp_staff_effective_idx"}},
+		{"another unique key", &pgconn.PgError{Code: "23505", ConstraintName: "staff_payouts_period_key"}},
+	} {
+		suite.createErr = tc.err
+		rec := ratesPost(t, suite.handler, rateAdmin(), rateValidForm(), true)
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("%s: status = %d, want 500", tc.name, rec.Code)
+		}
+		if got := rec.Header().Get("HX-Reswap"); got != "none" {
+			t.Errorf("%s: HX-Reswap = %q, want none", tc.name, got)
+		}
 	}
 }
 
