@@ -1,0 +1,157 @@
+{{define "admin_payroll.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "pr.title"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  {{/* Admin-only accrual report. Standalone (no portal shell on purpose):
+       portal_nav is the CS screen's navigation and must never advertise a
+       payroll route. Print output is the period table — every control is
+       no-print. */}}
+  <main class="stack" style="max-width:1150px; margin:0 auto;">
+    <div>
+      <a href="/admin" class="muted no-print">&larr; {{t .Lang "a.home.title"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{icon "cash"}} {{t .Lang "pr.title"}}</h1>
+      <p class="muted" style="margin-top:0;">{{t .Lang "pr.sub"}}</p>
+    </div>
+
+    <div class="panel no-print" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <a class="btn secondary on-light btn-sm" href="{{.PrevURL}}">{{t .Lang "pr.prev"}}</a>
+        <a class="btn secondary on-light btn-sm" href="{{.TodayURL}}">{{t .Lang "pr.today"}}</a>
+        <a class="btn secondary on-light btn-sm" href="{{.NextURL}}">{{t .Lang "pr.next"}}</a>
+        <span style="display:inline-flex; gap:0.35rem; margin-left:0.5rem;">
+          <a class="btn btn-sm {{if eq .Kind "week"}}{{else}}secondary on-light{{end}}" href="/admin/payroll?kind=week&start={{.Start}}">{{t .Lang "pr.week"}}</a>
+          <a class="btn btn-sm {{if eq .Kind "month"}}{{else}}secondary on-light{{end}}" href="/admin/payroll?kind=month&start={{.Start}}">{{t .Lang "pr.month"}}</a>
+        </span>
+      </div>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <a class="btn secondary on-light btn-sm" href="{{.CSVURL}}">{{icon "download"}} {{t .Lang "r.csv"}}</a>
+        <button class="btn secondary on-light btn-sm" type="button" onclick="window.print()">{{icon "printer"}} {{t .Lang "r.print"}}</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin:0 0 0.25rem;">{{t .Lang "pr.period"}}: {{.PeriodLabel}}</h2>
+      <p class="muted" style="margin-top:0;"><small>{{t .Lang "pr.rule"}}</small></p>
+
+      {{if .Report.MissingRate}}
+      <div class="panel" style="border-left:4px solid var(--danger); margin:0.75rem 0;">
+        <strong>{{icon "alert"}} {{t .Lang "pr.miss.w"}}</strong>
+        <ul style="margin:0.4rem 0 0 1.1rem;">
+          {{range .Missing}}<li>{{.}}</li>{{end}}
+        </ul>
+      </div>
+      {{end}}
+
+      <div style="overflow-x:auto;" class="table-cards">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{t .Lang "pr.th.staff"}}</th>
+              <th style="text-align:center;">{{t .Lang "pr.th.sess"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t .Lang "pr.th.gross"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t .Lang "pr.th.refund"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t .Lang "pr.th.rate"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t .Lang "pr.th.comm"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t .Lang "pr.th.fixed"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t .Lang "pr.th.total"}}</th>
+              <th>{{t .Lang "pr.th.paid"}}</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Rows}}
+            <tr>
+              <td>
+                <strong>{{if .StaffName}}{{.StaffName}}{{else}}-{{end}}</strong>
+                {{if .FixedOnMonth}}<br><small class="muted">{{t $.Lang "pr.fixed.mo"}}</small>{{end}}
+              </td>
+              <td style="text-align:center;">{{.Sessions}}</td>
+              <td style="text-align:right; white-space:nowrap;">{{formatIDR .GrossIDR}}</td>
+              <td style="text-align:right; white-space:nowrap;{{if .RefundIDR}} color:var(--danger);{{end}}">{{if .RefundIDR}}−{{formatIDR .RefundIDR}}{{else}}—{{end}}</td>
+              <td style="text-align:right; white-space:nowrap;">
+                {{if .RateMissing}}<span class="muted">{{t $.Lang "pr.norate"}}</span>
+                {{else}}{{percentBp .PercentBp}}{{if .Base}} <small class="muted">{{t $.Lang (printf "pr.base.%s" .Base)}}</small>{{end}}{{end}}
+              </td>
+              <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .CommissionIDR}}</td>
+              <td style="text-align:right; white-space:nowrap;">{{if .FixedIDR}}{{formatIDR .FixedIDR}}{{else}}—{{end}}</td>
+              <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .TotalIDR}}</td>
+              <td>
+                {{if .Paid}}
+                  <span class="badge">{{icon "check-circle"}} {{t $.Lang "pr.paid"}}</span>
+                  <br><small class="muted">{{t $.Lang "pr.paidat"}} {{formatTime .Paid.PaidAt "2 Jan 2006 15:04"}}</small>
+                  {{if .Paid.Note}}<br><small class="muted">{{t $.Lang "pr.note"}}: {{.Paid.Note}}</small>{{end}}
+                {{else}}
+                  <span class="muted">{{t $.Lang "pr.unpaid"}}</span>
+                {{end}}
+              </td>
+            </tr>
+            <tr class="payroll-detail no-print">
+              <td colspan="9">
+                <details>
+                  <summary class="muted">{{t $.Lang "pr.detail"}} · {{len .Visits}} {{t $.Lang "pr.visits"}}{{if .RefundLines}} · {{len .RefundLines}} {{t $.Lang "pr.reflines"}}{{end}}</summary>
+                  {{if .Visits}}
+                  <div style="overflow-x:auto; margin-top:0.5rem;" class="table-cards">
+                    <table class="table">
+                      <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th>{{t $.Lang "r.th.cust"}}</th><th>{{t $.Lang "r.th.svc"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th></tr></thead>
+                      <tbody>
+                      {{range .Visits}}
+                        <tr>
+                          <td><small>{{slotLabel $.Lang .StartAt}}</small></td>
+                          <td>{{if .CustomerName}}{{.CustomerName}}{{else}}-{{end}}</td>
+                          <td>{{if .ServiceName}}{{.ServiceName}}{{else}}-{{end}}</td>
+                          <td style="text-align:right; white-space:nowrap;">{{formatIDR .BaseIDR}}</td>
+                        </tr>
+                      {{end}}
+                      </tbody>
+                    </table>
+                  </div>
+                  {{end}}
+                  {{if .RefundLines}}
+                  <div style="overflow-x:auto; margin-top:0.5rem;" class="table-cards">
+                    <table class="table">
+                      <thead><tr><th>{{t $.Lang "r.th.date"}}</th><th style="text-align:right;">{{t $.Lang "r.th.amt"}}</th><th>{{t $.Lang "r.th.reason"}}</th></tr></thead>
+                      <tbody>
+                      {{range .RefundLines}}
+                        <tr>
+                          <td><small>{{slotLabel $.Lang .CreatedAt}}</small></td>
+                          <td style="text-align:right; white-space:nowrap; color:var(--danger);">−{{formatIDR .AmountIDR}}</td>
+                          <td><small>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</small></td>
+                        </tr>
+                      {{end}}
+                      </tbody>
+                    </table>
+                  </div>
+                  {{end}}
+                </details>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="9" class="muted">{{t .Lang "pr.empty"}}</td></tr>
+          {{end}}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>{{t .Lang "pr.total"}}</th>
+              <th style="text-align:center;">{{.Sessions}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalGrossIDR}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{if .Report.TotalRefundIDR}}−{{formatIDR .Report.TotalRefundIDR}}{{else}}—{{end}}</th>
+              <th></th>
+              <th style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalCommissionIDR}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{if .Report.TotalFixedIDR}}{{formatIDR .Report.TotalFixedIDR}}{{else}}—{{end}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{formatIDR .Report.TotalIDR}}</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

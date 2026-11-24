@@ -65,6 +65,8 @@ func main() {
 	tvTokens := repo.NewTVTokenRepo(pool)
 	tvPairings := repo.NewTVPairingRepo(pool)
 	tvDevices := repo.NewTVDeviceRepo(pool)
+	staffComps := repo.NewStaffCompRepo(pool)
+	staffPayouts := repo.NewStaffPayoutRepo(pool)
 
 	waSettingsSvc := service.NewWaSettingsService(waSettingsRepo, service.WaConfig{
 		CustomerEnabled: cfg.WACustomer,
@@ -106,6 +108,7 @@ func main() {
 	gallerySvc := service.NewGalleryService(gallery)
 	promoSvc := service.NewPromoService(promos)
 	distanceSvc := service.NewDistanceService(distances)
+	payrollSvc := service.NewPayrollService(repo.NewPayrollRepo(pool), staffComps)
 	digestSvc := service.NewDigestService(bookSvc, waSvc, waSettingsSvc, cfg.WAStaffGroup, cfg.BaseURL, cfg.WADigestHour, log)
 	if cfg.WAEnabled {
 		log.Info("whatsapp outbound enabled", "instance", cfg.WAInstance, "api", cfg.WAAPIURL, "customer_messages", cfg.WACustomer)
@@ -139,7 +142,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSettingsSvc, waSvc, waOutbox, digestSvc, tvTokens, tvPairings, tvDevices)
+	srvHandlers, err := handlers.New(cfg, log, authSvc, catalogSvc, availSvc, bookSvc, reportSvc, careerSvc, tmSvc, foodSvc, heroSvc, gallerySvc, promoSvc, distanceSvc, paySettingsSvc, waSettingsSvc, waSvc, waOutbox, digestSvc, tvTokens, tvPairings, tvDevices, payrollSvc, staffPayouts)
 	if err != nil {
 		log.Error("handlers", "err", err)
 		os.Exit(1)

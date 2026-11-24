@@ -40,7 +40,7 @@ func portalTVSweepData() pageData {
 // TestTemplatesParse ensures all embedded html/template files parse with the
 // production FuncMap. New only parses templates, so nil services are fine.
 func TestTemplatesParse(t *testing.T) {
-	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	_, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestTemplatesParse(t *testing.T) {
 // The admin bookings table is retired (its URL forwards to /portal/bookings),
 // so the template must leave the embedded set rather than linger unreachable.
 func TestLegacyAdminBookingsTemplateRetired(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestLegacyAdminBookingsTemplateRetired(t *testing.T) {
 // html/template applies contextual escaping at execution time, so parse-only
 // tests miss errors like stray quotes inside attribute values.
 func TestTemplatesExecute(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestTemplatesExecute(t *testing.T) {
 		"register.html", "services.html", "testimonial_new.html", "account.html",
 		"food.html", "gallery.html",
 		"admin_home.html", "admin_payments.html", "admin_locations.html",
-		"admin_testimonials.html", "admin_whatsapp.html", "admin_tv.html",
+		"admin_testimonials.html", "admin_whatsapp.html", "admin_tv.html", "admin_payroll.html",
 		"tv_invalid.html", "tv_view.html", "tv_pairing.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html",
 		"portal_dashboard.html", "portal_bookings.html", "portal_booking_new.html",
@@ -125,6 +125,10 @@ func TestTemplatesExecute(t *testing.T) {
 				Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
 				Fields: []string{"name"}, Preview: "Halo Bunda",
 			}}
+		case "admin_payroll.html":
+			for k, v := range payrollSweepData("id") {
+				data[k] = v
+			}
 		case "portal_customer_detail.html":
 			data["Bookings"] = []domain.Booking{}
 		case "portal_customer_edit.html":
@@ -186,7 +190,7 @@ func TestTemplatesExecute(t *testing.T) {
 // TestTemplatesBothLanguages renders key public pages in EN + ID and fails
 // on missing-key leaks (t returns the key itself when absent).
 func TestTemplatesBothLanguages(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -195,7 +199,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			"home.html", "services.html", "book.html", "bookings.html", "login.html",
 			"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
 			"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_testimonials.html", "admin_whatsapp.html",
-			"admin_tv.html", "tv_invalid.html", "tv_view.html", "tv_pairing.html",
+			"admin_tv.html", "admin_payroll.html", "tv_invalid.html", "tv_view.html", "tv_pairing.html",
 			"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 			"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 			"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
@@ -282,6 +286,10 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Job"] = domain.Job{}
 			case "portal_reports.html":
 				for k, v := range reportsSweepData("revenue") {
+					data[k] = v
+				}
+			case "admin_payroll.html":
+				for k, v := range payrollSweepData(lang) {
 					data[k] = v
 				}
 			case "admin_tv.html":
@@ -522,6 +530,19 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			if lang == "en" && name == "portal_reports.html" && !contains(out, "Revenue report") {
 				t.Errorf("portal_reports.html (en): missing English title")
 			}
+			if name == "admin_payroll.html" {
+				// The payroll page is rendered in both languages with the full
+				// representative period: period label, the note for an omitted
+				// monthly fixed, and no raw dictionary key in element text.
+				if !contains(out, payrollPeriodLabel(lang, payrollTestPeriod(service.PayrollKindWeek))) {
+					t.Errorf("admin_payroll.html (%s): missing the period label", lang)
+				}
+				for _, key := range []string{"pr.miss.w", "pr.fixed.mo", "pr.paid", "pr.unpaid", "pr.rule"} {
+					if contains(out, ">"+key+"<") {
+						t.Errorf("admin_payroll.html (%s): missing translation for %s", lang, key)
+					}
+				}
+			}
 			if name == "portal_dashboard.html" {
 				if !contains(out, "portal-side") || !contains(out, "side-toggle") {
 					t.Errorf("portal_dashboard.html (%s): missing sidebar shell/toggle", lang)
@@ -686,7 +707,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"home.html", "services.html", "book.html", "bookings.html", "login.html",
 		"pay.html", "register.html", "careers.html", "testimonial_new.html", "account.html", "food.html", "gallery.html",
 		"admin_home.html", "admin_payments.html", "admin_locations.html", "admin_testimonials.html", "admin_whatsapp.html",
-		"admin_tv.html", "tv_invalid.html", "tv_view.html", "tv_pairing.html",
+		"admin_tv.html", "admin_payroll.html", "tv_invalid.html", "tv_view.html", "tv_pairing.html",
 		"admin_cs.html", "admin_customer_reset.html", "admin_password.html", "admin_jobs.html",
 		"admin_job_applications.html", "portal_dashboard.html", "portal_bookings.html",
 		"portal_booking_new.html", "portal_booking_detail.html", "portal_customers.html",
@@ -702,7 +723,7 @@ func TestNoEmojiIcons(t *testing.T) {
 		"tv_queue_panel.html", "tv_pair_state.html", "tv_slides.html", "tv_slide_services.html",
 		"tv_slide_testimonials.html", "tv_slide_food.html", "tv_slide_review.html",
 	}
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}
@@ -775,6 +796,10 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Job"] = domain.Job{}
 			case "portal_reports.html":
 				for k, v := range reportsSweepData("revenue") {
+					data[k] = v
+				}
+			case "admin_payroll.html":
+				for k, v := range payrollSweepData(lang) {
 					data[k] = v
 				}
 			case "admin_tv.html":

@@ -367,6 +367,11 @@ func TestPayrollReportRows(t *testing.T) {
 		t.Errorf("Ayu commission/fixed/total = %d/%d/%d, want 113000/500000/613000",
 			a.CommissionIDR, a.FixedIDR, a.TotalIDR)
 	}
+	// The detail list reads the base the row actually counted, so a net row's
+	// 200k/50k visit must show 150k, not the frozen list price.
+	if len(a.Visits) != 2 || a.Visits[0].BaseIDR != 150_000 || a.Visits[1].BaseIDR != 300_000 {
+		t.Errorf("Ayu visit bases = %+v, want 150000 and 300000", a.Visits)
+	}
 
 	b := payrollRow(t, rep, "Bima")
 	if b.GrossIDR != 150_000 {
@@ -375,6 +380,10 @@ func TestPayrollReportRows(t *testing.T) {
 	if b.CommissionIDR != 30_000 || b.FixedIDR != 1_500_000 || b.TotalIDR != 1_530_000 {
 		t.Errorf("Bima commission/fixed/total = %d/%d/%d, want 30000/1500000/1530000",
 			b.CommissionIDR, b.FixedIDR, b.TotalIDR)
+	}
+	// A list row ignores the discount in its base too.
+	if b.Visits[0].BaseIDR != 150_000 {
+		t.Errorf("Bima list visit base = %d, want 150000", b.Visits[0].BaseIDR)
 	}
 
 	if rep.TotalGrossIDR != 600_000 || rep.TotalRefundIDR != 0 ||
@@ -549,6 +558,9 @@ func TestPayrollFixedCadenceMatrix(t *testing.T) {
 	if got := payrollRow(t, week, "M-Week").FixedIDR; got != 0 {
 		t.Errorf("monthly fixed on the week view = %d, want 0", got)
 	}
+	if !payrollRow(t, week, "M-Week").FixedOnMonth {
+		t.Errorf("monthly fixed omitted on the week view must carry FixedOnMonth for the page's note")
+	}
 
 	month, err := svc.Report(context.Background(), PayrollKindMonth, time.Date(2026, 11, 23, 0, 0, 0, 0, wib))
 	if err != nil {
@@ -559,6 +571,9 @@ func TestPayrollFixedCadenceMatrix(t *testing.T) {
 	}
 	if got := payrollRow(t, month, "M-Month").FixedIDR; got != 500_000 {
 		t.Errorf("monthly fixed on the month view = %d, want 500000 once", got)
+	}
+	if payrollRow(t, month, "M-Month").FixedOnMonth {
+		t.Errorf("monthly fixed paid on the month view must not carry the week-view note")
 	}
 }
 

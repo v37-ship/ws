@@ -54,7 +54,9 @@ type PayrollPeriod struct {
 }
 
 // PayrollVisit is one completed visit as the page's expandable list shows it.
-// PriceIDR/DiscountIDR are the booking's frozen snapshots.
+// PriceIDR/DiscountIDR are the booking's frozen snapshots; BaseIDR is what the
+// row's resolved commission base actually counted (list or net), so the detail
+// list never has to re-implement the base rule.
 type PayrollVisit struct {
 	BookingID    uuid.UUID
 	StartAt      time.Time
@@ -62,6 +64,7 @@ type PayrollVisit struct {
 	ServiceName  string
 	PriceIDR     int64
 	DiscountIDR  int64
+	BaseIDR      int64
 }
 
 // PayrollRefundLine is one recorded refund on the row. AmountIDR is what was
@@ -98,9 +101,13 @@ type PayrollRow struct {
 	CommissionIDR int64
 	FixedIDR      int64
 	TotalIDR      int64
-	RateMissing   bool
-	Visits        []PayrollVisit
-	RefundLines   []PayrollRefundLine
+	// FixedOnMonth marks a monthly-cadence fixed that the week view omits
+	// because it is paid once on the month view; the page says "counted on
+	// the month" instead of showing an unexplained zero.
+	FixedOnMonth bool
+	RateMissing  bool
+	Visits       []PayrollVisit
+	RefundLines  []PayrollRefundLine
 }
 
 // PayrollReport is the whole period. Rows are the union of therapists with
@@ -215,11 +222,18 @@ func (s *PayrollService) Report(ctx context.Context, kind string, start time.Tim
 			row.Base = comp.CommissionBase
 			base = comp.CommissionBase
 			row.FixedIDR = resolveFixed(comp.FixedIDR, comp.Cadence, period.Kind, weeks)
+			// The week view omits a monthly fixed by design; flag it so the
+			// page can say why the column is empty instead of looking broken.
+			row.FixedOnMonth = comp.FixedIDR > 0 &&
+				comp.Cadence == domain.CompCadenceMonthly &&
+				period.Kind == PayrollKindWeek
 		}
 
-		for _, v := range row.Visits {
+		for i := range row.Visits {
+			v := &row.Visits[i]
+			v.BaseIDR = baseFor(v.PriceIDR, v.DiscountIDR, base)
 			row.Sessions++
-			row.GrossIDR += baseFor(v.PriceIDR, v.DiscountIDR, base)
+			row.GrossIDR += v.BaseIDR
 		}
 
 		// Per-booking spend inside this period: the cap is the booking's base

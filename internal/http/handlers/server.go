@@ -55,8 +55,13 @@ type Server struct {
 	tvTokens    *repo.TVTokenRepo
 	tvPairings  *repo.TVPairingRepo
 	tvDevices   *repo.TVDeviceRepo
-	tpl         *template.Template
-	csrfSecure  bool
+	// Payroll is admin-only and read here through interfaces: the page needs a
+	// report plus one paid-snapshot lookup per row, and the router tests drive
+	// both with fakes instead of a database.
+	payroll    payrollReporter
+	payouts    payoutReader
+	tpl        *template.Template
+	csrfSecure bool
 }
 
 func New(
@@ -82,6 +87,8 @@ func New(
 	tvTokens *repo.TVTokenRepo,
 	tvPairings *repo.TVPairingRepo,
 	tvDevices *repo.TVDeviceRepo,
+	payroll *service.PayrollService,
+	payouts *repo.StaffPayoutRepo,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -283,12 +290,21 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
+	srv := &Server{
 		cfg: cfg, log: log, auth: authSvc, catalog: catalog, avail: avail, book: book, reports: reports, career: career, tm: tm, food: food, hero: hero, gallery: gallery, promo: promo,
 		distance: distance, paySettings: paySettings, waSettings: waSettings, wa: waSvc, waOutbox: waOutbox, digest: digest,
 		tvTokens: tvTokens, tvPairings: tvPairings, tvDevices: tvDevices,
 		tpl: tpl, csrfSecure: cfg.CSRFSecure,
-	}, nil
+	}
+	// Typed nils must not become non-nil interfaces: a test server or a box
+	// without payroll wiring must see "not configured", not a panic.
+	if payroll != nil {
+		srv.payroll = payroll
+	}
+	if payouts != nil {
+		srv.payouts = payouts
+	}
+	return srv, nil
 }
 
 type pageData map[string]any
@@ -798,6 +814,12 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/payments", s.AdminPayments)
 		ar.Post("/payments/qris", s.AdminUploadQRIS)
 		ar.Post("/payments/qris/reset", s.AdminResetQRIS)
+
+		// Payroll accrual: completed visits by service date, payment-blind.
+		// Admin-only on purpose — the portal's revenue tab is the CS view and
+		// salaries never appear there.
+		ar.Get("/payroll", s.AdminPayroll)
+		ar.Get("/payroll.csv", s.AdminPayrollCSV)
 
 		// Waiting-room TV kiosk links (generate, show, revoke).
 		ar.Get("/tv", s.AdminTVPage)
