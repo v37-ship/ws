@@ -172,16 +172,17 @@ func (r *WaRepo) RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time,
 	return err
 }
 
-// RetryFailed flips a failed or cancelled row back to pending so the worker
-// claims it on its next pass: attempts reset, the error cleared, scheduled now.
-// Only those two statuses are retryable (ruling R6) — a sent row must never be
-// re-sent, and a pending/sending row is already in play, so both are a no-op.
-// The dedupe key is untouched: the row identity is that key.
+// RetryFailed flips a failed row back to pending so the worker claims it on
+// its next pass: attempts reset, the error cleared, scheduled now. Only
+// 'failed' is retryable (ruling R6): a sent row must never be re-sent, a
+// pending/sending row is already in play, and a cancelled row was deliberately
+// withdrawn (booking cancelled/expired/rescheduled, review un-finished) — it
+// must never be re-sent. The dedupe key is untouched: the row identity is it.
 func (r *WaRepo) RetryFailed(ctx context.Context, id uuid.UUID) (bool, error) {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE wa_outbox SET status='pending', attempts=0, last_error='',
 		        scheduled_at=now(), updated_at=now()
-		 WHERE id=$1 AND status IN ('failed', 'cancelled')`, id)
+		 WHERE id=$1 AND status = 'failed'`, id)
 	if err != nil {
 		return false, err
 	}

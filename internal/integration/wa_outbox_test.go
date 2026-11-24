@@ -79,10 +79,10 @@ func readWaOutbox(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) waOutboxRow {
 	return row
 }
 
-// TestWaRetryFailedFlipsOnlyRetryableRows pins ruling R6: the same row flips to
+// TestWaRetryFailedFlipsOnlyRetryableRows pins ruling R6: a failed row flips to
 // pending with attempts reset, the error cleared and scheduled_at moved to now;
-// sent/sending/pending and an unknown id are no-ops. The dedupe key is the row
-// identity and must survive.
+// sent/sending/pending, a cancelled row (a deliberate withdrawal) and an
+// unknown id are no-ops. The dedupe key is the row identity and must survive.
 func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 	pool := OpenTestDB(t)
 	TruncateAll(t, pool)
@@ -95,48 +95,39 @@ func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 		LastError: "gave up after 4 attempts: boom", DedupeKey: "retry:failed",
 		ScheduledAt: past,
 	})
-	cancelledID := insertWaOutbox(t, pool, waOutboxSeed{
-		Phone: "6282222222222", Status: "cancelled", DedupeKey: "retry:cancelled",
-		ScheduledAt: past,
-	})
 	untouched := map[string]uuid.UUID{
+		"cancelled": insertWaOutbox(t, pool, waOutboxSeed{
+			Phone: "6282222222222", Status: "cancelled", DedupeKey: "retry:cancelled",
+			ScheduledAt: past,
+		}),
 		"sent":    insertWaOutbox(t, pool, waOutboxSeed{Phone: "6283333333333", Status: "sent", Attempts: 1}),
 		"sending": insertWaOutbox(t, pool, waOutboxSeed{Phone: "6284444444444", Status: "sending", Attempts: 1}),
 		"pending": insertWaOutbox(t, pool, waOutboxSeed{Phone: "6285555555555", Status: "pending"}),
 	}
 
 	before := time.Now().Add(-time.Second)
-	for _, tc := range []struct {
-		name string
-		id   uuid.UUID
-	}{
-		{"failed", failedID},
-		{"cancelled", cancelledID},
-	} {
-		changed, err := wa.RetryFailed(ctx, tc.id)
-		if err != nil {
-			t.Fatalf("%s retry: %v", tc.name, err)
-		}
-		if !changed {
-			t.Fatalf("%s retry changed = false, want true", tc.name)
-		}
-		row := readWaOutbox(t, pool, tc.id)
-		if row.Status != "pending" {
-			t.Errorf("%s status = %q, want pending", tc.name, row.Status)
-		}
-		if row.Attempts != 0 {
-			t.Errorf("%s attempts = %d, want 0", tc.name, row.Attempts)
-		}
-		if row.LastError != "" {
-			t.Errorf("%s last_error = %q, want empty", tc.name, row.LastError)
-		}
-		if row.ScheduledAt.Before(before) {
-			t.Errorf("%s scheduled_at = %v, want now (>= %v)", tc.name, row.ScheduledAt, before)
-		}
-		wantKey := "retry:" + tc.name
-		if row.DedupeKey == nil || *row.DedupeKey != wantKey {
-			t.Errorf("%s dedupe_key = %v, want %q (row identity must survive)", tc.name, row.DedupeKey, wantKey)
-		}
+	changed, err := wa.RetryFailed(ctx, failedID)
+	if err != nil {
+		t.Fatalf("failed retry: %v", err)
+	}
+	if !changed {
+		t.Fatal("failed retry changed = false, want true")
+	}
+	row := readWaOutbox(t, pool, failedID)
+	if row.Status != "pending" {
+		t.Errorf("failed status = %q, want pending", row.Status)
+	}
+	if row.Attempts != 0 {
+		t.Errorf("failed attempts = %d, want 0", row.Attempts)
+	}
+	if row.LastError != "" {
+		t.Errorf("failed last_error = %q, want empty", row.LastError)
+	}
+	if row.ScheduledAt.Before(before) {
+		t.Errorf("failed scheduled_at = %v, want now (>= %v)", row.ScheduledAt, before)
+	}
+	if row.DedupeKey == nil || *row.DedupeKey != "retry:failed" {
+		t.Errorf("failed dedupe_key = %v, want %q (row identity must survive)", row.DedupeKey, "retry:failed")
 	}
 
 	for name, id := range untouched {

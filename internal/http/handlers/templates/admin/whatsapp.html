@@ -172,7 +172,7 @@
             <td><code>{{.TemplateKey}}</code></td>
             <td>{{.Status}}{{if .LastError}} · <span class="muted">{{.LastError}}</span>{{end}}</td>
             <td>
-              {{if or (eq .Status "failed") (eq .Status "cancelled")}}
+              {{if eq .Status "failed"}}
               <form method="post" action="/admin/whatsapp/outbox/{{.ID}}/retry">
                 <input type="hidden" name="csrf" value="{{$.CSRF}}">
                 <button class="btn secondary on-light btn-sm" type="submit">{{t $.Lang "a.wa.retry"}}</button>

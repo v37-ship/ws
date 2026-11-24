@@ -150,8 +150,10 @@ var (
 	waSweepCancelledID = uuid.MustParse("33333333-3333-4333-8333-333333333333")
 )
 
-// waQueueSweep returns one recent row per retry branch, stamped like the copy
-// audit fixtures so the sweep renders deterministically.
+// waQueueSweep returns one recent row per outbox branch (failed, sent,
+// cancelled), stamped like the copy audit fixtures so the sweep renders
+// deterministically. Only the failed row is retryable; cancelled is a
+// withdrawal.
 func waQueueSweep() []repo.WaOutboxItem {
 	return []repo.WaOutboxItem{
 		{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "booking_remind", Status: "failed", LastError: "boom", CreatedAt: waAuditWhen},

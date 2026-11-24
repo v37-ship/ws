@@ -103,17 +103,32 @@ func TestAdminRetryWaOutboxNotRetryable(t *testing.T) {
 	fake := &waOutboxAdminFake{changed: false}
 	s.waOutbox = fake
 
-	rec := waRetryPost(t, s, &domain.User{ID: uuid.New(), Role: domain.RoleAdmin}, uuid.NewString(), true)
+	// A cancelled row is a deliberate withdrawal: the repo refuses it and the
+	// handler must land on the same notice as an already-sent or unknown row.
+	for _, tc := range []struct {
+		name string
+		id   uuid.UUID
+	}{
+		{"cancelled", waSweepCancelledID},
+		{"already sent", waSweepSentID},
+		{"unknown", uuid.New()},
+	} {
+		rec := waRetryPost(t, s, &domain.User{ID: uuid.New(), Role: domain.RoleAdmin}, tc.id.String(), true)
 
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want 303", rec.Code)
-	}
-	loc := rec.Header().Get("Location")
-	if !strings.Contains(loc, "error=") || strings.Contains(loc, "success=") {
-		t.Fatalf("Location = %q, want an error flag (already sent/claimed or unknown)", loc)
-	}
-	if want := url.QueryEscape("That message cannot be retried"); !strings.Contains(loc, want) {
-		t.Errorf("Location = %q, want the localized refusal %q", loc, want)
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("%s: status = %d, want 303", tc.name, rec.Code)
+		}
+		loc := rec.Header().Get("Location")
+		if !strings.Contains(loc, "error=") || strings.Contains(loc, "success=") {
+			t.Fatalf("%s: Location = %q, want an error flag", tc.name, loc)
+		}
+		if want := url.QueryEscape("That message cannot be retried"); !strings.Contains(loc, want) {
+			t.Errorf("%s: Location = %q, want the localized refusal %q", tc.name, loc, want)
+		}
+		// The repo was consulted (it owns the status predicate); it refused.
+		if len(fake.retried) == 0 || fake.retried[len(fake.retried)-1] != tc.id {
+			t.Errorf("%s: retried = %v, want the refused id consulted", tc.name, fake.retried)
+		}
 	}
 }
 
@@ -192,10 +207,10 @@ func TestAdminRetryWaOutboxAdminOnly(t *testing.T) {
 	}
 }
 
-// TestAdminWhatsAppRetryFormOnlyOnRetryableRows renders both branches in both
-// languages: the counters line, the retry form on failed/cancelled rows only,
-// and no raw i18n key leaking.
-func TestAdminWhatsAppRetryFormOnlyOnRetryableRows(t *testing.T) {
+// TestAdminWhatsAppRetryFormOnlyOnFailedRows renders both branches in both
+// languages: the counters line, the retry form on failed rows only (a cancelled
+// row is a withdrawal, not a failure), and no raw i18n key leaking.
+func TestAdminWhatsAppRetryFormOnlyOnFailedRows(t *testing.T) {
 	s := newWaTestServer(t, slog.Default())
 	out := func(lang string) string {
 		return waTestRender(t, s, lang, waTemplatesSweep())
@@ -219,19 +234,23 @@ func TestAdminWhatsAppRetryFormOnlyOnRetryableRows(t *testing.T) {
 		if strings.Contains(page, "a.wa.") {
 			t.Errorf("%s: raw i18n key leaked", lang)
 		}
-		// Exactly the failed and cancelled rows carry a form.
-		if got := strings.Count(page, `action="/admin/whatsapp/outbox/`); got != 2 {
-			t.Errorf("%s: retry forms = %d, want 2 (failed + cancelled only)", lang, got)
+		// Exactly the failed row carries a form.
+		if got := strings.Count(page, `action="/admin/whatsapp/outbox/`); got != 1 {
+			t.Errorf("%s: retry forms = %d, want 1 (failed only)", lang, got)
 		}
-		for _, id := range []uuid.UUID{waSweepFailedID, waSweepCancelledID} {
-			want := `action="/admin/whatsapp/outbox/` + id.String() + `/retry"`
-			if !strings.Contains(page, want) {
-				t.Errorf("%s: missing the retry form for %s", lang, id)
+		want := `action="/admin/whatsapp/outbox/` + waSweepFailedID.String() + `/retry"`
+		if !strings.Contains(page, want) {
+			t.Errorf("%s: missing the retry form for the failed row", lang)
+		}
+		// Sent and cancelled rows must not gain one; the cancelled row keeps
+		// its status text with no action.
+		for _, id := range []uuid.UUID{waSweepSentID, waSweepCancelledID} {
+			if strings.Contains(page, id.String()+`/retry`) {
+				t.Errorf("%s: row %s must not be retryable", lang, id)
 			}
 		}
-		// The sent row must not gain one.
-		if strings.Contains(page, waSweepSentID.String()+`/retry`) {
-			t.Errorf("%s: a sent row must not be retryable", lang)
+		if !strings.Contains(page, "cancelled") {
+			t.Errorf("%s: the cancelled row lost its status text", lang)
 		}
 	}
 }

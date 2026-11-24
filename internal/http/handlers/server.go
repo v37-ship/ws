@@ -871,7 +871,8 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Post("/whatsapp/reschedule", s.AdminRescheduleWhatsApp)
 		ar.Post("/whatsapp/template", s.AdminSaveWaTemplate)
 		ar.Post("/whatsapp/template/reset", s.AdminResetWaTemplate)
-		// Retry one failed/cancelled outbox row (the same row flips to pending).
+		// Retry one failed outbox row (the same row flips to pending). A
+		// cancelled row is a withdrawal and stays put.
 		ar.Post("/whatsapp/outbox/{id}/retry", s.AdminRetryWaOutbox)
 
 		// CS Accounts Management

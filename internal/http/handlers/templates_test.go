@@ -276,7 +276,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Conn"] = "mock"
 				data["Templates"] = waTemplatesSweep()
 				// One row per retry branch so the outbox panel (counters, retry
-				// form on failed/cancelled only) is translated in both languages.
+				// form on the failed row only) is translated in both languages.
 				data["Recent"] = waQueueSweep()
 				data["QueuePending"] = 2
 				data["QueueFailed"] = 1
@@ -350,7 +350,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 					t.Errorf("admin_whatsapp.html (%s): missing segmentation counter %q", lang, want)
 				}
 				// The outbox panel's queue counters and the retry action on a
-				// failed/cancelled row read in the page language too.
+				// failed row reads in the page language too.
 				counters, retry := "pending 2 · failed 1", ">Retry<"
 				if lang == "id" {
 					counters, retry = "menunggu 2 · gagal 1", ">Kirim ulang<"
@@ -841,7 +841,7 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Conn"] = "mock"
 				data["Templates"] = waTemplatesSweep()
 				// One row per retry branch so the outbox panel (counters, retry
-				// form on failed/cancelled only) is translated in both languages.
+				// form on the failed row only) is translated in both languages.
 				data["Recent"] = waQueueSweep()
 				data["QueuePending"] = 2
 				data["QueueFailed"] = 1
