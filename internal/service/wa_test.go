@@ -162,6 +162,54 @@ func TestWaDrainMockLogsMaskedTarget(t *testing.T) {
 	}
 }
 
+// TestWaDrainEnabledLogsMaskedTarget mirrors the mock test on the live path:
+// the success line carries only the masked target, the template key and the
+// provider id — never the full number or the rendered body (ruling R13).
+func TestWaDrainEnabledLogsMaskedTarget(t *testing.T) {
+	const raw = "0812-3456-7890" // normalizes to 6281234567890
+	const body = "halo bunda, sampai jumpa besok"
+	item := testItem(raw, "test", body, 1, 5)
+	store := &fakeWaStore{batches: [][]repo.WaOutboxItem{{item}}}
+	var logs slogCapture
+	svc := NewWaService(store, &fakeSender{id: "ABC"}, slog.New(&logs), true, 0, nil)
+
+	svc.Drain(context.Background())
+
+	if len(store.sent) != 1 {
+		t.Fatalf("sent = %v, want the live row marked sent", store.sent)
+	}
+	if len(logs.records) != 1 {
+		t.Fatalf("got %d log records, want exactly one: %v", len(logs.records), logs.records)
+	}
+	rec := logs.records[0]
+	if rec.Message != "wa sent" {
+		t.Errorf("message = %q, want wa sent", rec.Message)
+	}
+	attrs := map[string]string{}
+	rec.Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.String()
+		return true
+	})
+	if got := attrs["phone"]; got != "…7890" {
+		t.Errorf("phone attr = %q, want the masked tail", got)
+	}
+	if got := attrs["template"]; got != "test" {
+		t.Errorf("template attr = %q, want the template key", got)
+	}
+	if got := attrs["wa_message_id"]; got != "ABC" {
+		t.Errorf("wa_message_id attr = %q, want ABC", got)
+	}
+	joined := rec.Message
+	for _, v := range attrs {
+		joined += " " + v
+	}
+	for _, leak := range []string{"6281234567890", raw, body} {
+		if strings.Contains(joined, leak) {
+			t.Errorf("log leaked %q: %q", leak, joined)
+		}
+	}
+}
+
 func TestWaDrainMockMode(t *testing.T) {
 	item := testItem("0812-3456-7890", "test", "halo", 1, 5)
 	store := &fakeWaStore{batches: [][]repo.WaOutboxItem{{item}}}

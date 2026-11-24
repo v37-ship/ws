@@ -30,6 +30,10 @@ type WaOutboxItem struct {
 	// for the admin log (empty when the row has no booking). A failed row whose
 	// booking has since closed is not retryable.
 	BookingStatus string
+	// BookingStart is the joined visit time (zero when the row has no booking).
+	// The page needs it to hide the retry control for a reminder whose visit is
+	// already past (ruling R16).
+	BookingStart time.Time
 }
 
 type WaRepo struct{ pool *pgxpool.Pool }
@@ -193,7 +197,8 @@ func (r *WaRepo) RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time,
 }
 
 // RetryFailed flips a failed row back to pending so the worker claims it on
-// its next pass: attempts reset, the error cleared, scheduled now. Only
+// its next pass: attempts reset, the error cleared, scheduled at `at` (the
+// handler passes service.ClampSendTime(time.Now()), ruling R15). Only
 // 'failed' is retryable (ruling R6): a sent row must never be re-sent, a
 // pending/sending row is already in play, and a cancelled row was deliberately
 // withdrawn (booking cancelled/expired/rescheduled, review un-finished) — it
@@ -204,15 +209,26 @@ func (r *WaRepo) RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time,
 // that later became cancelled/expired/no_show would otherwise be resurrected
 // and tell the customer about a visit that no longer holds. Such a row is
 // refused in the same atomic statement; a row with no booking is unaffected.
-func (r *WaRepo) RetryFailed(ctx context.Context, id uuid.UUID) (bool, error) {
+//
+// A reminder is additionally retryable only while the visit is ahead (ruling
+// R16): a `remind:%` row whose booking is completed or whose start_at is past
+// is refused. Review and other templates keep the rule above, so a completed
+// review row is still retryable.
+//
+// The page's waRetryable helper (internal/http/handlers/admin_whatsapp.go)
+// mirrors this predicate in Go so the control hides exactly where the repo
+// refuses. Keep the two in lockstep.
+func (r *WaRepo) RetryFailed(ctx context.Context, id uuid.UUID, at time.Time) (bool, error) {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE wa_outbox SET status='pending', attempts=0, last_error='',
-		        scheduled_at=now(), updated_at=now()
+		        scheduled_at=$2, updated_at=now()
 		 WHERE id=$1 AND status = 'failed'
 		   AND NOT EXISTS (
 		       SELECT 1 FROM bookings b
 		       WHERE b.id = wa_outbox.booking_id
-		         AND b.status IN ('cancelled', 'expired', 'no_show'))`, id)
+		         AND (b.status IN ('cancelled', 'expired', 'no_show')
+		              OR (wa_outbox.dedupe_key LIKE 'remind:%'
+		                  AND (b.status = 'completed' OR b.start_at < now()))))`, id, at)
 	if err != nil {
 		return false, err
 	}
@@ -245,17 +261,36 @@ func (r *WaRepo) RequeueSending(ctx context.Context) (int64, error) {
 }
 
 // ListRecent returns the most recently created outbox rows (admin log) with
-// their booking's current status, so the page can hide the retry control for a
-// message whose visit has closed without a second query per row.
+// their booking's current status and start, so the page can hide the retry
+// control for a message whose visit has closed or already happened without a
+// second query per row.
 func (r *WaRepo) ListRecent(ctx context.Context, limit int) ([]WaOutboxItem, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 	const q = `SELECT o.id, o.phone, o.template_key, o.payload, o.booking_id, o.dedupe_key,
 		o.scheduled_at, o.attempts, o.max_attempts, o.last_error, o.status, o.created_at,
-		COALESCE(b.status, '')
+		COALESCE(b.status, ''), b.start_at
 		FROM wa_outbox o
 		LEFT JOIN bookings b ON b.id = o.booking_id
+		ORDER BY o.created_at DESC LIMIT $1`
+	return r.scanList(ctx, q, limit)
+}
+
+// ListFailed returns the failed rows, newest first, with the same joined
+// booking status/start as ListRecent. The recent window is only 20 rows, so
+// with a backlog most failures would otherwise be unreachable (ruling R14's
+// operator path: the counters link here).
+func (r *WaRepo) ListFailed(ctx context.Context, limit int) ([]WaOutboxItem, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	const q = `SELECT o.id, o.phone, o.template_key, o.payload, o.booking_id, o.dedupe_key,
+		o.scheduled_at, o.attempts, o.max_attempts, o.last_error, o.status, o.created_at,
+		COALESCE(b.status, ''), b.start_at
+		FROM wa_outbox o
+		LEFT JOIN bookings b ON b.id = o.booking_id
+		WHERE o.status = 'failed'
 		ORDER BY o.created_at DESC LIMIT $1`
 	return r.scanList(ctx, q, limit)
 }
@@ -290,8 +325,8 @@ func (r *WaRepo) ListUpcoming(ctx context.Context, templateKey string, limit int
 	return out, rows.Err()
 }
 
-// scanList reads outbox rows in the shared column order (ListRecent's query
-// also joins the booking's status as the last column).
+// scanList reads outbox rows in the shared column order (the list queries
+// also join the booking's status and start time as the last two columns).
 func (r *WaRepo) scanList(ctx context.Context, q string, arg any) ([]WaOutboxItem, error) {
 	rows, err := r.pool.Query(ctx, q, arg)
 	if err != nil {
@@ -301,10 +336,14 @@ func (r *WaRepo) scanList(ctx context.Context, q string, arg any) ([]WaOutboxIte
 	var out []WaOutboxItem
 	for rows.Next() {
 		var it WaOutboxItem
+		var start *time.Time
 		if err := rows.Scan(&it.ID, &it.Phone, &it.TemplateKey, &it.Payload, &it.BookingID,
 			&it.DedupeKey, &it.ScheduledAt, &it.Attempts, &it.MaxAttempts, &it.LastError,
-			&it.Status, &it.CreatedAt, &it.BookingStatus); err != nil {
+			&it.Status, &it.CreatedAt, &it.BookingStatus, &start); err != nil {
 			return nil, err
+		}
+		if start != nil {
+			it.BookingStart = *start
 		}
 		out = append(out, it)
 	}

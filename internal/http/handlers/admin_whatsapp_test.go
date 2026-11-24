@@ -112,9 +112,11 @@ func waTestRender(t *testing.T, s *Server, lang string, views []waTemplateView) 
 		"Templates": views,
 		// One row per retry branch (failed, sent, cancelled) plus the counters
 		// so every page render covers the outbox panel's real shape.
-		"Recent":       waQueueSweep(),
+		"Recent":       waQueueViews(),
+		"OutboxFailed": false,
 		"QueuePending": 2,
 		"QueueFailed":  1,
+		"QueueOK":      true,
 	}
 	var buf bytes.Buffer
 	if err := s.tpl.ExecuteTemplate(&buf, "admin_whatsapp.html", data); err != nil {
@@ -150,21 +152,34 @@ var (
 	waSweepCancelledID = uuid.MustParse("33333333-3333-4333-8333-333333333333")
 	waSweepNoBookingID = uuid.MustParse("44444444-4444-4444-8444-444444444444")
 	waSweepClosedID    = uuid.MustParse("55555555-5555-4555-8555-555555555555")
+	waSweepPastRemind  = uuid.MustParse("66666666-6666-4666-8666-666666666666")
 )
 
 // waQueueSweep returns one recent row per outbox branch (failed with a live
-// booking, failed with no booking, failed whose booking closed, sent,
-// cancelled), stamped like the copy audit fixtures so the sweep renders
-// deterministically. Only the failed rows with a live (or no) booking are
-// retryable; cancelled is a withdrawal and a closed booking is stale.
+// booking, failed with no booking, failed whose booking closed, failed past
+// reminder, sent, cancelled), stamped like the copy audit fixtures so the sweep
+// renders deterministically. Only the failed rows with a live (or no) booking
+// are retryable; cancelled is a withdrawal, a closed booking is stale, and a
+// reminder whose visit already happened is refused (ruling R16).
 func waQueueSweep() []repo.WaOutboxItem {
+	booked := uuid.MustParse("77777777-7777-4777-8777-777777777777")
+	remind := "remind:" + booked.String()
+	future := waAuditWhen.Add(24 * time.Hour)
+	past := waAuditWhen.Add(-time.Hour)
 	return []repo.WaOutboxItem{
-		{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "booking_remind", Status: "failed", LastError: "boom", BookingStatus: "confirmed", CreatedAt: waAuditWhen},
-		{ID: waSweepNoBookingID, Phone: "6281200000002", TemplateKey: "test", Status: "failed", BookingStatus: "", CreatedAt: waAuditWhen},
-		{ID: waSweepClosedID, Phone: "6281200000003", TemplateKey: "booking_remind", Status: "failed", BookingStatus: "cancelled", CreatedAt: waAuditWhen},
-		{ID: waSweepSentID, Phone: "6281200000004", TemplateKey: "booking_confirm", Status: "sent", BookingStatus: "confirmed", CreatedAt: waAuditWhen},
-		{ID: waSweepCancelledID, Phone: "6281200000005", TemplateKey: "booking_cancelled", Status: "cancelled", BookingStatus: "cancelled", CreatedAt: waAuditWhen},
+		{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "booking_remind", Status: "failed", LastError: "boom", BookingID: &booked, BookingStatus: "confirmed", BookingStart: future, DedupeKey: &remind, CreatedAt: waAuditWhen, ScheduledAt: waAuditWhen},
+		{ID: waSweepNoBookingID, Phone: "6281200000002", TemplateKey: "test", Status: "failed", BookingStatus: "", CreatedAt: waAuditWhen, ScheduledAt: waAuditWhen},
+		{ID: waSweepClosedID, Phone: "6281200000003", TemplateKey: "booking_remind", Status: "failed", BookingID: &booked, BookingStatus: "cancelled", BookingStart: future, CreatedAt: waAuditWhen, ScheduledAt: waAuditWhen},
+		{ID: waSweepPastRemind, Phone: "6281200000006", TemplateKey: "booking_remind", Status: "failed", BookingID: &booked, BookingStatus: "completed", BookingStart: past, DedupeKey: &remind, CreatedAt: waAuditWhen, ScheduledAt: waAuditWhen},
+		{ID: waSweepSentID, Phone: "6281200000004", TemplateKey: "booking_confirm", Status: "sent", BookingID: &booked, BookingStatus: "confirmed", BookingStart: future, CreatedAt: waAuditWhen, ScheduledAt: waAuditWhen},
+		{ID: waSweepCancelledID, Phone: "6281200000005", TemplateKey: "booking_cancelled", Status: "cancelled", BookingID: &booked, BookingStatus: "cancelled", BookingStart: future, CreatedAt: waAuditWhen, ScheduledAt: waAuditWhen},
 	}
+}
+
+// waQueueViews is the page shape: rows plus the handler-computed retry flag,
+// evaluated at the fixture's fixed "now".
+func waQueueViews() []waOutboxView {
+	return waOutboxViews(waQueueSweep(), waAuditWhen)
 }
 
 func TestAdminWhatsAppCounterRendersOnlyWhenSegmented(t *testing.T) {
@@ -185,8 +200,8 @@ func TestAdminWhatsAppCounterRendersOnlyWhenSegmented(t *testing.T) {
 	if want := "GSM-7 · 10 karakter · 1 pesan"; !strings.Contains(shown, want) {
 		t.Errorf("counter line missing %q", want)
 	}
-	if !strings.Contains(shown, "Teks ini:") {
-		t.Error(`counter line missing the "Teks ini" label`)
+	if !strings.Contains(shown, "Teks tersimpan:") {
+		t.Error(`counter line missing the "Teks tersimpan" label`)
 	}
 
 	hidden := render(waTemplateView{
@@ -194,7 +209,7 @@ func TestAdminWhatsAppCounterRendersOnlyWhenSegmented(t *testing.T) {
 		Fields: []string{"name"}, Preview: "Halo Bunda",
 		Encoding: "GSM-7", Chars: 0, Segments: 0,
 	})
-	if strings.Contains(hidden, "Teks ini") {
+	if strings.Contains(hidden, "Teks tersimpan") {
 		t.Error("an empty body must hide the counter line")
 	}
 }

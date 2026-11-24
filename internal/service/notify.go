@@ -89,6 +89,11 @@ func clampSendTime(at time.Time) time.Time {
 	return t
 }
 
+// ClampSendTime is the exported wrapper the admin retry path uses (ruling R15):
+// a manual retry obeys the same 07:00-20:00 WIB window as every other customer
+// send, so a 21:30 click waits until morning rather than messaging overnight.
+func ClampSendTime(at time.Time) time.Time { return clampSendTime(at) }
+
 // remindAt returns when the H-1 reminder should go out for a booking, or the
 // zero time when there is no useful window left (the confirmation message
 // already covered it, or the visit is too close).
@@ -203,9 +208,10 @@ func (s *BookingService) notifyClaimRejected(ctx context.Context, b *domain.Book
 func remindKey(id uuid.UUID) string { return "remind:" + id.String() }
 func reviewKey(id uuid.UUID) string { return "review:" + id.String() }
 
-// repeatNoShowLimit is the number of missed visits at which automatic H-1
-// reminders stop (ruling R8).
-const repeatNoShowLimit = 2
+// RepeatNoShowLimit is the number of missed visits at which automatic H-1
+// reminders stop (ruling R8). Exported so the booking page can state the same
+// rule (ruling R17) instead of hard-coding its own copy.
+const RepeatNoShowLimit = 2
 
 // excludedFromReminders reports whether the booking's customer has missed too
 // many visits for another automatic reminder (ruling R8). It is fail-open: a
@@ -222,7 +228,7 @@ func (s *BookingService) excludedFromReminders(ctx context.Context, b *domain.Bo
 		s.log.Warn("wa no-show lookup failed, reminder kept", "booking", b.ID, "err", err)
 		return false
 	}
-	if n < repeatNoShowLimit {
+	if n < RepeatNoShowLimit {
 		return false
 	}
 	// Expected policy, not an anomaly: a reschedule sweep can suppress
@@ -232,36 +238,52 @@ func (s *BookingService) excludedFromReminders(ctx context.Context, b *domain.Bo
 	return true
 }
 
+// CountNoShows reads a customer's no-show history for the booking page's muted
+// "automatic reminders are off" line (ruling R17). It delegates to the same
+// BookingRepo.CountNoShows behind the reminder gate (excludedFromReminders), so
+// the page and the sender can never disagree about the threshold.
+func (s *BookingService) CountNoShows(ctx context.Context, customerID uuid.UUID) (int, error) {
+	if s == nil || s.noShowCount == nil {
+		return 0, nil
+	}
+	return s.noShowCount(ctx, customerID)
+}
+
 // scheduleReminder queues (or moves) the H-1 reminder for a booking, and drops
-// any pending one when there is no useful window left.
-func (s *BookingService) scheduleReminder(ctx context.Context, b *domain.Booking, name, phone string) {
+// any pending one when there is no useful window left. It reports whether a
+// row was actually written or moved, so a sweep can count real upserts instead
+// of bookings it merely looked at (ruling R17).
+func (s *BookingService) scheduleReminder(ctx context.Context, b *domain.Booking, name, phone string) bool {
 	if s.opts.Wa == nil {
-		return
+		return false
 	}
 	cfg := s.waCfg(ctx)
 	if !cfg.ReminderEnabled {
 		// Reminders are switched off: drop any pending row so a queued one
 		// cannot fire after the fact.
 		s.cancelReminder(ctx, b.ID)
-		return
+		return false
 	}
 	if !cfg.CustomerEnabled {
-		return
+		return false
 	}
 	if s.excludedFromReminders(ctx, b) {
-		return
+		return false
 	}
 	at := s.remindAt(ctx, b)
 	if at.IsZero() {
 		s.cancelReminder(ctx, b.ID)
-		return
+		return false
 	}
 	payload := s.waPayload(b, nil)
 	payload["name"] = displayName(name)
-	if _, err := s.opts.Wa.UpsertScheduled(ctx, phone, "booking_remind", payload, &b.ID,
-		remindKey(b.ID), at); err != nil {
+	ok, err := s.opts.Wa.UpsertScheduled(ctx, phone, "booking_remind", payload, &b.ID,
+		remindKey(b.ID), at)
+	if err != nil {
 		s.log.Warn("wa schedule reminder", "booking", b.ID, "err", err)
+		return false
 	}
+	return ok
 }
 
 // cancelReminder drops a reminder that has not gone out yet. It runs even when
@@ -289,7 +311,7 @@ func (s *BookingService) onNoShow(ctx context.Context, b *domain.Booking, actorI
 		switch {
 		case err != nil:
 			s.log.Warn("wa no-show count failed, reminders kept", "booking", b.ID, "err", err)
-		case n >= repeatNoShowLimit:
+		case n >= RepeatNoShowLimit:
 			cancelled, err := s.opts.Wa.CancelRemindersForCustomer(ctx, *b.CustomerID)
 			if err != nil {
 				s.log.Warn("wa cancel customer reminders", "customer", *b.CustomerID, "err", err)
@@ -316,7 +338,9 @@ func (s *BookingService) cancelReview(ctx context.Context, id uuid.UUID) {
 
 // ReschedulePendingReminders moves the pending H-1 reminders of future
 // bookings after the reminder hour changed. Already-sent rows are never
-// revived (UpsertScheduled only moves pending/failed rows).
+// revived (UpsertScheduled only moves pending/failed rows). The count is the
+// rows UpsertScheduled actually wrote or moved, so the toast never overstates
+// (ruling R17).
 func (s *BookingService) ReschedulePendingReminders(ctx context.Context) (int, error) {
 	if s.opts.Wa == nil {
 		return 0, nil
@@ -336,8 +360,9 @@ func (s *BookingService) ReschedulePendingReminders(ctx context.Context) (int, e
 		if strings.TrimSpace(phone) == "" {
 			continue
 		}
-		s.scheduleReminder(ctx, b, name, phone)
-		n++
+		if s.scheduleReminder(ctx, b, name, phone) {
+			n++
+		}
 	}
 	return n, nil
 }

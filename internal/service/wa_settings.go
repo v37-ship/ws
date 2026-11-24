@@ -121,11 +121,6 @@ func (s *WaSettingsService) ResetAll(ctx context.Context, by uuid.UUID) error {
 	return nil
 }
 
-// Overrides returns the copy overrides keyed by template.
-func (s *WaSettingsService) Overrides(ctx context.Context) (map[string]string, error) {
-	return s.store.ListOverrides(ctx)
-}
-
 // OverridesWithMeta returns the copy overrides with their editor and stamp.
 // Deliberately cache-free: this feeds the admin copy page only, and an admin
 // who just saved must see their own name on the card.

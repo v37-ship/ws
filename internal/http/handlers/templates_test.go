@@ -112,6 +112,8 @@ func TestTemplatesExecute(t *testing.T) {
 		case "pay.html", "portal_booking_detail.html":
 			data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
 			data["Refundable"] = int64(0)
+			data["RemindersOff"] = true
+			data["CustomerNoShows"] = 2
 		case "portal_staff_edit.html":
 			data["Staff"] = domain.Staff{}
 		case "admin_cs.html":
@@ -122,9 +124,11 @@ func TestTemplatesExecute(t *testing.T) {
 			data["Defaults"] = service.WaConfig{}
 			data["Conn"] = "mock"
 			data["Templates"] = waTemplatesSweep()
-			data["Recent"] = waQueueSweep()
+			data["Recent"] = waQueueViews()
 			data["QueuePending"] = 2
 			data["QueueFailed"] = 1
+			data["QueueOK"] = true
+			data["OutboxFailed"] = false
 		case "admin_payroll.html":
 			for k, v := range payrollSweepData("id") {
 				data[k] = v
@@ -265,6 +269,8 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			case "pay.html", "portal_booking_detail.html":
 				data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
 				data["Refundable"] = int64(0)
+				data["RemindersOff"] = true
+				data["CustomerNoShows"] = 2
 			case "portal_staff_edit.html":
 				data["Staff"] = domain.Staff{}
 			case "admin_cs.html":
@@ -277,9 +283,11 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Templates"] = waTemplatesSweep()
 				// One row per retry branch so the outbox panel (counters, retry
 				// form on the failed row only) is translated in both languages.
-				data["Recent"] = waQueueSweep()
+				data["Recent"] = waQueueViews()
 				data["QueuePending"] = 2
 				data["QueueFailed"] = 1
+				data["QueueOK"] = true
+				data["OutboxFailed"] = false
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":
@@ -830,6 +838,8 @@ func TestNoEmojiIcons(t *testing.T) {
 			case "pay.html", "portal_booking_detail.html":
 				data["Booking"] = &domain.Booking{StartAt: time.Now(), EndAt: time.Now().Add(time.Hour)}
 				data["Refundable"] = int64(0)
+				data["RemindersOff"] = true
+				data["CustomerNoShows"] = 2
 			case "portal_staff_edit.html":
 				data["Staff"] = domain.Staff{}
 			case "admin_cs.html":
@@ -842,9 +852,11 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Templates"] = waTemplatesSweep()
 				// One row per retry branch so the outbox panel (counters, retry
 				// form on the failed row only) is translated in both languages.
-				data["Recent"] = waQueueSweep()
+				data["Recent"] = waQueueViews()
 				data["QueuePending"] = 2
 				data["QueueFailed"] = 1
+				data["QueueOK"] = true
+				data["OutboxFailed"] = false
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":

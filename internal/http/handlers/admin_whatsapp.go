@@ -13,6 +13,7 @@ import (
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/i18n"
 	"spa-booking/internal/repo"
+	"spa-booking/internal/service"
 	"spa-booking/internal/whatsapp"
 
 	"github.com/go-chi/chi/v5"
@@ -24,9 +25,54 @@ import (
 type waOutboxStore interface {
 	ListUpcoming(ctx context.Context, templateKey string, limit int) ([]repo.WaOutboxItem, error)
 	ListRecent(ctx context.Context, limit int) ([]repo.WaOutboxItem, error)
+	ListFailed(ctx context.Context, limit int) ([]repo.WaOutboxItem, error)
 	ListByBooking(ctx context.Context, bookingID uuid.UUID, limit int) ([]repo.WaOutboxItem, error)
-	RetryFailed(ctx context.Context, id uuid.UUID) (bool, error)
+	RetryFailed(ctx context.Context, id uuid.UUID, at time.Time) (bool, error)
 	QueueSummary(ctx context.Context) (pending, failed int, err error)
+}
+
+// waOutboxView is one row of the recent/failed table: the outbox row plus the
+// page-computed retry decision, so the template never re-derives it.
+type waOutboxView struct {
+	repo.WaOutboxItem
+	Retryable bool
+}
+
+// waRetryable mirrors WaRepo.RetryFailed's SQL predicate in Go so the page
+// hides the control exactly where the repo refuses (rulings R6/R16): only a
+// failed row; never a booking that is cancelled/expired/no_show; and a
+// `remind:%` row only while its visit is still ahead. Keep this in lockstep
+// with the WHERE clause in RetryFailed.
+func waRetryable(it repo.WaOutboxItem, now time.Time) bool {
+	if it.Status != "failed" {
+		return false
+	}
+	switch it.BookingStatus {
+	case "cancelled", "expired", "no_show":
+		return false
+	}
+	if strings.HasPrefix(derefString(it.DedupeKey), "remind:") && it.BookingID != nil {
+		if it.BookingStatus == "completed" || it.BookingStart.Before(now) {
+			return false
+		}
+	}
+	return true
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// waOutboxViews wraps rows with their retry decision.
+func waOutboxViews(items []repo.WaOutboxItem, now time.Time) []waOutboxView {
+	out := make([]waOutboxView, 0, len(items))
+	for _, it := range items {
+		out = append(out, waOutboxView{WaOutboxItem: it, Retryable: waRetryable(it, now)})
+	}
+	return out
 }
 
 // failWaRetry is the delivery-action failure; refusals are a page notice, so
@@ -144,10 +190,18 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 	}
 	var next, recent []repo.WaOutboxItem
 	var pending, failed int
+	queueOK := true
+	failedView := r.URL.Query().Get("outbox") == "failed"
 	if s.waOutbox != nil {
 		next, _ = s.waOutbox.ListUpcoming(ctx, "booking_remind", 20)
-		recent, _ = s.waOutbox.ListRecent(ctx, 20)
-		pending, failed, _ = s.waOutbox.QueueSummary(ctx)
+		if failedView {
+			recent, _ = s.waOutbox.ListFailed(ctx, 20)
+		} else {
+			recent, _ = s.waOutbox.ListRecent(ctx, 20)
+		}
+		var err error
+		pending, failed, err = s.waOutbox.QueueSummary(ctx)
+		queueOK = err == nil
 	}
 
 	templates := waTemplateViews(overrides)
@@ -159,20 +213,25 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 		"Templates":    templates,
 		"Conn":         conn,
 		"Next":         next,
-		"Recent":       recent,
+		"Recent":       waOutboxViews(recent, time.Now()),
+		"OutboxFailed": failedView,
 		"QueuePending": pending,
 		"QueueFailed":  failed,
+		"QueueOK":      queueOK,
 		"Success":      success,
 		"Error":        errMsg,
 	})
 }
 
 // AdminRetryWaOutbox re-queues one failed message (ruling R6): the same row
-// flips back to pending, so the dedupe key and history stay put. A cancelled
+// flips back to pending, so the dedupe key and history stay put. The send is
+// scheduled through the same 07:00-20:00 WIB window as every other customer
+// message (ruling R15), so a late-evening retry waits for morning. A cancelled
 // row is a deliberate withdrawal and is refused with the other non-retryable
 // statuses (sent/claimed and unknown ids), as is a failed row whose booking has
-// since closed (the repo owns both predicates). Nothing is ever silently
-// re-sent for a visit that no longer holds.
+// since closed or a reminder whose visit is already past (the repo owns those
+// predicates). Nothing is ever silently re-sent for a visit that no longer
+// holds.
 func (s *Server) AdminRetryWaOutbox(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
@@ -196,7 +255,7 @@ func (s *Server) AdminRetryWaOutbox(w http.ResponseWriter, r *http.Request) {
 		s.staffFail(w, r, http.StatusInternalServerError, failWaRetry)
 		return
 	}
-	ok, err := s.waOutbox.RetryFailed(r.Context(), id)
+	ok, err := s.waOutbox.RetryFailed(r.Context(), id, service.ClampSendTime(time.Now()))
 	if err != nil {
 		s.log.Error("wa outbox retry", "id", id, "err", err)
 		s.staffFail(w, r, http.StatusInternalServerError, failWaRetry)

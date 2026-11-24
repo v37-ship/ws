@@ -38,6 +38,7 @@ type fakeNotifier struct {
 	calls           []waCall
 	cancels         []cancelCall
 	customerCancels []uuid.UUID
+	upsertFail      bool // simulate a sent/failed-immovable row (upsert=false)
 }
 
 func (f *fakeNotifier) Enqueue(_ context.Context, phone, key string, payload map[string]any, id *uuid.UUID, dedupe string, at time.Time) (bool, error) {
@@ -47,7 +48,7 @@ func (f *fakeNotifier) Enqueue(_ context.Context, phone, key string, payload map
 
 func (f *fakeNotifier) UpsertScheduled(_ context.Context, phone, key string, payload map[string]any, id *uuid.UUID, dedupe string, at time.Time) (bool, error) {
 	f.calls = append(f.calls, waCall{phone, key, payload, id, dedupe, at, true})
-	return true, nil
+	return !f.upsertFail, nil
 }
 
 func (f *fakeNotifier) CancelPending(_ context.Context, id uuid.UUID, keys ...string) (int64, error) {
@@ -392,6 +393,23 @@ func TestReminderMovesOnReschedule(t *testing.T) {
 	}
 	if second.Payload["when"] != formatWIB(b.StartAt) {
 		t.Errorf("payload was not refreshed: %v", second.Payload["when"])
+	}
+}
+
+// TestScheduleReminderReportsRealUpserts pins the source of the reschedule
+// sweep's toast count (ruling R17): a row UpsertScheduled refuses (a sent or
+// cancelled reminder) must not be reported as re-scheduled.
+func TestScheduleReminderReportsRealUpserts(t *testing.T) {
+	b := guestBooking(wibAt(11, 0).AddDate(0, 0, 1))
+
+	wa := &fakeNotifier{}
+	if !newNotifyService(wa).scheduleReminder(context.Background(), b, "Sari", b.GuestPhone) {
+		t.Error("a written reminder must report true")
+	}
+
+	stale := &fakeNotifier{upsertFail: true}
+	if newNotifyService(stale).scheduleReminder(context.Background(), b, "Sari", b.GuestPhone) {
+		t.Error("a refused upsert must report false, not inflate the sweep count")
 	}
 }
 

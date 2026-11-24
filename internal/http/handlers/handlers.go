@@ -988,6 +988,15 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 	if pay != nil && pay.ReceiptPath != "" {
 		receiptURL = "/portal/bookings/" + b.ID.String() + "/receipt"
 	}
+	// Repeat no-shows silently stop automatic reminders (ruling R8). Show the
+	// reason where staff resend manually (ruling R17); a lookup error omits the
+	// line rather than breaking the page.
+	customerNoShows := 0
+	if b.CustomerID != nil && s.book != nil {
+		if n, err := s.book.CountNoShows(r.Context(), *b.CustomerID); err == nil {
+			customerNoShows = n
+		}
+	}
 	s.render(w, r, "portal_booking_detail.html", pageData{
 		"Booking":    b,
 		"StaffList":  staffList,
@@ -999,20 +1008,22 @@ func (s *Server) PortalBookingDetail(w http.ResponseWriter, r *http.Request) {
 			domain.BookingInService, domain.BookingCompleted, domain.BookingCancelled,
 			domain.BookingExpired, domain.BookingNoShow,
 		},
-		"Logs":          logs,
-		"Payment":       pay,
-		"Refunds":       payRefunds,
-		"RefundedTotal": refundedTotal,
-		"Refundable":    refundable,
-		"GuestLink":     s.cfg.BaseURL + "/bookings/" + b.ID.String() + "/pay?t=" + b.TokenParam(),
-		"Success":       r.URL.Query().Get("success"),
-		"Error":         r.URL.Query().Get("error"),
-		"WAMessages":    msgs,
-		"WAEnabled":     s.cfg.WAEnabled,
-		"WACustomer":    s.cfg.WACustomer,
-		"WAPhone":       waPhone,
-		"WaManual":      s.book.ManualPayments(),
-		"ReceiptURL":    receiptURL,
+		"Logs":            logs,
+		"Payment":         pay,
+		"Refunds":         payRefunds,
+		"RefundedTotal":   refundedTotal,
+		"Refundable":      refundable,
+		"GuestLink":       s.cfg.BaseURL + "/bookings/" + b.ID.String() + "/pay?t=" + b.TokenParam(),
+		"Success":         r.URL.Query().Get("success"),
+		"Error":           r.URL.Query().Get("error"),
+		"WAMessages":      msgs,
+		"WAEnabled":       s.cfg.WAEnabled,
+		"WACustomer":      s.cfg.WACustomer,
+		"WAPhone":         waPhone,
+		"WaManual":        s.book.ManualPayments(),
+		"ReceiptURL":      receiptURL,
+		"CustomerNoShows": customerNoShows,
+		"RemindersOff":    customerNoShows >= service.RepeatNoShowLimit,
 	})
 }
 

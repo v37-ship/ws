@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/middleware"
 	"spa-booking/internal/repo"
+	"spa-booking/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,12 +24,16 @@ import (
 // database: the page reads one recent row per status and the summary counters,
 // the action reports whether a row changed (or a DB error).
 type waOutboxAdminFake struct {
-	recent  []repo.WaOutboxItem
-	pending int
-	failed  int
-	changed bool
-	err     error
-	retried []uuid.UUID
+	recent   []repo.WaOutboxItem
+	failed   []repo.WaOutboxItem
+	pending  int
+	failedN  int
+	queueErr error
+	changed  bool
+	err      error
+	retried  []uuid.UUID
+	retryAt  []time.Time
+	views    []string
 }
 
 func (f *waOutboxAdminFake) ListUpcoming(context.Context, string, int) ([]repo.WaOutboxItem, error) {
@@ -35,20 +41,27 @@ func (f *waOutboxAdminFake) ListUpcoming(context.Context, string, int) ([]repo.W
 }
 
 func (f *waOutboxAdminFake) ListRecent(context.Context, int) ([]repo.WaOutboxItem, error) {
+	f.views = append(f.views, "recent")
 	return f.recent, nil
+}
+
+func (f *waOutboxAdminFake) ListFailed(context.Context, int) ([]repo.WaOutboxItem, error) {
+	f.views = append(f.views, "failed")
+	return f.failed, nil
 }
 
 func (f *waOutboxAdminFake) ListByBooking(context.Context, uuid.UUID, int) ([]repo.WaOutboxItem, error) {
 	return nil, nil
 }
 
-func (f *waOutboxAdminFake) RetryFailed(_ context.Context, id uuid.UUID) (bool, error) {
+func (f *waOutboxAdminFake) RetryFailed(_ context.Context, id uuid.UUID, at time.Time) (bool, error) {
 	f.retried = append(f.retried, id)
+	f.retryAt = append(f.retryAt, at)
 	return f.changed, f.err
 }
 
 func (f *waOutboxAdminFake) QueueSummary(context.Context) (int, int, error) {
-	return f.pending, f.failed, nil
+	return f.pending, f.failedN, f.queueErr
 }
 
 // waRetryPost drives the handler directly, with chi's URL param and the
@@ -95,6 +108,14 @@ func TestAdminRetryWaOutboxSuccess(t *testing.T) {
 	}
 	if len(fake.retried) != 1 || fake.retried[0] != id {
 		t.Errorf("retried = %v, want [%s]", fake.retried, id)
+	}
+	// Ruling R15: the retry is scheduled inside the 07:00-20:00 WIB window.
+	if len(fake.retryAt) != 1 {
+		t.Fatalf("retryAt = %v, want one schedule time", fake.retryAt)
+	}
+	wib := time.FixedZone("WIB", 7*3600)
+	if h := fake.retryAt[0].In(wib).Hour(); h < 7 || h >= 20 {
+		t.Errorf("retry scheduled at %v WIB, want inside 07:00-20:00", fake.retryAt[0].In(wib))
 	}
 }
 
@@ -209,6 +230,94 @@ func TestAdminRetryWaOutboxAdminOnly(t *testing.T) {
 	}
 }
 
+// TestWaRetryableMirrorsRepoGuard pins the Go side of the shared predicate
+// (rulings R6/R16): only failed rows, never a closed booking, and a reminder
+// only while its visit is still ahead — while a review row on a completed visit
+// stays retryable.
+func TestWaRetryableMirrorsRepoGuard(t *testing.T) {
+	now := time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)
+	bookingID := uuid.New()
+	remind := func(s string) *string { return &s }
+	cases := []struct {
+		name string
+		item repo.WaOutboxItem
+		want bool
+	}{
+		{"sent", repo.WaOutboxItem{Status: "sent", BookingID: &bookingID, BookingStatus: "confirmed", BookingStart: now.Add(time.Hour)}, false},
+		{"no booking", repo.WaOutboxItem{Status: "failed"}, true},
+		{"confirmed future reminder", repo.WaOutboxItem{Status: "failed", BookingID: &bookingID, BookingStatus: "confirmed", BookingStart: now.Add(time.Hour), DedupeKey: remind("remind:x")}, true},
+		{"completed reminder", repo.WaOutboxItem{Status: "failed", BookingID: &bookingID, BookingStatus: "completed", BookingStart: now.Add(-time.Hour), DedupeKey: remind("remind:x")}, false},
+		{"past reminder", repo.WaOutboxItem{Status: "failed", BookingID: &bookingID, BookingStatus: "confirmed", BookingStart: now.Add(-time.Minute), DedupeKey: remind("remind:x")}, false},
+		{"closed booking", repo.WaOutboxItem{Status: "failed", BookingID: &bookingID, BookingStatus: "cancelled", BookingStart: now.Add(time.Hour)}, false},
+		{"completed review", repo.WaOutboxItem{Status: "failed", BookingID: &bookingID, BookingStatus: "completed", BookingStart: now.Add(-time.Hour), DedupeKey: remind("review:x")}, true},
+	}
+	for _, tc := range cases {
+		if got := waRetryable(tc.item, now); got != tc.want {
+			t.Errorf("%s: waRetryable = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// waAdminSettingsFake satisfies the settings surface the page reads.
+type waAdminSettingsFake struct{}
+
+func (waAdminSettingsFake) Get(context.Context) (*domain.WaSettings, error) {
+	return &domain.WaSettings{}, nil
+}
+func (waAdminSettingsFake) Save(context.Context, domain.WaSettings, uuid.UUID) error { return nil }
+func (waAdminSettingsFake) ListOverrides(context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+func (waAdminSettingsFake) ListOverrideMeta(context.Context) (map[string]domain.WaOverrideMeta, error) {
+	return map[string]domain.WaOverrideMeta{}, nil
+}
+func (waAdminSettingsFake) SetOverride(context.Context, string, string, uuid.UUID) error { return nil }
+func (waAdminSettingsFake) DeleteOverride(context.Context, string) error                 { return nil }
+
+// TestAdminWhatsAppOutboxView pins the ?outbox=failed switch: it reads the
+// failed list instead of the recent window and keeps the default route on
+// recent. The counters' zero must read "—" rather than a confident zero when
+// the summary read fails.
+func TestAdminWhatsAppOutboxView(t *testing.T) {
+	render := func(t *testing.T, query string, fake *waOutboxAdminFake) *httptest.ResponseRecorder {
+		t.Helper()
+		s := newWaTestServer(t, slog.Default())
+		s.waSettings = service.NewWaSettingsService(waAdminSettingsFake{}, service.WaConfig{}, slog.Default())
+		s.waOutbox = fake
+		req := httptest.NewRequest(http.MethodGet, "/admin/whatsapp?lang=en"+query, nil)
+		rec := httptest.NewRecorder()
+		s.AdminWhatsApp(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		return rec
+	}
+
+	recentRow := repo.WaOutboxItem{ID: waSweepSentID, Phone: "6281200000004", TemplateKey: "booking_confirm", Status: "sent"}
+	failedRow := repo.WaOutboxItem{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "test", Status: "failed"}
+
+	fake := &waOutboxAdminFake{recent: []repo.WaOutboxItem{recentRow}, failed: []repo.WaOutboxItem{failedRow}}
+	render(t, "", fake)
+	if len(fake.views) != 1 || fake.views[0] != "recent" {
+		t.Errorf("default view reads = %v, want [recent]", fake.views)
+	}
+
+	fake = &waOutboxAdminFake{recent: []repo.WaOutboxItem{recentRow}, failed: []repo.WaOutboxItem{failedRow}}
+	rec := render(t, "&outbox=failed", fake)
+	if len(fake.views) != 1 || fake.views[0] != "failed" {
+		t.Errorf("failed view reads = %v, want [failed]", fake.views)
+	}
+	if !strings.Contains(rec.Body.String(), failedRow.ID.String()) {
+		t.Error("failed view must render the failed row")
+	}
+
+	fake = &waOutboxAdminFake{queueErr: errors.New("db down")}
+	rec = render(t, "", fake)
+	if !strings.Contains(rec.Body.String(), "—") {
+		t.Error("a failed summary must render a dash, not a confident zero")
+	}
+}
+
 // TestAdminWhatsAppRetryFormOnlyOnLiveFailedRows renders every branch in both
 // languages: the counters line, the retry form on failed rows whose booking is
 // live (or absent) only — a cancelled row is a withdrawal and a failed row
@@ -247,9 +356,10 @@ func TestAdminWhatsAppRetryFormOnlyOnLiveFailedRows(t *testing.T) {
 				t.Errorf("%s: missing the retry form for %s", lang, id)
 			}
 		}
-		// A failed row whose booking closed, a sent row and a cancelled row
-		// must not gain one; the rows keep their status text regardless.
-		for _, id := range []uuid.UUID{waSweepClosedID, waSweepSentID, waSweepCancelledID} {
+		// A failed row whose booking closed, a reminder whose visit already
+		// happened, a sent row and a cancelled row must not gain one; the rows
+		// keep their status text regardless.
+		for _, id := range []uuid.UUID{waSweepClosedID, waSweepPastRemind, waSweepSentID, waSweepCancelledID} {
 			if strings.Contains(page, id.String()+`/retry`) {
 				t.Errorf("%s: row %s must not be retryable", lang, id)
 			}
@@ -258,6 +368,29 @@ func TestAdminWhatsAppRetryFormOnlyOnLiveFailedRows(t *testing.T) {
 			if !strings.Contains(page, status) {
 				t.Errorf("%s: the %s status text is missing", lang, status)
 			}
+		}
+		// The retry control confirms with the template key and the masked
+		// target, never the full number (ruling R15).
+		confirm := "Retry sending booking_remind → …0001?"
+		if lang == "id" {
+			confirm = "Kirim ulang pesan booking_remind → …0001?"
+		}
+		if !strings.Contains(page, confirm) {
+			t.Errorf("%s: retry confirm must name the template and masked target, want %q", lang, confirm)
+		}
+		// The built-in copy card explains the empty textarea.
+		if lang == "en" && !strings.Contains(page, "The empty box uses the built-in copy") {
+			t.Error("en: missing the built-in copy note")
+		}
+		if lang == "id" && !strings.Contains(page, "Kotak kosong memakai teks bawaan") {
+			t.Error("id: missing the built-in copy note")
+		}
+		only, all := "Failed only", "All recent"
+		if lang == "id" {
+			only, all = "Hanya gagal", "Semua terbaru"
+		}
+		if !strings.Contains(page, only) || !strings.Contains(page, all) {
+			t.Errorf("%s: missing the outbox view toggle (%q / %q)", lang, only, all)
 		}
 	}
 }

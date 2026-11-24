@@ -160,22 +160,32 @@
 
     <div class="panel stack">
       <h2>{{t .Lang "a.wa.recent"}}</h2>
-      <p class="muted">{{t .Lang "a.wa.pend"}} {{.QueuePending}} · {{t .Lang "a.wa.fail"}} {{.QueueFailed}}</p>
+      <p class="muted">
+        {{if .QueueOK}}<a href="/admin/whatsapp?outbox=failed">{{t .Lang "a.wa.pend"}} {{.QueuePending}} · {{t .Lang "a.wa.fail"}} {{.QueueFailed}}</a>{{else}}—{{end}}
+      </p>
+      <p class="muted" style="margin:0;">
+        {{if .OutboxFailed}}<strong>{{t .Lang "a.wa.only"}}</strong>{{else}}<a href="/admin/whatsapp?outbox=failed">{{t .Lang "a.wa.only"}}</a>{{end}}
+        ·
+        {{if .OutboxFailed}}<a href="/admin/whatsapp">{{t .Lang "a.wa.all"}}</a>{{else}}<strong>{{t .Lang "a.wa.all"}}</strong>{{end}}
+      </p>
       {{if .Recent}}
       <table class="table">
-        <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th><th>{{t .Lang "a.wa.state"}}</th><th>{{t .Lang "a.wa.act"}}</th></tr></thead>
+        <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.sched"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th><th>{{t .Lang "a.wa.state"}}</th><th>{{t .Lang "a.wa.act"}}</th></tr></thead>
         <tbody>
         {{range .Recent}}
           <tr>
             <td>{{formatTime .CreatedAt "02 Jan 15:04"}}</td>
+            <td>{{formatTime .ScheduledAt "02 Jan 15:04"}}</td>
             <td>{{.Phone}}</td>
             <td><code>{{.TemplateKey}}</code></td>
             <td>{{.Status}}{{if .LastError}} · <span class="muted">{{.LastError}}</span>{{end}}</td>
             <td>
-              {{/* Retry a failed message only; a cancelled row is a withdrawal,
-                   and a failed row whose booking has since closed is stale. */}}
-              {{if and (eq .Status "failed") (not (or (eq .BookingStatus "cancelled") (eq .BookingStatus "expired") (eq .BookingStatus "no_show")))}}
-              <form method="post" action="/admin/whatsapp/outbox/{{.ID}}/retry">
+              {{/* Retryable is computed in the handler from the row's status,
+                   the joined booking and the dedupe prefix; it mirrors the
+                   repo's atomic refusal. */}}
+              {{if .Retryable}}
+              <form method="post" action="/admin/whatsapp/outbox/{{.ID}}/retry"
+                    onsubmit="return confirm('{{t $.Lang "a.wa.rconf"}} {{.TemplateKey}} → {{maskTarget .Phone}}?')">
                 <input type="hidden" name="csrf" value="{{$.CSRF}}">
                 <button class="btn secondary on-light btn-sm" type="submit">{{t $.Lang "a.wa.retry"}}</button>
               </form>
@@ -203,6 +213,7 @@
           <input type="hidden" name="key" value="{{.Key}}">
           <textarea name="body" rows="6" placeholder="{{.Default}}">{{.Override}}</textarea>
           {{if .Segments}}<p class="muted" style="margin:0;"><strong>{{t $.Lang "a.wa.seg"}}:</strong> {{.Encoding}} · {{.Chars}} {{if eq .Chars 1}}{{t $.Lang "a.wa.chr1"}}{{else}}{{t $.Lang "a.wa.chrn"}}{{end}} · {{.Segments}} {{if eq .Segments 1}}{{t $.Lang "a.wa.msg1"}}{{else}}{{t $.Lang "a.wa.msgn"}}{{end}}</p>{{end}}
+          {{if not .Custom}}<p class="muted" style="margin:0; font-size:0.85rem;">{{t $.Lang "a.wa.bnote"}}</p>{{end}}
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="btn secondary on-light" type="submit">{{icon "check-circle"}} {{t $.Lang "a.wa.save"}}</button>
           </div>

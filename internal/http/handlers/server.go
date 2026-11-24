@@ -23,6 +23,7 @@ import (
 	"spa-booking/internal/i18n"
 	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
+	"spa-booking/internal/whatsapp"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -157,6 +158,9 @@ func New(
 		"csrf": func() string { return "" }, // overridden per render
 		"eq":   func(a, b any) bool { return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b) },
 		"add":  func(a, b int) int { return a + b },
+		// maskTarget renders a destination log-safe (last four digits) for the
+		// retry confirmation, so the dialog never spells out a full number.
+		"maskTarget": whatsapp.MaskTarget,
 		"hasUUID": func(list []string, id string) bool {
 			for _, x := range list {
 				if x == id {

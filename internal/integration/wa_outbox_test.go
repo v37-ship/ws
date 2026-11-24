@@ -109,7 +109,7 @@ func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 	}
 
 	before := time.Now().Add(-time.Second)
-	changed, err := wa.RetryFailed(ctx, failedID)
+	changed, err := wa.RetryFailed(ctx, failedID, time.Now())
 	if err != nil {
 		t.Fatalf("failed retry: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 	}
 
 	for name, id := range untouched {
-		changed, err := wa.RetryFailed(ctx, id)
+		changed, err := wa.RetryFailed(ctx, id, time.Now())
 		if err != nil {
 			t.Fatalf("%s retry: %v", name, err)
 		}
@@ -146,7 +146,7 @@ func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 		}
 	}
 
-	if changed, err := wa.RetryFailed(ctx, uuid.New()); err != nil || changed {
+	if changed, err := wa.RetryFailed(ctx, uuid.New(), time.Now()); err != nil || changed {
 		t.Errorf("unknown id = (changed=%v err=%v), want (false, nil)", changed, err)
 	}
 }
@@ -154,8 +154,10 @@ func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 // TestWaRetryFailedRefusesClosedBookings pins the stale-lifecycle guard: a
 // failed row whose booking has since become cancelled/expired/no_show would
 // tell the customer about a visit that no longer holds, so the retry is
-// refused. A confirmed/completed booking and a row with no booking stay
-// retryable. ListRecent must report the joined status for the page.
+// refused. A reminder whose visit is completed or already past is refused too
+// (ruling R16), while a review row on a completed visit stays retryable. A row
+// with no booking is always retryable. ListRecent must report the joined status
+// and start for the page.
 func TestWaRetryFailedRefusesClosedBookings(t *testing.T) {
 	pool := OpenTestDB(t)
 	TruncateAll(t, pool)
@@ -166,51 +168,72 @@ func TestWaRetryFailedRefusesClosedBookings(t *testing.T) {
 	svc := insertService(t, pool, loc, "Retry Treatment", 150_000)
 	staff := insertStaff(t, pool, loc, "Retry Therapist")
 
-	seedAt := time.Date(2026, 11, 25, 9, 0, 0, 0, time.UTC)
-	booking := func(status domain.BookingStatus, hour int) uuid.UUID {
+	seedAt := time.Now().Add(24 * time.Hour)
+	booking := func(status domain.BookingStatus, offset time.Duration) uuid.UUID {
 		return insertBooking(t, pool, bookingSeed{
 			LocationID: loc, ServiceID: svc, StaffID: staff,
-			StartAt: seedAt.Add(time.Duration(hour) * time.Hour),
+			StartAt: seedAt.Add(offset),
 			Status:  string(status),
 		})
 	}
-	failedRow := func(name string, bookingID *uuid.UUID) uuid.UUID {
+	failedRow := func(dedupe string, bookingID *uuid.UUID) uuid.UUID {
 		return insertWaOutbox(t, pool, waOutboxSeed{
 			Phone: "6281111111111", Status: "failed", Attempts: 3,
-			LastError: "boom", DedupeKey: "stale:" + name, BookingID: bookingID,
+			LastError: "boom", DedupeKey: dedupe, BookingID: bookingID,
 		})
 	}
 
 	refused := map[string]uuid.UUID{}
 	for i, status := range []domain.BookingStatus{domain.BookingCancelled, domain.BookingExpired, domain.BookingNoShow} {
-		b := booking(status, i)
-		refused[string(status)] = failedRow(string(status), &b)
+		b := booking(status, time.Duration(i)*time.Hour)
+		refused[string(status)] = failedRow("stale:"+string(status), &b)
 	}
-	confirmedBooking := booking(domain.BookingConfirmed, 3)
-	confirmedRow := failedRow("confirmed", &confirmedBooking)
-	completedBooking := booking(domain.BookingCompleted, 4)
-	completedRow := failedRow("completed", &completedBooking)
+	// Ruling R16: a reminder is retryable only while the visit is ahead.
+	completedReminder := failedRow("remind:done", ptrUUID(booking(domain.BookingCompleted, time.Hour)))
+	refused["completed reminder"] = completedReminder
+	pastReminder := failedRow("remind:past", ptrUUID(booking(domain.BookingConfirmed, -25*time.Hour)))
+	refused["past reminder"] = pastReminder
+
+	confirmedRow := failedRow("remind:future", ptrUUID(booking(domain.BookingConfirmed, 3*time.Hour)))
+	futureReminder := failedRow("remind:future2", ptrUUID(booking(domain.BookingConfirmed, 2*time.Hour)))
+	completedReview := failedRow("review:done", ptrUUID(booking(domain.BookingCompleted, -time.Hour)))
 	noBookingRow := failedRow("none", nil)
 
+	// The failed view carries every failed row: the recent window would only
+	// hold the newest 20, so this is the operator's reachable list (R14).
+	failures, err := wa.ListFailed(ctx, 100)
+	if err != nil {
+		t.Fatalf("ListFailed: %v", err)
+	}
+	if len(failures) != len(refused)+4 {
+		t.Fatalf("ListFailed returned %d rows, want %d", len(failures), len(refused)+4)
+	}
+	for _, row := range failures {
+		if row.Status != "failed" {
+			t.Errorf("ListFailed returned a %q row", row.Status)
+		}
+	}
+
 	for name, id := range refused {
-		changed, err := wa.RetryFailed(ctx, id)
+		changed, err := wa.RetryFailed(ctx, id, time.Now())
 		if err != nil {
 			t.Fatalf("%s retry: %v", name, err)
 		}
 		if changed {
-			t.Errorf("%s booking: retry changed = true, want refused", name)
+			t.Errorf("%s: retry changed = true, want refused", name)
 		}
 		if row := readWaOutbox(t, pool, id); row.Status != "failed" {
-			t.Errorf("%s booking: status = %q after a refused retry, want failed", name, row.Status)
+			t.Errorf("%s: status = %q after a refused retry, want failed", name, row.Status)
 		}
 	}
 
 	for name, id := range map[string]uuid.UUID{
-		"confirmed":  confirmedRow,
-		"completed":  completedRow,
-		"no booking": noBookingRow,
+		"confirmed reminder": confirmedRow,
+		"future reminder":    futureReminder,
+		"completed review":   completedReview,
+		"no booking":         noBookingRow,
 	} {
-		changed, err := wa.RetryFailed(ctx, id)
+		changed, err := wa.RetryFailed(ctx, id, time.Now())
 		if err != nil {
 			t.Fatalf("%s retry: %v", name, err)
 		}
@@ -223,25 +246,35 @@ func TestWaRetryFailedRefusesClosedBookings(t *testing.T) {
 		}
 	}
 
-	// The page decides from one read: recent rows carry the joined status.
+	// The page decides from one read: recent rows carry the joined status and
+	// start time.
 	recent, err := wa.ListRecent(ctx, 100)
 	if err != nil {
 		t.Fatalf("ListRecent: %v", err)
 	}
-	got := map[uuid.UUID]string{}
+	got := map[uuid.UUID]repo.WaOutboxItem{}
 	for _, row := range recent {
-		got[row.ID] = row.BookingStatus
+		got[row.ID] = row
 	}
-	if got[refused["cancelled"]] != "cancelled" {
-		t.Errorf("recent cancelled booking status = %q, want cancelled", got[refused["cancelled"]])
+	if got[refused["cancelled"]].BookingStatus != "cancelled" {
+		t.Errorf("recent cancelled booking status = %q, want cancelled", got[refused["cancelled"]].BookingStatus)
 	}
-	if got[confirmedRow] != "confirmed" {
-		t.Errorf("recent confirmed booking status = %q, want confirmed", got[confirmedRow])
+	if got[confirmedRow].BookingStatus != "confirmed" {
+		t.Errorf("recent confirmed booking status = %q, want confirmed", got[confirmedRow].BookingStatus)
 	}
-	if got[noBookingRow] != "" {
-		t.Errorf("recent no-booking status = %q, want empty", got[noBookingRow])
+	if got[confirmedRow].BookingStart.IsZero() {
+		t.Error("recent confirmed booking start is zero, want the joined visit time")
 	}
+	if got[noBookingRow].BookingStatus != "" {
+		t.Errorf("recent no-booking status = %q, want empty", got[noBookingRow].BookingStatus)
+	}
+	if !got[noBookingRow].BookingStart.IsZero() {
+		t.Errorf("recent no-booking start = %v, want zero", got[noBookingRow].BookingStart)
+	}
+
 }
+
+func ptrUUID(id uuid.UUID) *uuid.UUID { return &id }
 
 // TestWaQueueSummaryCounts pins the header counters: pending and failed are
 // counted by status, and a cancelled row is not a failure.
