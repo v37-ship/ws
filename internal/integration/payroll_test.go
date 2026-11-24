@@ -169,25 +169,44 @@ func TestPayrollReportOverSQL(t *testing.T) {
 	})
 	book(bima, wibAt(2026, time.November, 30, 0, 5), 50_000, 0)
 
+	// A cancelled, paid-then-refunded booking: the visit never happened, so the
+	// refund is a logistics reversal and must not touch payroll (R17).
+	cancelled := insertBooking(t, pool, bookingSeed{
+		CustomerID: &customer,
+		LocationID: loc,
+		ServiceID:  treatment,
+		StaffID:    bima,
+		StartAt:    wibAt(2026, time.December, 3, 10, 0),
+		Status:     string(domain.BookingCancelled),
+		PriceIDR:   250_000,
+	})
+
 	// Citra (paused): Thursday and Sunday 23:30 WIB — the Sunday visit must stay
 	// in its own week.
 	book(citra, wibAt(2026, time.November, 26, 10, 0), 100_000, 20_000)
 	book(citra, wibAt(2026, time.November, 29, 23, 30), 100_000, 0)
 
-	// Dewi: no rate row at all.
-	book(dewi, wibAt(2026, time.November, 25, 10, 0), 180_000, 30_000)
+	// Dewi: no rate row at all, plus a refund in the period so a refund still has
+	// to resolve a base for her.
+	d1 := book(dewi, wibAt(2026, time.November, 25, 10, 0), 180_000, 30_000)
 
 	// Ayu's November booking is over-refunded on purpose: the cap is the
 	// booking's net base (150,000), so only 150,000 of this 400,000 deducts.
 	seedPayrollRefund(t, pool, ctx, a1, 400_000, wibAt(2026, time.November, 26, 12, 0), "capped refund")
 	// Bima: 60,000 deducted in November, a late 120,000 recorded in December on
-	// the same November booking, and a voided refund that is not money at all.
+	// the same completed November booking (a performed visit still deducts in
+	// its refund's period), and a voided refund that is not money at all.
 	seedPayrollRefund(t, pool, ctx, b1, 60_000, wibAt(2026, time.November, 25, 12, 0), "partial refund")
 	seedPayrollRefund(t, pool, ctx, b1, 120_000, wibAt(2026, time.December, 2, 12, 0), "late refund")
 	voided := seedPayrollRefund(t, pool, ctx, b1, 999_000, wibAt(2026, time.November, 1, 12, 0), "voided refund")
 	if _, err := pool.Exec(ctx, `UPDATE refunds SET voided_at = now() WHERE id = $1`, voided); err != nil {
 		t.Fatalf("void seeded refund: %v", err)
 	}
+	// The first must never reach payroll (cancelled visit); the second is over
+	// Dewi's net cap (150,000) and proves the missing rate's fallback base is
+	// net, not list (which would deduct all 170,000).
+	seedPayrollRefund(t, pool, ctx, cancelled, 250_000, wibAt(2026, time.December, 4, 12, 0), "cancelled visit refund")
+	seedPayrollRefund(t, pool, ctx, d1, 170_000, wibAt(2026, time.November, 25, 13, 0), "over-cap refund, no rate")
 
 	svc := service.NewPayrollService(repo.NewPayrollRepo(pool), comps)
 
@@ -264,19 +283,28 @@ func TestPayrollReportOverSQL(t *testing.T) {
 			t.Errorf("Dewi flag/base/bp = %v/%q/%d, want true/empty/0",
 				dewiRow.RateMissing, dewiRow.Base, dewiRow.PercentBp)
 		}
-		if dewiRow.GrossIDR != 150_000 || dewiRow.CommissionIDR != 0 ||
-			dewiRow.FixedIDR != 0 || dewiRow.TotalIDR != 0 {
-			t.Errorf("Dewi gross/commission/fixed/total = %d/%d/%d/%d, want 150000/0/0/0",
-				dewiRow.GrossIDR, dewiRow.CommissionIDR, dewiRow.FixedIDR, dewiRow.TotalIDR)
+		// A refund with no rate row still deducts, capped at the net-default
+		// base (150,000): the 170,000 refund line stays at 170,000 but only
+		// 150,000 comes off. Commission stays zero because no rate is configured.
+		if dewiRow.GrossIDR != 150_000 || dewiRow.RefundIDR != 150_000 || dewiRow.NetIDR != 0 {
+			t.Errorf("Dewi gross/refund/net = %d/%d/%d, want 150000/150000/0 (net-default cap)",
+				dewiRow.GrossIDR, dewiRow.RefundIDR, dewiRow.NetIDR)
+		}
+		if len(dewiRow.RefundLines) != 1 || dewiRow.RefundLines[0].AmountIDR != 170_000 {
+			t.Errorf("Dewi refund lines = %+v, want the recorded 170000 line", dewiRow.RefundLines)
+		}
+		if dewiRow.CommissionIDR != 0 || dewiRow.FixedIDR != 0 || dewiRow.TotalIDR != 0 {
+			t.Errorf("Dewi commission/fixed/total = %d/%d/%d, want 0/0/0",
+				dewiRow.CommissionIDR, dewiRow.FixedIDR, dewiRow.TotalIDR)
 		}
 		if rep.MissingRate != 1 {
 			t.Errorf("MissingRate = %d, want 1", rep.MissingRate)
 		}
 
-		if rep.TotalGrossIDR != 1_155_000 || rep.TotalRefundIDR != 210_000 ||
+		if rep.TotalGrossIDR != 1_155_000 || rep.TotalRefundIDR != 360_000 ||
 			rep.TotalCommissionIDR != 165_000 || rep.TotalFixedIDR != 2_000_000 ||
 			rep.TotalIDR != 2_165_000 {
-			t.Errorf("totals = gross %d refund %d commission %d fixed %d total %d, want 1155000/210000/165000/2000000/2165000",
+			t.Errorf("totals = gross %d refund %d commission %d fixed %d total %d, want 1155000/360000/165000/2000000/2165000",
 				rep.TotalGrossIDR, rep.TotalRefundIDR, rep.TotalCommissionIDR,
 				rep.TotalFixedIDR, rep.TotalIDR)
 		}
@@ -320,6 +348,14 @@ func TestPayrollReportOverSQL(t *testing.T) {
 		if citraRow.Sessions != 2 || citraRow.GrossIDR != 180_000 || citraRow.CommissionIDR != 18_000 {
 			t.Errorf("Citra sessions/gross/commission = %d/%d/%d, want 2/180000/18000",
 				citraRow.Sessions, citraRow.GrossIDR, citraRow.CommissionIDR)
+		}
+
+		// Dewi's over-cap refund is recorded this week: deducted at the
+		// net-default cap with no rate to commission.
+		dewiRow := payrollRowNamed(t, rep, "Dewi")
+		if dewiRow.GrossIDR != 150_000 || dewiRow.RefundIDR != 150_000 || !dewiRow.RateMissing {
+			t.Errorf("Dewi gross/refund/missing = %d/%d/%v, want 150000/150000/true",
+				dewiRow.GrossIDR, dewiRow.RefundIDR, dewiRow.RateMissing)
 		}
 	})
 
@@ -371,6 +407,14 @@ func TestPayrollReportOverSQL(t *testing.T) {
 			bimaRow.TotalIDR != 1_176_000 {
 			t.Errorf("Bima commission/fixed/total = %d/%d/%d, want -24000/1200000/1176000",
 				bimaRow.CommissionIDR, bimaRow.FixedIDR, bimaRow.TotalIDR)
+		}
+		// The cancelled December booking's 250,000 refund is a logistics
+		// reversal, not commission: only the completed booking's late refund is
+		// listed here (R17). Before the status filter this row would show
+		// 370,000 deducted and two lines.
+		if len(bimaRow.RefundLines) != 1 || bimaRow.RefundLines[0].BookingID != b1 {
+			t.Errorf("Bima December refund lines = %+v, want only the completed booking %v",
+				bimaRow.RefundLines, b1)
 		}
 		if _, ok := rowByName(rep, "Citra"); ok {
 			t.Error("Citra has no December money but got a row")

@@ -93,16 +93,23 @@ func (r *PayrollRepo) CompletedVisits(ctx context.Context, from, to time.Time) (
 
 // RefundsInRange returns the active (non-voided) refunds recorded inside
 // [from, to] (WIB dates) with the booking's frozen price/discount attached.
-// Voided refunds are corrections, not money, so they never reach a payroll row.
-// The staff join is inner for the same reason as CompletedVisits: a refund on a
-// booking with no therapist has nobody to attribute it to.
+//
+// Two filters carry the accrual rule. Voided refunds are corrections, not money.
+// The booking must also still be 'completed': payroll accrues on performed work
+// in both directions, and a refund on a cancelled or no-show booking is a
+// logistics reversal (the visit never happened), not a treatment reversal — it
+// must not produce negative commission. Cancel-then-refund is a normal flow, so
+// this predicate is what keeps that flow out of the payroll math. The staff join
+// is inner for the same reason as CompletedVisits: a refund on a booking with no
+// therapist has nobody to attribute it to.
 func (r *PayrollRepo) RefundsInRange(ctx context.Context, from, to time.Time) ([]PayrollRefundRow, error) {
 	q := `SELECT r.id, r.booking_id, b.staff_id, COALESCE(st.name,''), r.created_at,
 		r.amount_idr, r.reason, b.price_idr, b.discount_idr
 		FROM refunds r
 		JOIN bookings b ON b.id = r.booking_id
 		JOIN staff st ON st.id = b.staff_id
-		WHERE r.voided_at IS NULL AND ` + fmt.Sprintf(payrollWindow, "r.created_at") + `
+		WHERE r.voided_at IS NULL AND b.status = 'completed'
+		  AND ` + fmt.Sprintf(payrollWindow, "r.created_at") + `
 		ORDER BY r.created_at, r.id`
 	rows, err := r.pool.Query(ctx, q, wibDate(from), wibDate(to))
 	if err != nil {
