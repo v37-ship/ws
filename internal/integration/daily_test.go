@@ -73,13 +73,16 @@ func TestDailyReportSeededDay(t *testing.T) {
 
 	// The day's visit mix at the primary branch. Two completed rows (one of
 	// them a walk-in), a checked-in row that is neither completed nor
-	// cancelled, one no-show and two cancellations.
+	// cancelled, one no-show, two web cancellations and one walk-in that was
+	// cancelled: WalkIns counts source whatever the status, so that row lands
+	// in both columns — the two filters are independent, not exclusive.
 	completedWeb := fx.seedVisit(t, fx.loc, fx.service, fx.staff, 8, 0, domain.BookingCompleted, "")
 	fx.seedVisit(t, fx.loc, fx.service, fx.staff, 9, 0, domain.BookingCompleted, "walkin")
 	fx.seedVisit(t, fx.loc, fx.service, fx.staff, 10, 0, domain.BookingCheckedIn, "")
 	fx.seedVisit(t, fx.loc, fx.service, fx.staff, 12, 0, domain.BookingNoShow, "")
 	fx.seedVisit(t, fx.loc, fx.service, fx.staff, 13, 0, domain.BookingCancelled, "")
 	fx.seedVisit(t, fx.loc, fx.service, fx.staff, 14, 0, domain.BookingCancelled, "")
+	fx.seedVisit(t, fx.loc, fx.service, fx.staff, 18, 0, domain.BookingCancelled, "walkin")
 
 	// Upcoming windows: 11:00 is already past at noon, 15:00 and 16:30 are
 	// still ahead, and the pending row is ahead but not confirmed.
@@ -142,8 +145,8 @@ func TestDailyReportSeededDay(t *testing.T) {
 	if sum.Date != dailyDay {
 		t.Errorf("summary date = %q, want %s", sum.Date, dailyDay)
 	}
-	if sum.Completed != 2 || sum.WalkIns != 1 || sum.NoShows != 1 || sum.Cancelled != 2 {
-		t.Errorf("visit mix = completed %d / walk-ins %d / no-shows %d / cancelled %d, want 2/1/1/2",
+	if sum.Completed != 2 || sum.WalkIns != 2 || sum.NoShows != 1 || sum.Cancelled != 3 {
+		t.Errorf("visit mix = completed %d / walk-ins %d / no-shows %d / cancelled %d, want 2/2/1/3",
 			sum.Completed, sum.WalkIns, sum.NoShows, sum.Cancelled)
 	}
 	if sum.CashIDR != 100_000 || sum.QRISIDR != 75_000 {

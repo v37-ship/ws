@@ -144,6 +144,21 @@ func TestDemandReportMonthBoundary(t *testing.T) {
 	})
 	pinBookingCreated(t, fx.pool, g, createdG)
 
+	// H. Paid in February, but created and visited in November 2025. It matches
+	// only the paid bucket, so it must count in February's paid figures and
+	// nowhere in that month's creation or visit mix — the third date base
+	// standing on its own, not as a rider on the visit.
+	createdH := time.Date(2025, 11, 20, 9, 0, 0, 0, wib)
+	startH := time.Date(2025, 11, 25, 9, 0, 0, 0, wib)
+	h := insertBooking(t, fx.pool, bookingSeed{
+		CustomerID: &cust, LocationID: fx.loc, ServiceID: fx.service, StaffID: fx.staff,
+		StartAt: startH, PriceIDR: 60_000, Status: string(domain.BookingCompleted),
+		Source: "walkin",
+	})
+	pinBookingCreated(t, fx.pool, h, createdH)
+	paidH := time.Date(2026, 2, 10, 9, 0, 0, 0, wib)
+	insertPayment(t, fx.pool, paymentSeed{BookingID: h, AmountIDR: 60_000, PaidAt: &paidH})
+
 	// Prove the WIB premise before trusting the February assertions.
 	if got := createdE.UTC().Format("2006-01-02T15:04Z"); got != "2026-01-31T17:30Z" {
 		t.Fatalf("fixture premise broken: createdE UTC = %s, want 2026-01-31T17:30Z", got)
@@ -193,10 +208,11 @@ func TestDemandReportMonthBoundary(t *testing.T) {
 	}
 
 	// February: the boundary row's visit lands here (whatsapp/homecare/promo/
-	// transport), its creation and payment stay in January.
+	// transport), its creation and payment stay in January; H contributes only
+	// the payment.
 	febSum, _, _ := fx.month(t, "2026-02")
-	if febSum.GrossIDR != 100_000 {
-		t.Fatalf("February summary gross = %d, want 100000", febSum.GrossIDR)
+	if febSum.GrossIDR != 160_000 {
+		t.Fatalf("February summary gross = %d, want 160000", febSum.GrossIDR)
 	}
 	feb, err := fx.svc.DemandReport(ctx, "2026-02", fx.loc, febSum.GrossIDR)
 	if err != nil {
@@ -206,12 +222,15 @@ func TestDemandReportMonthBoundary(t *testing.T) {
 		t.Errorf("February funnel = made %d / cancelled %d / no-shows %d, want 1/0/0",
 			feb.BookingsCreated, feb.Cancelled, feb.NoShows)
 	}
-	if feb.BookingsPaid != 1 {
-		t.Errorf("February paid bookings = %d, want 1 (E paid 00:45 WIB on the 1st)", feb.BookingsPaid)
+	if feb.BookingsPaid != 2 {
+		t.Errorf("February paid bookings = %d, want 2 (E paid 00:45 WIB on the 1st, H paid on the 10th)", feb.BookingsPaid)
 	}
-	if feb.Visits != 2 || feb.SourceWeb != 1 || feb.SourceWhatsapp != 1 {
-		t.Errorf("February mix = visits %d / web %d / whatsapp %d, want 2/1/1",
-			feb.Visits, feb.SourceWeb, feb.SourceWhatsapp)
+	if feb.Visits != 2 || feb.SourceWeb != 1 || feb.SourceWhatsapp != 1 || feb.SourceWalkin != 0 {
+		t.Errorf("February mix = visits %d / web %d / walkin %d / whatsapp %d, want 2/1/0/1 (H's November visit must not leak)",
+			feb.Visits, feb.SourceWeb, feb.SourceWalkin, feb.SourceWhatsapp)
+	}
+	if feb.GrossPaid != 160_000 {
+		t.Errorf("February GrossPaid = %d, want the summary's 160000", feb.GrossPaid)
 	}
 	if feb.HomecareVisits != 1 || feb.HomecareShareBp != 5000 {
 		t.Errorf("February homecare = %d visits / %d bp, want 1/5000", feb.HomecareVisits, feb.HomecareShareBp)
@@ -230,10 +249,10 @@ func TestDemandReportMonthBoundary(t *testing.T) {
 		t.Errorf("created Jan+Feb = %d, want 4 (A, C, D, E each once)", got)
 	}
 	if got := jan.Visits + feb.Visits; got != 5 {
-		t.Errorf("visits Jan+Feb = %d, want 5 (A-E each once)", got)
+		t.Errorf("visits Jan+Feb = %d, want 5 (A-E each once; H's November visit is outside)", got)
 	}
-	if got := jan.BookingsPaid + feb.BookingsPaid; got != 3 {
-		t.Errorf("paid Jan+Feb = %d, want 3 (A, B, E each once)", got)
+	if got := jan.BookingsPaid + feb.BookingsPaid; got != 4 {
+		t.Errorf("paid Jan+Feb = %d, want 4 (A, B, E, H each once)", got)
 	}
 	if got := jan.PromoDiscIDR + feb.PromoDiscIDR; got != 25_000 {
 		t.Errorf("promo Jan+Feb = %d, want 25000", got)

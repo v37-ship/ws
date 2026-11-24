@@ -628,7 +628,8 @@ html[data-theme="dark"] code { background: #3a2b41; }
   flex-wrap: wrap;
   border-bottom: 2px solid var(--line);
   margin-bottom: 0.25rem;
-}.report-tab {
+}
+.report-tab {
   padding: 0.55rem 1rem;
   font-weight: 700;
   color: var(--muted);
