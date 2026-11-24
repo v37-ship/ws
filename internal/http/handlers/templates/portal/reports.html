@@ -18,6 +18,7 @@
       </div>
     </div>
 
+    {{if ne .Tab "daily"}}
     <form class="panel no-print" method="get" action="/portal/reports" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
       <input type="hidden" name="tab" value="{{.Tab}}">
       <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap;">
@@ -58,8 +59,10 @@
     </form>
 
     {{/* Sticky summary strip: the month's money, unchanged from the single-page
-         ledger, pinned under the header so it stays in view on every tab. */}}
-    <div class="report-strip">
+         ledger, pinned under the header so it stays in view on every month tab.
+         The daily tab is day-scoped and hides it with the month form: a strip
+         describing a month the panel does not show is worse than no strip. */}}
+    <div class="report-strip report-strip--month">
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.gross"}} ({{.Summary.Count}}×)</div><div style="font-size:1.4rem; font-weight:800;">{{formatIDR .Summary.GrossIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.refunds"}} ({{.Summary.RefundCnt}}×)</div><div style="font-size:1.4rem; font-weight:800; color:var(--danger);">−{{formatIDR .Summary.RefundIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.net"}}</div><div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Summary.NetIDR}}</div></div>
@@ -82,6 +85,7 @@
       </div>
       {{end}}
     </div>
+    {{end}}
 
     <nav class="report-tabs no-print" aria-label="{{t .Lang "r.tabs"}}">
       {{range .Tabs}}<a class="report-tab{{if .Active}} active{{end}}" href="{{.URL}}" data-tab="{{.ID}}"{{if .Active}} aria-current="page"{{end}}>{{t $.Lang (printf "r.tab.%s" .Key)}}</a>{{end}}
@@ -262,7 +266,10 @@
         <p class="muted" style="margin-top:0;">{{t .Lang "r.dem.sub"}}</p>
       </div>
 
-      {{if and (eq .Demand.BookingsCreated 0) (eq .Demand.Visits 0)}}
+      {{/* The empty copy means "nothing happened at all this month", so a month
+           with money or paid bookings (but no created/visited rows in this
+           bucket) must not claim it is empty. */}}
+      {{if and (eq .Demand.BookingsCreated 0) (eq .Demand.Visits 0) (eq .Demand.BookingsPaid 0) (eq .Demand.GrossPaid 0)}}
       <div class="panel"><p class="muted" style="margin:0;">{{t .Lang "r.dem.empty"}}</p></div>
       {{end}}
 
@@ -340,7 +347,7 @@
         <p class="muted" style="margin-top:0;">{{t .Lang "r.d.sub"}}</p>
       </div>
 
-      <div class="report-strip">
+      <div class="report-strip report-strip--day">
         <div class="panel stat-card" data-daily="completed"><div class="muted">{{t .Lang "r.d.done"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.Completed}}</div></div>
         <div class="panel stat-card" data-daily="walkins"><div class="muted">{{t .Lang "r.d.walk"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.WalkIns}}</div></div>
         <div class="panel stat-card" data-daily="noshow"><div class="muted">{{t .Lang "r.d.noshow"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.NoShows}}</div></div>

@@ -585,17 +585,21 @@ html[data-theme="dark"] code { background: #3a2b41; }
 }
 
 /* Reports tab shell: the month's money stays pinned under the sticky site
-   header while a long tab scrolls, and the panels sit in one column under the
-   tab bar. Offsets mirror the header (~5rem) the sidebar uses at 6rem. */
+   header while a long month tab scrolls, and the panels sit in one column
+   under the tab bar. Offsets mirror the header (~5rem) the sidebar uses at
+   6rem. Only the month strip pins: the daily tab's counts strip is day-scoped
+   and scrolls with its panel, so the page never stacks two sticky strips. */
 .report-strip {
-  position: sticky;
-  top: 5rem;
-  z-index: 9;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
   padding: 0.5rem 0;
   background: var(--bg);
+}
+.report-strip--month {
+  position: sticky;
+  top: 5rem;
+  z-index: 9;
 }
 /* Month-to-date trend line, full width under the strip's four cards. */
 .report-delta {

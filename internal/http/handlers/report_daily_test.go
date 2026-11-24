@@ -310,6 +310,53 @@ func TestReportsDailyPanelEmptyCopy(t *testing.T) {
 	}
 }
 
+// TestDailyTabHidesMonthChrome pins the coherence fix: the daily panel is
+// day-scoped, so the month form, the month strip and its delta would all
+// describe a period the panel never shows. They are absent from the daily tab
+// (the day picker and its arrows are the only period controls), and the day
+// links carry the day plus the tab and location they must preserve.
+func TestDailyTabHidesMonthChrome(t *testing.T) {
+	month := currentMonth()
+	in := dailyTestInput(dailyFixture().Date, dailyFixture())
+	in.Month = month
+	in.Summary.Month = month
+	in.Trend = trendFixture() // OK trend, so only the tab guard can hide it
+	in.Query["month"] = []string{month}
+	data := reportsData(in)
+	out := renderReports(t, "en", data)
+
+	for _, gone := range []string{
+		`name="mon"`,             // month select
+		`name="year"`,            // month form's year select
+		`report-strip--month`,    // the month's money strip
+		`data-trend="delta"`,     // the month-to-date delta inside it
+		"vs same day last month", // its copy, belt and braces
+	} {
+		if strings.Contains(out, gone) {
+			t.Errorf("daily tab rendered month chrome %q", gone)
+		}
+	}
+	// The daily counts strip survives, but as the non-sticky variant: only one
+	// strip may pin, and the month strip is the one that does.
+	if !strings.Contains(out, "report-strip--day") {
+		t.Error("daily tab lost its counts strip")
+	}
+
+	day := mustParseURL(t, data["DayPrevURL"].(string))
+	for k, want := range map[string]string{
+		"tab":         "daily",
+		"date":        "2020-01-01",
+		"location_id": "22222222-2222-2222-2222-222222222222",
+	} {
+		if got := day.Query().Get(k); got != want {
+			t.Errorf("daily day link %s = %q, want %q", k, got, want)
+		}
+	}
+	if !strings.Contains(out, "date=2020-01-01") {
+		t.Error("daily page does not link to the previous day")
+	}
+}
+
 // TestDailyTabFetchesItsOwnRead is a compile-time reminder that the daily
 // payload is built from a different service call than the monthly ledger: the
 // date and the Daily summary are independent of Month, so changing the month

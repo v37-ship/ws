@@ -192,6 +192,31 @@ func TestReportsDemandEmptyState(t *testing.T) {
 	}
 }
 
+// TestReportsDemandPaidOnlyMonthHasNoEmptyCopy pins the empty predicate: a
+// month whose paid money landed here while neither the created-date funnel nor
+// the visit-date mix has rows is not empty. "Nothing booked or scheduled"
+// would contradict the paid count and gross on the same panel.
+func TestReportsDemandPaidOnlyMonthHasNoEmptyCopy(t *testing.T) {
+	d := domain.ReportDemand{BookingsPaid: 4, GrossPaid: 800_000}
+	data := reportsData(demandTestInput(d))
+	out := renderReports(t, "en", data)
+
+	for _, gone := range []string{
+		"Nothing booked or scheduled in this month yet.",
+		"Belum ada booking atau kunjungan di bulan ini.",
+	} {
+		if strings.Contains(out, gone) {
+			t.Errorf("paid-only month rendered the empty copy %q", gone)
+		}
+	}
+	if window := demandCardWindow(t, out, "paid"); !strings.Contains(window, ">4<") {
+		t.Errorf("paid card did not show the paid count: %q", window)
+	}
+	if !strings.Contains(out, "Rp 800.000") {
+		t.Error("paid-only month did not show its gross")
+	}
+}
+
 // TestPercentBpFormat pins the display formatter: basis points render as one
 // decimal of a percent and clamp at zero, so a template edit cannot print a raw
 // "3000" where a rate belongs.

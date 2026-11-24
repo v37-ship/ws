@@ -17,7 +17,7 @@ Goose + Midtrans QRIS.
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report), `internal/service` (Auth, Catalog,
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
-  validation), `internal/i18n` (EN+ID maps, 1060 keys each), `internal/email`
+  validation), `internal/i18n` (EN+ID maps, 1115 keys each), `internal/email`
   (SMTP sender), `internal/payment` (Midtrans QRIS client),
   `internal/whatsapp` (Evolution client, phone normalization, message copy),
   `internal/integration` (build-tagged execution suite against a disposable
@@ -416,30 +416,37 @@ Goose + Midtrans QRIS.
   recorded month, cancelled-but-paid counts until refunded. **That rule is
   unchanged** by the tabbed overhaul. Four tabs via `?tab=`
   (`daily`/`revenue`/`ops`/`staff` whitelist, anything else → `revenue`), with
-  the month's Gross/Refunds/Net + QRIS/cash strip pinned above every tab; each
-  tab buys only its own extra read. **Daily** (`?date=`, WIB; malformed/future
-  → today): completed/walk-in/no-show/cancelled counts (walk-ins are
-  `source='walkin'` whatever the status), money collected by `paid_at` day
-  split cash vs non-cash, and still-upcoming confirmed rows. **Revenue**:
-  by-service/by-staff tables, the refund ledger, and the transactions table
-  paged `repo.PageSize` (25) rows — summary/service/staff rows always describe
-  the whole month, page links keep month/tab/location, and CSV exports the
-  month uncut. **Operations**: a demand block on **two date bases** — the
-  funnel (bookings made/paid/cancelled/no-shows) buckets `created_at`, the
-  visit mix (source, homecare share, promo/transport) buckets `start_at`, and
-  paid figures bucket `paid_at`, all as WIB months; a booking can land in one
-  month's funnel and another's mix. Rates are integer basis points ("—" for a
-  zero denominator); gross paid is the summary's figure, never re-derived.
-  **Staff**: per-therapist revenue plus utilization — scheduled minutes expand
-  the weekly `staff_hours` windows over the month's real WIB days (month-edge
-  partial weeks clamp) minus time-off overlap; booked minutes are Σ
-  `end_at - start_at` of `completed` visits; Rp/hour and occupancy use
-  Σ`price_idr` of those completed visits (service gross, *not* the
-  payment-based Gross column); no schedule renders "—". **Trend** (current
-  month only): month-to-date net vs the previous month cut at the same WIB
-  day-of-month, or the "first days of the month" line when that baseline is
-  ≤0; the revenue tab also draws a dependency-free six-month net sparkline
-  (inline SVG, integer coordinates).
+  the month's Gross/Refunds/Net + QRIS/cash strip pinned above the month tabs
+  (`revenue`/`ops`/`staff`); the daily tab hides the month form, strip and
+  delta because its panel is day-scoped and those controls would describe a
+  different period, and each tab buys only its own extra read. **Daily**
+  (`?date=`, WIB; malformed/future → today): completed/walk-in/no-show/cancelled
+  counts (walk-ins are `source='walkin'` whatever the status), money collected
+  by `paid_at` day split cash vs non-cash, and still-upcoming confirmed rows.
+  **Revenue**: the by-service table, the refund ledger, and the transactions
+  table paged `repo.PageSize` (25) rows — the summary and service rows always
+  describe the whole month, page links keep month/tab/location, and CSV exports
+  the month uncut. **Staff**: the by-staff revenue table plus utilization —
+  scheduled minutes expand the weekly `staff_hours` windows over the month's
+  real WIB days (month-edge partial weeks clamp) minus time-off overlap
+  (overlapping time-off spans merge first, so one blockout is not subtracted
+  twice); booked minutes are Σ `end_at - start_at` of `completed` visits;
+  Rp/hour is Σ`price_idr` of those completed visits ÷ scheduled hours, while
+  occupancy is booked minutes ÷ scheduled minutes — neither is the
+  payment-based Gross column; no schedule renders "—". **Operations**: a demand block on **two date bases** — the
+  funnel (bookings made/cancelled/no-shows) buckets `created_at` while the
+  paid count and gross bucket `paid_at`, and the visit mix (source, homecare
+  share, promo/transport) buckets `start_at`, all as WIB months; a booking can
+  land in one month's funnel and another's mix. The funnel's no-show **rate**
+  is visit-dated (numerator and denominator both from `start_at`) even though
+  the no-show **count** stays created-dated. Rates are integer basis points
+  ("—" for a zero denominator); gross paid is the summary's figure, never
+  re-derived. **Trend** (current month only): month-to-date net vs the
+  previous month cut at the same WIB day-of-month (a day past the previous
+  month's length clamps to its last day, so on the 31st after a 30-day month
+  the baseline is the whole previous month), or the "first days of the month"
+  line when that baseline is ≤0; the revenue tab also draws a dependency-free
+  six-month net sparkline (inline SVG, integer coordinates).
 - Testimonials are moderated: `pending`/`approved`/`hidden`, only approved
   renders (homepage Alpine filmstrip: drag-to-slide, dots, no arrows).
   Entries snapshot name/photo/message (account edits never rewrite reviews);

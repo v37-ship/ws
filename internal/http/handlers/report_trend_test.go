@@ -107,20 +107,26 @@ func renderReports(t *testing.T, lang string, data pageData) string {
 // a fresh month renders the "first days" copy instead of a percentage. The line
 // describes its own cutoff, so the number is never mistaken for a full month,
 // and the two nets the percentage compares ride underneath it — a percentage
-// without its amounts cannot say whether the move was Rp 50k or Rp 5M.
+// without its amounts cannot say whether the move was Rp 50k or Rp 5M. The
+// strip belongs to the three month tabs, so all of them must draw it.
 func TestReportsDeltaLine(t *testing.T) {
 	month := currentMonth()
-	up := reportsData(reportTrendData("revenue", month, domain.MonthTrend{
-		PctBp: 1_234, AsOf: month + "-05", OK: true,
-		CurrentIDR: 4_575_000, PreviousIDR: 4_070_000,
-	}))
-	out := renderReports(t, "en", up)
-	for _, want := range []string{
-		"Net so far", "per 5 ", "+12.3%", "vs same day last month", "class=\"delta up\"",
-		"now Rp 4.575.000 vs Rp 4.070.000",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("up trend render missing %q", want)
+	for _, tab := range []string{"revenue", "ops", "staff"} {
+		up := reportsData(reportTrendData(tab, month, domain.MonthTrend{
+			PctBp: 1_234, AsOf: month + "-05", OK: true,
+			CurrentIDR: 4_575_000, PreviousIDR: 4_070_000,
+		}))
+		out := renderReports(t, "en", up)
+		if !strings.Contains(out, `data-trend="delta"`) {
+			t.Errorf("%s tab: missing the trend delta line", tab)
+		}
+		for _, want := range []string{
+			"Net so far", "per 5 ", "+12.3%", "vs same day last month", "class=\"delta up\"",
+			"now Rp 4.575.000 vs Rp 4.070.000",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s tab: up trend render missing %q", tab, want)
+			}
 		}
 	}
 
