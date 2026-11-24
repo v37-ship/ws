@@ -20,7 +20,7 @@ import (
 // keep answering, and only a router-level assertion proves it still does.
 func newRouteTestServer(t *testing.T) http.Handler {
 	t.Helper()
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestAdminBookingsRedirectStaysAdminOnly(t *testing.T) {
 // from the portal lost the sidebar. It now shares the portal shell (and the
 // sticky-header drawer) exactly like /admin/cs.
 func TestAdminPaymentsKeepsPortalNav(t *testing.T) {
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}

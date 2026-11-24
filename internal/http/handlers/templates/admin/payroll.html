@@ -31,6 +31,7 @@
       </div>
       <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
         <a class="btn secondary on-light btn-sm" href="{{.CSVURL}}">{{icon "download"}} {{t .Lang "r.csv"}}</a>
+        <a class="btn secondary on-light btn-sm" href="/admin/payroll/rates">{{icon "cash"}} {{t .Lang "pr.rates"}}</a>
         <button class="btn secondary on-light btn-sm" type="button" onclick="window.print()">{{icon "printer"}} {{t .Lang "r.print"}}</button>
       </div>
     </div>
@@ -43,7 +44,7 @@
       <div class="panel" style="border-left:4px solid var(--danger); margin:0.75rem 0;">
         <strong>{{icon "alert"}} {{t .Lang "pr.miss.w"}}</strong>
         <ul style="margin:0.4rem 0 0 1.1rem;">
-          {{range .Missing}}<li>{{.}}</li>{{end}}
+          {{range .Missing}}<li>{{if .}}{{.}}{{else}}-{{end}}</li>{{end}}
         </ul>
       </div>
       {{end}}

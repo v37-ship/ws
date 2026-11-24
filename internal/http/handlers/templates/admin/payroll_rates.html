@@ -1,0 +1,130 @@
+{{define "admin_payroll_rates.html"}}
+<!DOCTYPE html>
+<html lang="{{if .Lang}}{{.Lang}}{{else}}id{{end}}">
+<head>
+  <title>{{t .Lang "pr.rates"}} — Wangga Spa Baby, Mom, & Woman</title>
+  {{template "head" .}}
+</head>
+<body>
+  {{template "header" .}}
+  {{template "toast-region" .}}
+  {{/* Admin-only rate timeline. Standalone like the period report (no portal
+       shell on purpose): portal_nav is the CS screen's navigation and must
+       never advertise a payroll route. One section per therapist, the full
+       history in a plain table — readable without a modal. */}}
+  <main class="stack" style="max-width:1150px; margin:0 auto;">
+    <div>
+      <a href="/admin/payroll" class="muted">&larr; {{t .Lang "a.payroll"}}</a>
+      <h1 class="page-title" style="margin:0.25rem 0;">{{icon "cash"}} {{t .Lang "pr.rates"}}</h1>
+      <p class="muted" style="margin-top:0;">{{t .Lang "pr.ratesub"}}</p>
+    </div>
+
+    {{if .Success}}
+    <div class="panel" style="border-left:4px solid var(--ok);">
+      <strong>{{icon "check-circle"}} {{t .Lang .Success}}</strong>
+    </div>
+    {{end}}
+    {{if .Error}}
+    <div class="panel" style="border-left:4px solid var(--danger);">
+      <strong>{{icon "alert"}} {{t .Lang .Error}}</strong>
+    </div>
+    {{end}}
+
+    <div class="panel">
+      <h2 style="margin:0 0 0.5rem;">{{t .Lang "pr.newrate"}}</h2>
+      <form method="post" action="/admin/payroll/rates">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:0.75rem; align-items:end;">
+          <label>
+            <span class="muted"><small>{{t .Lang "pr.staff"}}</small></span>
+            <select name="staff_id" required style="width:100%;">
+              <option value=""></option>
+              {{range .Staff}}
+              <option value="{{.ID}}" {{if eq $.Form.StaffID .ID}}selected{{end}}>{{.Name}}{{if not .Active}} ({{t $.Lang "pr.inact"}}){{end}}</option>
+              {{end}}
+            </select>
+          </label>
+          <label>
+            <span class="muted"><small>{{t .Lang "pr.pct"}}</small></span>
+            <input type="text" name="percent" inputmode="decimal" value="{{.Form.Percent}}" placeholder="12,5" required style="width:100%;">
+          </label>
+          <label>
+            <span class="muted"><small>{{t .Lang "pr.fixed"}}</small></span>
+            <input type="text" name="fixed" inputmode="numeric" value="{{.Form.Fixed}}" placeholder="150000" style="width:100%;">
+          </label>
+          <label>
+            <span class="muted"><small>{{t .Lang "pr.cad"}}</small></span>
+            <select name="cadence" style="width:100%;">
+              <option value="monthly" {{if eq .Form.Cadence "monthly"}}selected{{end}}>{{t .Lang "pr.monthly"}}</option>
+              <option value="weekly" {{if eq .Form.Cadence "weekly"}}selected{{end}}>{{t .Lang "pr.weekly"}}</option>
+            </select>
+          </label>
+          <label>
+            <span class="muted"><small>{{t .Lang "pr.base"}}</small></span>
+            <select name="base" style="width:100%;">
+              <option value="net" {{if eq .Form.Base "net"}}selected{{end}}>{{t .Lang "pr.base.net"}}</option>
+              <option value="list" {{if eq .Form.Base "list"}}selected{{end}}>{{t .Lang "pr.base.list"}}</option>
+            </select>
+          </label>
+          <label>
+            <span class="muted"><small>{{t .Lang "pr.eff"}}</small></span>
+            <input type="date" name="effective" value="{{if .Form.Effective}}{{.Form.Effective}}{{else}}{{.Today}}{{end}}" required style="width:100%;">
+          </label>
+        </div>
+        <div style="margin-top:0.75rem;">
+          <button class="btn" type="submit">{{t .Lang "pr.save"}}</button>
+        </div>
+      </form>
+    </div>
+
+    {{range .Staff}}
+    <div class="panel">
+      <h2 style="margin:0 0 0.25rem;">
+        {{.Name}}{{if not .Active}} <span class="badge">{{t $.Lang "pr.inact"}}</span>{{end}}
+      </h2>
+      {{if .Current}}
+      <p class="muted" style="margin:0 0 0.5rem;">
+        {{t $.Lang "pr.cur"}}:
+        <strong>{{.Current.PercentText}}</strong>{{if .Current.FixedIDR}} + {{formatIDR .Current.FixedIDR}}{{end}}
+        · {{t $.Lang (printf "pr.%s" .Current.Cadence)}} · {{t $.Lang (printf "pr.base.%s" .Current.Base)}}
+        · {{dateLong $.Lang .Current.EffectiveFrom}}
+      </p>
+      {{else}}
+      <p class="muted" style="margin:0 0 0.5rem;">{{t $.Lang "pr.norate"}}</p>
+      {{end}}
+      {{if .History}}
+      <h3 style="margin:0.5rem 0 0.25rem; font-size:1rem;">{{t $.Lang "pr.hist"}}</h3>
+      <div style="overflow-x:auto;" class="table-cards">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{t $.Lang "pr.eff"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t $.Lang "pr.pct"}}</th>
+              <th style="text-align:right; white-space:nowrap;">{{t $.Lang "pr.fixed"}}</th>
+              <th>{{t $.Lang "pr.cad"}}</th>
+              <th>{{t $.Lang "pr.base"}}</th>
+              <th>{{t $.Lang "pr.created"}}</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .History}}
+            <tr>
+              <td style="white-space:nowrap;">{{dateLong $.Lang .EffectiveFrom}}</td>
+              <td style="text-align:right; white-space:nowrap;">{{.PercentText}}</td>
+              <td style="text-align:right; white-space:nowrap;">{{if .FixedIDR}}{{formatIDR .FixedIDR}}{{else}}—{{end}}</td>
+              <td>{{t $.Lang (printf "pr.%s" .Cadence)}}</td>
+              <td>{{t $.Lang (printf "pr.base.%s" .Base)}}</td>
+              <td><small class="muted">{{dateLong $.Lang .CreatedAt}}{{if .Creator}} · {{t $.Lang "pr.by"}} {{.Creator}}{{end}}</small></td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

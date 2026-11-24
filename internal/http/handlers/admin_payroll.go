@@ -212,15 +212,24 @@ func (s *Server) AdminPayrollCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf(`attachment; filename="payroll-%s.csv"`, page.Period.Start.In(payrollWIB).Format(payrollDayLayout)))
 	cw := csv.NewWriter(w)
-	_, _ = w.Write([]byte("\xef\xbb\xbf")) // BOM for Excel
+	// A truncated export must leave a trace: the client can vanish mid-stream,
+	// and discarding the error would make a half-written payroll file look fine.
+	write := func(rec []string) {
+		if err := cw.Write(rec); err != nil {
+			s.log.Error("admin payroll csv write", "err", err)
+		}
+	}
+	if _, err := w.Write([]byte("\xef\xbb\xbf")); err != nil { // BOM for Excel
+		s.log.Error("admin payroll csv bom", "err", err)
+	}
 
-	_ = cw.Write([]string{
+	write([]string{
 		t("pr.th.staff"), t("pr.th.sess"), t("pr.th.gross"), t("pr.th.refund"),
 		t("pr.th.rate"), t("pr.th.comm"), t("pr.th.fixed"), t("pr.th.total"),
 		t("pr.th.paid"),
 	})
 	for _, row := range page.Rows {
-		_ = cw.Write([]string{
+		write([]string{
 			row.StaffName,
 			strconv.Itoa(row.Sessions),
 			strconv.FormatInt(row.GrossIDR, 10),
@@ -232,7 +241,7 @@ func (s *Server) AdminPayrollCSV(w http.ResponseWriter, r *http.Request) {
 			payrollPaidLabel(lang, row.Paid),
 		})
 	}
-	_ = cw.Write([]string{
+	write([]string{
 		t("pr.total"),
 		strconv.Itoa(page.Sessions),
 		strconv.FormatInt(page.Report.TotalGrossIDR, 10),
@@ -248,8 +257,11 @@ func (s *Server) AdminPayrollCSV(w http.ResponseWriter, r *http.Request) {
 	labelRow := make([]string, 9)
 	labelRow[0] = t("pr.period")
 	labelRow[1] = payrollPeriodLabel(lang, page.Period)
-	_ = cw.Write(labelRow)
+	write(labelRow)
 	cw.Flush()
+	if err := cw.Error(); err != nil {
+		s.log.Error("admin payroll csv flush", "err", err)
+	}
 }
 
 // payrollRateCSV is the rate cell's text: "30.0% (net)", or the missing-rate

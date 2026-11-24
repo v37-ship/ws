@@ -498,3 +498,133 @@ func TestPayrollDomainEnums(t *testing.T) {
 		}
 	}
 }
+
+// ListStaff feeds the rate form: payroll is not branch-scoped, so the read
+// spans every location, keeps inactive therapists (a former therapist still has
+// a rate timeline to correct), and is ordered by name.
+func TestPayrollListStaff(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+
+	ctx := context.Background()
+	branchA := insertLocation(t, pool, "Rate Branch A")
+	branchB := insertLocation(t, pool, "Rate Branch B")
+	zed := insertStaff(t, pool, branchA, "Zed Therapist")
+	ayu := insertStaff(t, pool, branchB, "Ayu Therapist")
+	bima := insertStaff(t, pool, branchA, "Bima Therapist")
+
+	staff, err := repo.NewPayrollRepo(pool).ListStaff(ctx)
+	if err != nil {
+		t.Fatalf("ListStaff: %v", err)
+	}
+	if len(staff) != 3 {
+		t.Fatalf("ListStaff = %d rows, want 3", len(staff))
+	}
+	wantOrder := []uuid.UUID{ayu, bima, zed}
+	for i, want := range wantOrder {
+		if staff[i].ID != want {
+			t.Fatalf("row %d = %v, want %v (ListStaff must be ordered by name)", i, staff[i].ID, want)
+		}
+		if staff[i].Name == "" {
+			t.Errorf("row %d has no name", i)
+		}
+	}
+	// Ayu lives in the other branch and is still in the list: the read is not
+	// branch-scoped (LocationID is deliberately not part of this row).
+	if staff[0].ID != ayu || staff[0].Name != "Ayu Therapist" {
+		t.Errorf("Ayu (second branch) is missing from the payroll staff read: %+v", staff[0])
+	}
+	if !staff[0].Active || !staff[2].Active {
+		t.Errorf("active flags = %v/%v, want true/true", staff[0].Active, staff[2].Active)
+	}
+
+	// Inactive therapists stay in the list: a former therapist's history still
+	// needs correcting.
+	if _, err := pool.Exec(ctx, `UPDATE staff SET active=false WHERE id=$1`, bima); err != nil {
+		t.Fatalf("deactivate: %v", err)
+	}
+	staff, err = repo.NewPayrollRepo(pool).ListStaff(ctx)
+	if err != nil {
+		t.Fatalf("ListStaff after deactivate: %v", err)
+	}
+	if len(staff) != 3 || staff[1].ID != bima {
+		t.Fatalf("ListStaff after deactivate = %d rows, want 3 with Bima second", len(staff))
+	}
+	if staff[1].Active {
+		t.Error("Bima is still active after the update")
+	}
+}
+
+// A later rate never rewrites a past period: resolution is "newest row with
+// effective_from <= the period's start", so the new row only pays periods that
+// start after it, and the old row stays exactly as written (append-only).
+func TestPayrollRateSupersedeKeepsPastPeriod(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+
+	ctx := context.Background()
+	loc := insertLocation(t, pool, "Rate Branch")
+	therapist := insertStaff(t, pool, loc, "Rate Therapist")
+	admin := insertUser(t, pool, "rates-admin@example.com", string(domain.RoleAdmin))
+	comps := repo.NewStaffCompRepo(pool)
+
+	jan := &domain.StaffComp{
+		StaffID:        therapist,
+		PercentBp:      2500,
+		FixedIDR:       100_000,
+		Cadence:        domain.CompCadenceMonthly,
+		CommissionBase: domain.CompBaseNet,
+		EffectiveFrom:  payrollDate(2026, time.January, 1),
+		CreatedBy:      &admin,
+	}
+	if err := comps.Create(ctx, jan); err != nil {
+		t.Fatalf("create January rate: %v", err)
+	}
+	past := payrollDate(2026, time.January, 15)
+	before, err := comps.EffectiveFor(ctx, therapist, past)
+	if err != nil {
+		t.Fatalf("EffectiveFor before the raise: %v", err)
+	}
+	if before == nil || before.ID != jan.ID {
+		t.Fatalf("january period resolved to %+v, want the January row", before)
+	}
+
+	nov := &domain.StaffComp{
+		StaffID:        therapist,
+		PercentBp:      3000,
+		FixedIDR:       150_000,
+		Cadence:        domain.CompCadenceMonthly,
+		CommissionBase: domain.CompBaseNet,
+		EffectiveFrom:  payrollDate(2026, time.November, 24),
+		CreatedBy:      &admin,
+	}
+	if err := comps.Create(ctx, nov); err != nil {
+		t.Fatalf("create November rate: %v", err)
+	}
+
+	after, err := comps.EffectiveFor(ctx, therapist, past)
+	if err != nil {
+		t.Fatalf("EffectiveFor after the raise: %v", err)
+	}
+	if after == nil || after.ID != jan.ID || after.PercentBp != 2500 || after.FixedIDR != 100_000 {
+		t.Fatalf("a past period changed under a later row: %+v", after)
+	}
+	current, err := comps.EffectiveFor(ctx, therapist, payrollDate(2026, time.December, 1))
+	if err != nil {
+		t.Fatalf("EffectiveFor on the next period: %v", err)
+	}
+	if current == nil || current.ID != nov.ID {
+		t.Fatalf("the new rate does not pay a later period: %+v", current)
+	}
+
+	hist, err := comps.HistoryFor(ctx, therapist)
+	if err != nil {
+		t.Fatalf("HistoryFor: %v", err)
+	}
+	if len(hist) != 2 || hist[0].ID != nov.ID || hist[1].ID != jan.ID {
+		t.Fatalf("history = %+v, want the November row then the January row", hist)
+	}
+	if hist[1].PercentBp != 2500 || hist[1].FixedIDR != 100_000 {
+		t.Fatalf("the superseded row was rewritten: %+v", hist[1])
+	}
+}

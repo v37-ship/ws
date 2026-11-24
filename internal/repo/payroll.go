@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"spa-booking/internal/domain"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -127,3 +129,31 @@ func (r *PayrollRepo) RefundsInRange(ctx context.Context, from, to time.Time) ([
 // (service.PayrollPeriodFor), so the clock they were given is the one meant;
 // a caller that passes a UTC instant is asking for that instant's own date.
 func wibDate(t time.Time) string { return t.Format("2006-01-02") }
+
+// ListStaff returns every therapist for the rate form, ordered by name. Payroll
+// is location-agnostic (a rate follows the person, not the branch), so unlike
+// CatalogRepo.ListStaff this read spans every branch and keeps inactive staff:
+// a former therapist's rate timeline still needs correcting. Only the three
+// columns the form needs are read; domain.Staff carries LocationID but not a
+// location name, so none is invented here.
+func (r *PayrollRepo) ListStaff(ctx context.Context) ([]domain.Staff, error) {
+	const q = `SELECT id, name, active FROM staff ORDER BY name, id`
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("payroll staff: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]domain.Staff, 0, 8)
+	for rows.Next() {
+		var s domain.Staff
+		if err := rows.Scan(&s.ID, &s.Name, &s.Active); err != nil {
+			return nil, fmt.Errorf("payroll staff: %w", err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("payroll staff: %w", err)
+	}
+	return out, nil
+}

@@ -55,13 +55,17 @@ type Server struct {
 	tvTokens    *repo.TVTokenRepo
 	tvPairings  *repo.TVPairingRepo
 	tvDevices   *repo.TVDeviceRepo
-	// Payroll is admin-only and read here through interfaces: the page needs a
-	// report plus one paid-snapshot lookup per row, and the router tests drive
-	// both with fakes instead of a database.
-	payroll    payrollReporter
-	payouts    payoutReader
-	tpl        *template.Template
-	csrfSecure bool
+	// Payroll is admin-only and read here through interfaces: the period page
+	// needs a report plus one paid-snapshot lookup per row, and the router tests
+	// drive both with fakes instead of a database. The rate form needs the
+	// concrete repos (it writes the append-only timeline), so its tests swap
+	// the seam functions instead.
+	payroll     payrollReporter
+	payouts     payoutReader
+	payrollRepo *repo.PayrollRepo   // rate form: every staff member, any branch
+	staffComps  *repo.StaffCompRepo // the append-only rate timeline
+	tpl         *template.Template
+	csrfSecure  bool
 }
 
 func New(
@@ -89,6 +93,8 @@ func New(
 	tvDevices *repo.TVDeviceRepo,
 	payroll *service.PayrollService,
 	payouts *repo.StaffPayoutRepo,
+	payrollRepo *repo.PayrollRepo,
+	staffComps *repo.StaffCompRepo,
 ) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatIDR": func(n int64) string {
@@ -303,6 +309,12 @@ func New(
 	}
 	if payouts != nil {
 		srv.payouts = payouts
+	}
+	if payrollRepo != nil {
+		srv.payrollRepo = payrollRepo
+	}
+	if staffComps != nil {
+		srv.staffComps = staffComps
 	}
 	return srv, nil
 }
@@ -820,6 +832,10 @@ func (s *Server) Routes(r chi.Router) {
 		// salaries never appear there.
 		ar.Get("/payroll", s.AdminPayroll)
 		ar.Get("/payroll.csv", s.AdminPayrollCSV)
+		// Rate management: the append-only staff_comp timeline behind those
+		// numbers. Also admin-only — a rate is salary data.
+		ar.Get("/payroll/rates", s.AdminPayrollRates)
+		ar.Post("/payroll/rates", s.AdminPayrollRateCreate)
 
 		// Waiting-room TV kiosk links (generate, show, revoke).
 		ar.Get("/tv", s.AdminTVPage)

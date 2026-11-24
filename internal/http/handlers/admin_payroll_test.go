@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -62,7 +63,7 @@ func payrollPayoutKey(staffID uuid.UUID, kind string, start time.Time) string {
 // admin_routes_test uses for its URL pins.
 func newPayrollServer(t *testing.T, rep payrollReporter, payouts payoutReader) http.Handler {
 	t.Helper()
-	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -147,6 +148,16 @@ func adminGet(t *testing.T, h http.Handler, path string) *httptest.ResponseRecor
 	return asUser(h, path, domain.RoleAdmin)
 }
 
+// payrollContactData is the footer's contact block for a direct template
+// render (the HTTP path fills it from config in render()).
+func payrollContactData() pageData {
+	return pageData{
+		"WhatsApp": "62800", "Email": "a@b.c", "Address": "addr", "Hours": "hours",
+		"Maps": "https://maps.example/", "Instagram": "https://instagram.example/",
+		"TikTok": "https://tiktok.example/", "Facebook": "https://facebook.example/",
+	}
+}
+
 // payrollSweepData feeds the template sweeps every page branch: a normal net
 // row with a visit and a refund line, a missing-rate row, a monthly-fixed row
 // whose fixed the week view omits, and a paid badge.
@@ -156,6 +167,7 @@ func payrollSweepData(lang string) pageData {
 	start := report.Period.Start.Format(payrollDayLayout)
 	return pageData{
 		"Lang":        lang,
+		"Contact":     payrollContactData(),
 		"Kind":        report.Period.Kind,
 		"Start":       start,
 		"PeriodLabel": payrollPeriodLabel(lang, report.Period),
@@ -167,6 +179,32 @@ func payrollSweepData(lang string) pageData {
 		"Rows":        rows,
 		"Missing":     []string{"Bima"},
 		"Sessions":    4,
+	}
+}
+
+// payrollEmptySweepData is the same period with no completed visits: the page
+// must say so (pr.empty) instead of rendering an empty table head.
+func payrollEmptySweepData(lang string) pageData {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+	report.Rows = nil
+	report.MissingRate = 0
+	report.TotalGrossIDR, report.TotalRefundIDR = 0, 0
+	report.TotalCommissionIDR, report.TotalFixedIDR, report.TotalIDR = 0, 0, 0
+	start := report.Period.Start.Format(payrollDayLayout)
+	return pageData{
+		"Lang":        lang,
+		"Contact":     payrollContactData(),
+		"Kind":        report.Period.Kind,
+		"Start":       start,
+		"PeriodLabel": payrollPeriodLabel(lang, report.Period),
+		"PrevURL":     payrollURL(report.Period.Kind, report.Period.Start.AddDate(0, 0, -7)),
+		"NextURL":     payrollURL(report.Period.Kind, report.Period.Start.AddDate(0, 0, 7)),
+		"TodayURL":    payrollURL(report.Period.Kind, payrollToday()),
+		"CSVURL":      "/admin/payroll.csv?kind=" + report.Period.Kind + "&start=" + start,
+		"Report":      report,
+		"Rows":        []payrollRowView{},
+		"Missing":     []string{},
+		"Sessions":    0,
 	}
 }
 
@@ -394,5 +432,110 @@ func TestPayrollNotOnStaffFacingTemplates(t *testing.T) {
 		if err != nil {
 			t.Fatalf("walk %s: %v", dir, err)
 		}
+	}
+}
+
+// The router hands the service the whitelisted kind and the parsed start: an
+// unknown kind falls back to the month view and a malformed start to today,
+// rather than leaking the raw query into the report.
+func TestAdminPayrollPassesPeriodToService(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+	rep := &fakePayrollReporter{report: report}
+	h := newPayrollServer(t, rep, &fakePayoutReader{})
+
+	if rec := adminGet(t, h, "/admin/payroll?kind=week&start=2026-11-25"); rec.Code != http.StatusOK {
+		t.Fatalf("week status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if rep.calls != 1 {
+		t.Fatalf("service calls = %d, want 1", rep.calls)
+	}
+	if rep.kind != service.PayrollKindWeek {
+		t.Errorf("kind = %q, want %q", rep.kind, service.PayrollKindWeek)
+	}
+	if got := rep.start.In(payrollWIB).Format(payrollDayLayout); got != "2026-11-25" {
+		t.Errorf("start = %s, want the requested 2026-11-25", got)
+	}
+
+	rep.calls = 0
+	if rec := adminGet(t, h, "/admin/payroll?kind=quarter&start=2026-13-40"); rec.Code != http.StatusOK {
+		t.Fatalf("fallback status = %d, want 200", rec.Code)
+	}
+	if rep.calls != 1 || rep.kind != service.PayrollKindMonth {
+		t.Errorf("fallback kind = %q (%d calls), want month", rep.kind, rep.calls)
+	}
+	if got, want := rep.start.In(payrollWIB).Format(payrollDayLayout), payrollToday().Format(payrollDayLayout); got != want {
+		t.Errorf("fallback start = %s, want today %s", got, want)
+	}
+}
+
+// An empty period still renders the empty-state copy, in both languages: the
+// table head alone would read as a broken page.
+func TestAdminPayrollEmptyPeriod(t *testing.T) {
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	for _, lang := range []string{"en", "id"} {
+		var buf bytes.Buffer
+		if err := s.tpl.ExecuteTemplate(&buf, "admin_payroll.html", payrollEmptySweepData(lang)); err != nil {
+			t.Fatalf("%s execute: %v", lang, err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, i18n.T(lang, "pr.empty")) {
+			t.Errorf("%s: empty period is missing the pr.empty copy", lang)
+		}
+		if strings.Contains(out, ">pr.") {
+			t.Errorf("%s: empty period leaks a raw dict key", lang)
+		}
+	}
+}
+
+// A missing-rate row with no staff name (a deleted or nameless therapist)
+// prints the same "-" fallback the staff cell uses, never an empty <li>.
+func TestAdminPayrollMissingNameFallback(t *testing.T) {
+	s, err := New(config.Config{}, slog.Default(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	data := payrollSweepData("id")
+	data["Missing"] = []string{""}
+	var buf bytes.Buffer
+	if err := s.tpl.ExecuteTemplate(&buf, "admin_payroll.html", data); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "<li>-</li>") {
+		t.Error("a nameless missing-rate row must render the '-' fallback")
+	}
+	if strings.Contains(out, "<li></li>") {
+		t.Error("a nameless missing-rate row rendered an empty <li>")
+	}
+}
+
+// failingWriter is a client that vanished mid-download: every write fails, so
+// the export is truncated and the handler must say so in the log.
+type failingWriter struct{ header http.Header }
+
+func (f *failingWriter) Header() http.Header       { return f.header }
+func (f *failingWriter) Write([]byte) (int, error) { return 0, errors.New("client gone") }
+func (f *failingWriter) WriteHeader(_ int)         {}
+
+// A truncated CSV must leave a server log line; a discarded error would make a
+// half-written payroll export look like a successful one.
+func TestAdminPayrollCSVLogsWriteErrors(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindMonth)
+	logs := &bytes.Buffer{}
+	s, err := New(config.Config{}, slog.New(slog.NewTextHandler(logs, nil)), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	s.payroll = &fakePayrollReporter{report: report}
+	s.payouts = &fakePayoutReader{}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/payroll.csv?kind=month&start=2026-11-01", nil)
+	s.AdminPayrollCSV(&failingWriter{header: http.Header{}}, req)
+
+	if out := logs.String(); !strings.Contains(out, "admin payroll csv") {
+		t.Errorf("a failed CSV write was not logged: %q", out)
 	}
 }
