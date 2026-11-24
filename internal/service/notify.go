@@ -225,7 +225,9 @@ func (s *BookingService) excludedFromReminders(ctx context.Context, b *domain.Bo
 	if n < repeatNoShowLimit {
 		return false
 	}
-	s.log.Warn("wa reminder suppressed for repeat no-show", "booking", b.ID, "customer", *b.CustomerID, "no_shows", n)
+	// Expected policy, not an anomaly: a reschedule sweep can suppress
+	// hundreds of rows, so this stays at Debug to keep the log actionable.
+	s.log.Debug("wa reminder suppressed for repeat no-show", "booking", b.ID, "customer", *b.CustomerID, "no_shows", n)
 	s.cancelReminder(ctx, b.ID)
 	return true
 }

@@ -144,6 +144,8 @@ func customerBooking(start time.Time) *domain.Booking {
 func TestReminderSkippedForRepeatNoShow(t *testing.T) {
 	wa := &fakeNotifier{}
 	svc := newNotifyService(wa)
+	var logs bytes.Buffer
+	svc.log = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	b := customerBooking(wibAt(11, 0).AddDate(0, 0, 1))
 	var counted uuid.UUID
 	svc.noShowCount = func(_ context.Context, id uuid.UUID) (int, error) {
@@ -162,6 +164,14 @@ func TestReminderSkippedForRepeatNoShow(t *testing.T) {
 	if len(wa.cancels) != 1 || wa.cancels[0].BookingID != b.ID ||
 		len(wa.cancels[0].Keys) != 1 || wa.cancels[0].Keys[0] != remindKey(b.ID) {
 		t.Errorf("cancels = %v, want this booking's pending reminder withdrawn", wa.cancels)
+	}
+	// Suppression is expected policy, not noise: Debug, never Warn.
+	out := logs.String()
+	if !strings.Contains(out, "level=DEBUG") || !strings.Contains(out, "suppressed for repeat no-show") {
+		t.Errorf("suppression was not logged at Debug: %q", out)
+	}
+	if strings.Contains(out, "level=WARN") {
+		t.Errorf("suppression logged at Warn: %q", out)
 	}
 }
 
