@@ -187,6 +187,7 @@
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <input type="hidden" name="key" value="{{.Key}}">
           <textarea name="body" rows="6" placeholder="{{.Default}}">{{.Override}}</textarea>
+          {{if .Segments}}<p class="muted" style="margin:0;"><strong>{{t $.Lang "a.wa.seg"}}:</strong> {{.Encoding}} · {{.Chars}} {{if eq .Chars 1}}{{t $.Lang "a.wa.chr1"}}{{else}}{{t $.Lang "a.wa.chrn"}}{{end}} · {{.Segments}} {{if eq .Segments 1}}{{t $.Lang "a.wa.msg1"}}{{else}}{{t $.Lang "a.wa.msgn"}}{{end}}</p>{{end}}
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="btn secondary on-light" type="submit">{{icon "check-circle"}} {{t $.Lang "a.wa.save"}}</button>
           </div>
@@ -201,6 +202,7 @@
         {{end}}
         <details>
           <summary class="muted">{{t $.Lang "a.wa.preview"}}</summary>
+          <p class="muted">{{t $.Lang "a.wa.prevx"}}</p>
           <pre style="white-space:pre-wrap; font-family:inherit;">{{.Preview}}</pre>
         </details>
       </div>

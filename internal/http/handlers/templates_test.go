@@ -124,6 +124,7 @@ func TestTemplatesExecute(t *testing.T) {
 			data["Templates"] = []waTemplateView{{
 				Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
 				Fields: []string{"name"}, Preview: "Halo Bunda",
+				Encoding: "GSM-7", Chars: 10, Segments: 1,
 			}}
 		case "admin_payroll.html":
 			for k, v := range payrollSweepData("id") {
@@ -277,6 +278,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Templates"] = []waTemplateView{{
 					Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
 					Fields: []string{"name"}, Preview: "Halo Bunda",
+					Encoding: "GSM-7", Chars: 10, Segments: 1,
 				}}
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
@@ -336,6 +338,17 @@ func TestTemplatesBothLanguages(t *testing.T) {
 			}
 			if lang == "en" && name == "home.html" && !contains(out, "Self-care for women") {
 				t.Errorf("home.html (en): missing English hero title")
+			}
+			if name == "admin_whatsapp.html" {
+				// The per-template counter sits under each textarea and reads in
+				// the page language.
+				want := "GSM-7 · 10 characters · 1 message"
+				if lang == "id" {
+					want = "GSM-7 · 10 karakter · 1 pesan"
+				}
+				if !contains(out, want) {
+					t.Errorf("admin_whatsapp.html (%s): missing segmentation counter %q", lang, want)
+				}
 			}
 			if (name == "home.html" || name == "login.html") && contains(out, "theme-btn nav-toggle") {
 				t.Errorf("%s (%s): public page must not have drawer hamburger", name, lang)
@@ -817,6 +830,7 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Templates"] = []waTemplateView{{
 					Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
 					Fields: []string{"name"}, Preview: "Halo Bunda",
+					Encoding: "GSM-7", Chars: 10, Segments: 1,
 				}}
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}

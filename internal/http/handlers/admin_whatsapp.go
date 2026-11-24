@@ -22,6 +22,35 @@ type waTemplateView struct {
 	Fields   []string
 	Preview  string
 	Custom   bool
+	// Encoding/Chars/Segments describe the editable body as typed (the
+	// override when set, else the built-in copy). Placeholders expand at send
+	// time, so the sample preview must not feed this counter (ruling R1).
+	Encoding string
+	Chars    int
+	Segments int
+}
+
+// waTemplateViewFor assembles one card's data. Kept separate from the page so
+// the counter wiring is testable without a database.
+func waTemplateViewFor(key, override string) waTemplateView {
+	ov := strings.TrimSpace(override)
+	defaultCopy := whatsapp.DefaultCopy(key)
+	preview := defaultCopy
+	if ov != "" {
+		if p, err := whatsapp.RenderOverride(key, ov, whatsapp.SamplePayload(key)); err == nil {
+			preview = p
+		}
+	}
+	body := ov
+	if body == "" {
+		body = defaultCopy
+	}
+	encoding, chars, segments := whatsapp.Segments(body)
+	return waTemplateView{
+		Key: key, LabelKey: waTemplateLabels[key], Default: defaultCopy,
+		Override: ov, Fields: whatsapp.Fields(key), Preview: preview, Custom: ov != "",
+		Encoding: encoding, Chars: chars, Segments: segments,
+	}
 }
 
 // waTemplateLabels maps a template key to its short i18n label key.
@@ -67,17 +96,7 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 
 	templates := make([]waTemplateView, 0, 8)
 	for _, key := range whatsapp.EditableTemplates() {
-		ov := strings.TrimSpace(overrides[key])
-		preview := whatsapp.DefaultCopy(key)
-		if ov != "" {
-			if p, err := whatsapp.RenderOverride(key, ov, whatsapp.SamplePayload(key)); err == nil {
-				preview = p
-			}
-		}
-		templates = append(templates, waTemplateView{
-			Key: key, LabelKey: waTemplateLabels[key], Default: whatsapp.DefaultCopy(key),
-			Override: ov, Fields: whatsapp.Fields(key), Preview: preview, Custom: ov != "",
-		})
+		templates = append(templates, waTemplateViewFor(key, overrides[key]))
 	}
 
 	s.render(w, r, "admin_whatsapp.html", pageData{
