@@ -234,7 +234,12 @@ Goose + Midtrans QRIS.
   Automatic customer sends honour `WA_CUSTOMER_ENABLED` (default false);
   staff-triggered sends always enqueue. Group pings follow `WA_GROUP_BOOKING`
   (`off`/`web` default/`all`): new-booking pings are online-only unless `all`,
-  slot-freed pings fire unless `off`. Phase 2: inbound webhook + `/portal/inbox`;
+  slot-freed pings fire unless `off`. A customer with two or more `no_show`
+  bookings stops receiving automatic H-1 reminders: the check runs when a
+  reminder is scheduled and when a booking becomes `no_show` (which also
+  cancels their other pending `remind:%` rows); guests are unaffected, and
+  staff can still resend a reminder from the booking page. Phase 2: inbound
+  webhook + `/portal/inbox`;
   phase 3: automation/campaigns. Evolution is **unofficial** (ban risk):
   transactional only, opt-in for marketing, keep `wa.me` + email as fallbacks.
 - Backups include the `evolution` DB dump and the `evolution_instances`

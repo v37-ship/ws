@@ -99,6 +99,19 @@ func (r *BookingRepo) ListByCustomer(ctx context.Context, customerID uuid.UUID) 
 	return r.scanList(ctx, q, customerID)
 }
 
+// CountNoShows counts a customer's no-show visits. It is the history read
+// behind the reminder gate (ruling R8): two or more and automatic H-1
+// reminders stop. Guests have no row to count (customer_id IS NULL).
+func (r *BookingRepo) CountNoShows(ctx context.Context, customerID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx,
+		`SELECT count(*) FROM bookings WHERE customer_id=$1 AND status='no_show'`, customerID).Scan(&n)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // ListActiveFrom returns future confirmed bookings (the ones an H-1 reminder
 // could still target), soonest first. Used to re-schedule reminders after the
 // reminder hour changes.

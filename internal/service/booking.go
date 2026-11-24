@@ -38,6 +38,11 @@ type BookingService struct {
 	opts     BookingOptions
 	settings *WaSettingsService
 	now      func() time.Time // test seam; nil = wall clock
+	// noShowCount reads a customer's no-show history (the repo's
+	// CountNoShows). It is a seam so messaging tests need no database, and it
+	// is nil-safe: when nil the repeat-no-show reminder gate is disabled
+	// (treated as zero, so a reminder is always scheduled).
+	noShowCount func(ctx context.Context, customerID uuid.UUID) (int, error)
 }
 
 func NewBookingService(
@@ -58,7 +63,7 @@ func NewBookingService(
 	return &BookingService{
 		bookings: bookings, payments: payments, catalog: catalog, users: users, promos: promos,
 		zones: zones, avail: avail, midtrans: midtrans, mailer: mailer, holdTTL: holdTTL, baseURL: baseURL, log: log,
-		opts: opts, settings: opts.Settings,
+		opts: opts, settings: opts.Settings, noShowCount: bookings.CountNoShows,
 	}
 }
 
@@ -592,8 +597,7 @@ func (s *BookingService) applyStatus(ctx context.Context, b *domain.Booking, new
 		s.notifyCustomerExpired(ctx, b)
 		s.notifyGroupSlot(ctx, b, "expired", "sistem", time.Time{})
 	case domain.BookingNoShow:
-		s.cancelReminder(ctx, b.ID)
-		s.notifyGroupSlot(ctx, b, "no_show", actorLabel(actorID), time.Time{})
+		s.onNoShow(ctx, b, actorID)
 	case domain.BookingCompleted:
 		s.notifyReviewRequest(ctx, b)
 	case domain.BookingConfirmed:

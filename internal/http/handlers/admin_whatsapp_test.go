@@ -379,6 +379,10 @@ func (f *waOutboxFake) CancelPending(context.Context, uuid.UUID, ...string) (int
 	return 0, nil
 }
 
+func (f *waOutboxFake) CancelRemindersForCustomer(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 func (f *waOutboxFake) ClaimDue(context.Context, int) ([]repo.WaOutboxItem, error) {
 	return nil, nil
 }

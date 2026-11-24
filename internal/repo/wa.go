@@ -129,6 +129,22 @@ func (r *WaRepo) CancelPending(ctx context.Context, bookingID uuid.UUID, keys ..
 	return tag.RowsAffected(), nil
 }
 
+// CancelRemindersForCustomer withdraws every pending H-1 reminder belonging to
+// a customer, joined through bookings.customer_id. It is the sweep behind the
+// repeat-no-show rule (rulings R8/R9): only `remind:%` rows are touched, so a
+// customer's review asks, and every other template, survive; a row already
+// claimed as `sending` is left to finish.
+func (r *WaRepo) CancelRemindersForCustomer(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE wa_outbox o SET status='cancelled', updated_at=now()
+		 WHERE o.status='pending' AND o.dedupe_key LIKE 'remind:%'
+		   AND o.booking_id IN (SELECT id FROM bookings WHERE customer_id=$1)`, customerID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // ClaimDue atomically claims up to limit due rows (FOR UPDATE SKIP LOCKED, so
 // several workers would not double-send). The attempt counter is incremented
 // on claim, so the returned Attempts is the current try (1 for the first).

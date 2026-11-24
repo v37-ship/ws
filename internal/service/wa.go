@@ -26,6 +26,7 @@ type waStore interface {
 	Enqueue(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
 	UpsertScheduled(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
 	CancelPending(ctx context.Context, bookingID uuid.UUID, keys ...string) (int64, error)
+	CancelRemindersForCustomer(ctx context.Context, customerID uuid.UUID) (int64, error)
 	ClaimDue(ctx context.Context, limit int) ([]repo.WaOutboxItem, error)
 	MarkSent(ctx context.Context, id uuid.UUID) error
 	RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time, errMsg string) error
@@ -117,6 +118,12 @@ func (s *WaService) UpsertScheduled(ctx context.Context, phone, templateKey stri
 // given dedupe keys) that have not been delivered yet.
 func (s *WaService) CancelPending(ctx context.Context, bookingID uuid.UUID, keys ...string) (int64, error) {
 	return s.store.CancelPending(ctx, bookingID, keys...)
+}
+
+// CancelRemindersForCustomer withdraws the customer's pending H-1 reminders
+// across all their bookings (the repeat-no-show sweep, rulings R8/R9).
+func (s *WaService) CancelRemindersForCustomer(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	return s.store.CancelRemindersForCustomer(ctx, customerID)
 }
 
 // Drain sends due messages, up to a bounded batch per tick. A failing message

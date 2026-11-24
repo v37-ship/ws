@@ -1,9 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,8 +35,9 @@ type cancelCall struct {
 }
 
 type fakeNotifier struct {
-	calls   []waCall
-	cancels []cancelCall
+	calls           []waCall
+	cancels         []cancelCall
+	customerCancels []uuid.UUID
 }
 
 func (f *fakeNotifier) Enqueue(_ context.Context, phone, key string, payload map[string]any, id *uuid.UUID, dedupe string, at time.Time) (bool, error) {
@@ -49,6 +53,11 @@ func (f *fakeNotifier) UpsertScheduled(_ context.Context, phone, key string, pay
 func (f *fakeNotifier) CancelPending(_ context.Context, id uuid.UUID, keys ...string) (int64, error) {
 	f.cancels = append(f.cancels, cancelCall{id, keys})
 	return int64(len(keys)), nil
+}
+
+func (f *fakeNotifier) CancelRemindersForCustomer(_ context.Context, customerID uuid.UUID) (int64, error) {
+	f.customerCancels = append(f.customerCancels, customerID)
+	return 1, nil
 }
 
 // findCall returns the first call with a template key, or zero when absent.
@@ -113,6 +122,165 @@ func guestBooking(start time.Time) *domain.Booking {
 
 func wibAt(hour, min int) time.Time {
 	return time.Date(2026, 10, 24, hour, min, 0, 0, wib)
+}
+
+// customerBooking is a confirmed visit on an account (not a guest), so the
+// repeat-no-show reminder gate applies to it. The recipient is passed straight
+// to scheduleReminder, so no repository is needed.
+func customerBooking(start time.Time) *domain.Booking {
+	b := guestBooking(start)
+	customerID := uuid.New()
+	b.CustomerID = &customerID
+	b.GuestName, b.GuestPhone, b.GuestEmail = "", "", ""
+	b.AccessToken = nil
+	b.CustomerName = "Sari Melati"
+	b.CustomerPhone = "628111222333"
+	return b
+}
+
+// TestReminderSkippedForRepeatNoShow pins ruling R8: a customer with two
+// no-shows gets no new H-1 reminder, and any pending one for this booking is
+// withdrawn instead.
+func TestReminderSkippedForRepeatNoShow(t *testing.T) {
+	wa := &fakeNotifier{}
+	svc := newNotifyService(wa)
+	b := customerBooking(wibAt(11, 0).AddDate(0, 0, 1))
+	var counted uuid.UUID
+	svc.noShowCount = func(_ context.Context, id uuid.UUID) (int, error) {
+		counted = id
+		return 2, nil
+	}
+
+	svc.scheduleReminder(context.Background(), b, "Sari Melati", b.CustomerPhone)
+
+	if n := wa.count("booking_remind"); n != 0 {
+		t.Errorf("queued %d reminders for a repeat no-show, want 0", n)
+	}
+	if counted != *b.CustomerID {
+		t.Errorf("counted no-shows for %s, want the booking's customer %s", counted, *b.CustomerID)
+	}
+	if len(wa.cancels) != 1 || wa.cancels[0].BookingID != b.ID ||
+		len(wa.cancels[0].Keys) != 1 || wa.cancels[0].Keys[0] != remindKey(b.ID) {
+		t.Errorf("cancels = %v, want this booking's pending reminder withdrawn", wa.cancels)
+	}
+}
+
+// TestReminderOneNoShowStillScheduled draws the threshold boundary: one
+// no-show is not a pattern.
+func TestReminderOneNoShowStillScheduled(t *testing.T) {
+	wa := &fakeNotifier{}
+	svc := newNotifyService(wa)
+	b := customerBooking(wibAt(11, 0).AddDate(0, 0, 1))
+	svc.noShowCount = func(context.Context, uuid.UUID) (int, error) { return 1, nil }
+
+	svc.scheduleReminder(context.Background(), b, "Sari Melati", b.CustomerPhone)
+
+	if n := wa.count("booking_remind"); n != 1 {
+		t.Errorf("reminders queued = %d, want 1 for a single no-show (cancels=%v)", n, wa.cancels)
+	}
+}
+
+// TestReminderGuestIgnoresNoShowHistory keeps guests out of the gate: with no
+// account there is no customer to count, so the lookup must not even run.
+func TestReminderGuestIgnoresNoShowHistory(t *testing.T) {
+	wa := &fakeNotifier{}
+	svc := newNotifyService(wa)
+	checked := 0
+	svc.noShowCount = func(context.Context, uuid.UUID) (int, error) {
+		checked++
+		return 5, nil
+	}
+	b := guestBooking(wibAt(11, 0).AddDate(0, 0, 1))
+
+	svc.scheduleReminder(context.Background(), b, "Sari", b.GuestPhone)
+
+	if checked != 0 {
+		t.Errorf("counted no-shows %d times for a guest, want 0", checked)
+	}
+	if n := wa.count("booking_remind"); n != 1 {
+		t.Errorf("guest reminders queued = %d, want 1 (cancels=%v)", n, wa.cancels)
+	}
+}
+
+// TestReminderFailOpenOnNoShowCountError pins the fail-open rule: a database
+// blip must not silently drop a legitimate reminder, and it must be visible in
+// the logs.
+func TestReminderFailOpenOnNoShowCountError(t *testing.T) {
+	wa := &fakeNotifier{}
+	svc := newNotifyService(wa)
+	var logs bytes.Buffer
+	svc.log = slog.New(slog.NewTextHandler(&logs, nil))
+	svc.noShowCount = func(context.Context, uuid.UUID) (int, error) {
+		return 0, errors.New("connection reset")
+	}
+	b := customerBooking(wibAt(11, 0).AddDate(0, 0, 1))
+
+	svc.scheduleReminder(context.Background(), b, "Sari Melati", b.CustomerPhone)
+
+	if n := wa.count("booking_remind"); n != 1 {
+		t.Errorf("reminders queued = %d, want 1 when the no-show lookup fails", n)
+	}
+	out := logs.String()
+	if !strings.Contains(out, "level=WARN") || !strings.Contains(out, "no-show") {
+		t.Errorf("lookup failure was not logged at Warn: %q", out)
+	}
+	if strings.Contains(out, b.CustomerPhone) {
+		t.Errorf("log line leaked the customer phone: %q", out)
+	}
+}
+
+// TestNoShowStatusCancelsCustomerReminders covers the applyStatus no-show hook
+// (extracted as onNoShow so it is testable without a database): the second
+// no-show sweeps the customer's other pending reminders, the first does not.
+func TestNoShowStatusCancelsCustomerReminders(t *testing.T) {
+	wa := &fakeNotifier{}
+	svc := newNotifyService(wa)
+	b := customerBooking(wibAt(11, 0).AddDate(0, 0, 1))
+	svc.noShowCount = func(context.Context, uuid.UUID) (int, error) { return 2, nil }
+
+	svc.onNoShow(context.Background(), b, nil)
+
+	if len(wa.customerCancels) != 1 || wa.customerCancels[0] != *b.CustomerID {
+		t.Fatalf("customer cancels = %v, want one for %s", wa.customerCancels, *b.CustomerID)
+	}
+	if len(wa.cancels) != 1 || wa.cancels[0].BookingID != b.ID {
+		t.Errorf("cancels = %v, want this booking's reminder withdrawn too", wa.cancels)
+	}
+	if n := wa.count("staff_cancelled"); n != 1 {
+		t.Errorf("staff no-show ping = %d, want 1", n)
+	}
+
+	// Below the threshold nothing is swept, and a guest has no history.
+	first := &fakeNotifier{}
+	svcFirst := newNotifyService(first)
+	svcFirst.noShowCount = func(context.Context, uuid.UUID) (int, error) { return 1, nil }
+	svcFirst.onNoShow(context.Background(), b, nil)
+	if len(first.customerCancels) != 0 {
+		t.Errorf("customer cancels = %d on the first no-show, want 0", len(first.customerCancels))
+	}
+
+	guest := &fakeNotifier{}
+	svcGuest := newNotifyService(guest)
+	checked := 0
+	svcGuest.noShowCount = func(context.Context, uuid.UUID) (int, error) {
+		checked++
+		return 2, nil
+	}
+	svcGuest.onNoShow(context.Background(), guestBooking(wibAt(11, 0)), nil)
+	if checked != 0 || len(guest.customerCancels) != 0 {
+		t.Errorf("guest no-show counted=%d cancels=%d, want none", checked, len(guest.customerCancels))
+	}
+
+	// A lookup failure is logged and never blocks the status change.
+	failing := &fakeNotifier{}
+	svcFail := newNotifyService(failing)
+	svcFail.noShowCount = func(context.Context, uuid.UUID) (int, error) {
+		return 0, errors.New("boom")
+	}
+	svcFail.onNoShow(context.Background(), b, nil)
+	if len(failing.customerCancels) != 0 {
+		t.Errorf("customer cancels = %d after a lookup error, want 0", len(failing.customerCancels))
+	}
 }
 
 func TestReminderScheduledEveningBefore(t *testing.T) {

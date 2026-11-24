@@ -78,6 +78,10 @@ func (f *fakeWaStore) CancelPending(context.Context, uuid.UUID, ...string) (int6
 	return 0, nil
 }
 
+func (f *fakeWaStore) CancelRemindersForCustomer(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 type sendCall struct{ phone, text string }
 
 type fakeSender struct {

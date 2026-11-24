@@ -18,6 +18,7 @@ type Notifier interface {
 	Enqueue(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
 	UpsertScheduled(ctx context.Context, phone, templateKey string, payload map[string]any, bookingID *uuid.UUID, dedupeKey string, scheduledAt time.Time) (bool, error)
 	CancelPending(ctx context.Context, bookingID uuid.UUID, keys ...string) (int64, error)
+	CancelRemindersForCustomer(ctx context.Context, customerID uuid.UUID) (int64, error)
 }
 
 // BookingOptions carries the deployment switches for payment and messaging.
@@ -202,6 +203,33 @@ func (s *BookingService) notifyClaimRejected(ctx context.Context, b *domain.Book
 func remindKey(id uuid.UUID) string { return "remind:" + id.String() }
 func reviewKey(id uuid.UUID) string { return "review:" + id.String() }
 
+// repeatNoShowLimit is the number of missed visits at which automatic H-1
+// reminders stop (ruling R8).
+const repeatNoShowLimit = 2
+
+// excludedFromReminders reports whether the booking's customer has missed too
+// many visits for another automatic reminder (ruling R8). It is fail-open: a
+// missing seam or a lookup error means "not excluded", because a database blip
+// must not silently drop a legitimate reminder. Guests have no history and are
+// never gated. A gated booking also has any pending reminder withdrawn, so a
+// row queued before the threshold cannot fire.
+func (s *BookingService) excludedFromReminders(ctx context.Context, b *domain.Booking) bool {
+	if s.noShowCount == nil || b.CustomerID == nil {
+		return false
+	}
+	n, err := s.noShowCount(ctx, *b.CustomerID)
+	if err != nil {
+		s.log.Warn("wa no-show lookup failed, reminder kept", "booking", b.ID, "err", err)
+		return false
+	}
+	if n < repeatNoShowLimit {
+		return false
+	}
+	s.log.Warn("wa reminder suppressed for repeat no-show", "booking", b.ID, "customer", *b.CustomerID, "no_shows", n)
+	s.cancelReminder(ctx, b.ID)
+	return true
+}
+
 // scheduleReminder queues (or moves) the H-1 reminder for a booking, and drops
 // any pending one when there is no useful window left.
 func (s *BookingService) scheduleReminder(ctx context.Context, b *domain.Booking, name, phone string) {
@@ -216,6 +244,9 @@ func (s *BookingService) scheduleReminder(ctx context.Context, b *domain.Booking
 		return
 	}
 	if !cfg.CustomerEnabled {
+		return
+	}
+	if s.excludedFromReminders(ctx, b) {
 		return
 	}
 	at := s.remindAt(ctx, b)
@@ -241,6 +272,32 @@ func (s *BookingService) cancelReminder(ctx context.Context, id uuid.UUID) {
 	if _, err := s.opts.Wa.CancelPending(ctx, id, remindKey(id)); err != nil {
 		s.log.Warn("wa cancel reminder", "booking", id, "err", err)
 	}
+}
+
+// onNoShow runs the no-show side effects: this booking's reminder is withdrawn
+// and the staff group hears about it. When the transition brings a customer to
+// two or more no-shows, every other pending reminder of theirs is swept too
+// (rulings R8/R9), so a row queued before the threshold cannot fire. A lookup
+// failure is logged and changes nothing: the status change must not fail
+// because the history read did.
+func (s *BookingService) onNoShow(ctx context.Context, b *domain.Booking, actorID *uuid.UUID) {
+	s.cancelReminder(ctx, b.ID)
+	if b.CustomerID != nil && s.opts.Wa != nil && s.noShowCount != nil {
+		n, err := s.noShowCount(ctx, *b.CustomerID)
+		switch {
+		case err != nil:
+			s.log.Warn("wa no-show count failed, reminders kept", "booking", b.ID, "err", err)
+		case n >= repeatNoShowLimit:
+			cancelled, err := s.opts.Wa.CancelRemindersForCustomer(ctx, *b.CustomerID)
+			if err != nil {
+				s.log.Warn("wa cancel customer reminders", "customer", *b.CustomerID, "err", err)
+			} else {
+				s.log.Info("wa reminders stopped for repeat no-show",
+					"customer", *b.CustomerID, "no_shows", n, "cancelled", cancelled)
+			}
+		}
+	}
+	s.notifyGroupSlot(ctx, b, "no_show", actorLabel(actorID), time.Time{})
 }
 
 // cancelReview drops the post-visit review ask scheduled when a visit was
