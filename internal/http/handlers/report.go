@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"spa-booking/internal/domain"
@@ -27,13 +28,43 @@ var yearRe = regexp.MustCompile(`^\d{4}$`)
 
 var monRe = regexp.MustCompile(`^(0[1-9]|1[0-2])$`)
 
+var dateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// wib is the reporting clock. Asia/Jakarta has no DST, so the fixed-offset
+// fallback is exact even on a host without a tz database.
+func wib() *time.Location {
+	if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
+		return loc
+	}
+	return time.FixedZone("WIB", 7*3600)
+}
+
 // currentMonth returns the current YYYY-MM in Asia/Jakarta.
 func currentMonth() string {
-	loc, _ := time.LoadLocation("Asia/Jakarta")
-	if loc == nil {
-		loc = time.FixedZone("WIB", 7*3600)
+	return time.Now().In(wib()).Format("2006-01")
+}
+
+// currentDate returns the current YYYY-MM-DD in Asia/Jakarta.
+func currentDate() string {
+	return time.Now().In(wib()).Format("2006-01-02")
+}
+
+// normalizeReportDate keeps ?date= on a real WIB calendar day. Anything
+// malformed, non-canonical or in the future resolves to today in Asia/Jakarta:
+// the daily view is an operating picture, so a mistyped or bookmarked future
+// link lands on today rather than on an empty forecast panel. Past days stay
+// selectable (that is the point of the date picker).
+func normalizeReportDate(v string, now time.Time) string {
+	today := now.In(wib()).Format("2006-01-02")
+	v = strings.TrimSpace(v)
+	if !dateRe.MatchString(v) {
+		return today
 	}
-	return time.Now().In(loc).Format("2006-01")
+	d, err := time.ParseInLocation("2006-01-02", v, wib())
+	if err != nil || d.Format("2006-01-02") != v || v > today {
+		return today
+	}
+	return v
 }
 
 // reportParams parses ?year=YYYY&mon=MM (preferred), ?month=YYYY-MM
@@ -93,6 +124,8 @@ type reportsInput struct {
 	Refunds   []domain.ReportRefund
 	Tab       string
 	Page      int
+	Date      string              // daily tab's WIB day (YYYY-MM-DD)
+	Daily     domain.DailySummary // only fetched when Tab == "daily"
 	Years     []string
 	Locations []domain.Location
 	Query     url.Values
@@ -135,14 +168,14 @@ func reportsData(in reportsInput) pageData {
 	window := in.Lines[start:end]
 
 	// links rebuild /portal/reports addresses that keep the month (canonical
-	// ?month=), the tab and the location. Legacy ?year=&mon= pairs and an
-	// explicit ?page= are dropped so no link disagrees about the month, and
-	// page 1 keeps a clean address.
+	// ?month=), the tab and the location. Legacy ?year=&mon= pairs, the daily
+	// ?date= and an explicit ?page= are dropped so no link disagrees about the
+	// period, and page 1 keeps a clean address.
 	base := func() url.Values {
 		v := url.Values{}
 		for k, vals := range in.Query {
 			switch k {
-			case "page", "tab", "month", "year", "mon":
+			case "page", "tab", "month", "year", "mon", "date":
 				continue
 			}
 			if len(vals) == 1 && vals[0] == "" {
@@ -164,6 +197,25 @@ func reportsData(in reportsInput) pageData {
 		v.Set("tab", tab)
 		return pageURL("/portal/reports", v, 1)
 	}
+	now := time.Now()
+	date := normalizeReportDate(in.Date, now)
+	dayURL := func(d string) string {
+		v := base()
+		v.Set("tab", "daily")
+		v.Set("date", d)
+		return pageURL("/portal/reports", v, 1)
+	}
+	day, err := time.ParseInLocation("2006-01-02", date, wib())
+	if err != nil {
+		day = now.In(wib())
+	}
+	todayDate := now.In(wib()).Format("2006-01-02")
+	nextDay := day.AddDate(0, 0, 1)
+
+	// The daily summary's own Date is normalized too: a future ?date= must not
+	// leave the panel labelled with the day the operator typed.
+	daily := in.Daily
+	daily.Date = date
 
 	tabs := make([]reportTabLink, 0, len(reportTabs))
 	for _, tb := range reportTabs {
@@ -198,11 +250,26 @@ func reportsData(in reportsInput) pageData {
 		"Tabs":         tabs,
 		"Page":         page,
 		"TotalPages":   pages,
+		"Date":         date,
+		"DayMax":       todayDate,
+		"Daily":        daily,
 		"PrevURL":      "",
 		"NextURL":      "",
 		"PrevMonthURL": monthURL(prevMonth),
 		"NextMonthURL": monthURL(nextMonth),
 		"TodayURL":     monthURL(today),
+		"DayPrevURL":   dayURL(day.AddDate(0, 0, -1).Format("2006-01-02")),
+		"DayNextURL":   "",
+		"DayTodayURL":  "",
+	}
+	// The day picker's calendar caps at today; the next arrow only exists while
+	// there is a future WIB day still allowed (a refused future date would
+	// normalize straight back to today).
+	if nextDay.Format("2006-01-02") <= todayDate {
+		data["DayNextURL"] = dayURL(nextDay.Format("2006-01-02"))
+	}
+	if date != todayDate {
+		data["DayTodayURL"] = dayURL(todayDate)
 	}
 	if page > 1 {
 		data["PrevURL"] = tabURL(tab, page-1)
@@ -220,6 +287,19 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "failed to load report", http.StatusInternalServerError)
 		return
+	}
+	qs := r.URL.Query()
+	tab := normalizeReportTab(qs.Get("tab"))
+	// Only the daily tab pays for the daily read; the monthly figures above are
+	// the sticky strip every tab shows.
+	date := normalizeReportDate(qs.Get("date"), time.Now())
+	var daily domain.DailySummary
+	if tab == "daily" {
+		daily, err = s.reports.DailyReport(r.Context(), date, locID)
+		if err != nil {
+			http.Error(w, "failed to load report", http.StatusInternalServerError)
+			return
+		}
 	}
 	today := currentMonth()
 	// Year dropdown: distinct data years + current year, desc.
@@ -241,15 +321,16 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(years, func(i, j int) bool { return years[i] > years[j] })
 	locs, _ := s.catalog.ListLocations(r.Context(), true)
-	qs := r.URL.Query()
 	s.render(w, r, "portal_reports.html", reportsData(reportsInput{
 		Month:     month,
 		LocID:     locID,
 		Summary:   sum,
 		Lines:     lines,
 		Refunds:   refunds,
-		Tab:       normalizeReportTab(qs.Get("tab")),
+		Tab:       tab,
 		Page:      normalizePage(qs.Get("page")),
+		Date:      date,
+		Daily:     daily,
 		Years:     years,
 		Locations: locs,
 		Query:     qs,

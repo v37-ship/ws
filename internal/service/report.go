@@ -89,6 +89,24 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 	return sum, lines, refunds, nil
 }
 
+// DailyReport is the Daily tab's whole read: the WIB day's visit mix, the money
+// collected that day (by paid_at) and today's remaining confirmed rows. date is
+// expected already normalized by the handler (YYYY-MM-DD, not in the future);
+// the next-day/upcoming window still uses the real clock.
+func (s *ReportService) DailyReport(ctx context.Context, date string, locationID uuid.UUID) (domain.DailySummary, error) {
+	sum, err := s.reports.DailyCounts(ctx, date, locationID)
+	if err != nil {
+		return domain.DailySummary{}, err
+	}
+	if sum.CashIDR, sum.QRISIDR, err = s.reports.DailyPayments(ctx, date, locationID); err != nil {
+		return domain.DailySummary{}, err
+	}
+	if sum.Upcoming, err = s.reports.DailyUpcoming(ctx, date, time.Now(), locationID); err != nil {
+		return domain.DailySummary{}, err
+	}
+	return sum, nil
+}
+
 // attachStaffLines files each paid line under its staff row (lines arrive
 // paid-date ordered from the repo, so per-staff order is preserved).
 func attachStaffLines(rows []domain.StaffRow, lines []domain.ReportLine) {

@@ -228,7 +228,57 @@
     </section>
     {{else}}
     <section class="tab-panel active" data-tab-panel="daily">
-      <div class="panel"><p class="muted" style="margin:0;">{{t .Lang "r.tab.soon"}}</p></div>
+      <form class="panel no-print" method="get" action="/portal/reports" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+        <input type="hidden" name="tab" value="daily">
+        {{if ne .LocID "00000000-0000-0000-0000-000000000000"}}<input type="hidden" name="location_id" value="{{.LocID}}">{{end}}
+        <label>{{t .Lang "r.d.date"}}
+          <input type="date" name="date" value="{{.Date}}" max="{{.DayMax}}">
+        </label>
+        <button class="btn" type="submit">{{t .Lang "r.go"}}</button>
+        <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap;">
+          <a class="btn secondary on-light btn-sm" href="{{.DayPrevURL}}">{{t .Lang "r.d.prev"}}</a>
+          {{if .DayTodayURL}}<a class="btn secondary on-light btn-sm" href="{{.DayTodayURL}}">{{t .Lang "r.today"}}</a>{{end}}
+          {{if .DayNextURL}}<a class="btn secondary on-light btn-sm" href="{{.DayNextURL}}">{{t .Lang "r.d.next"}}</a>{{end}}
+        </div>
+      </form>
+
+      <div>
+        <h2 style="margin-bottom:0.2rem;">{{t .Lang "r.tab.daily"}} · {{.Date}}</h2>
+        <p class="muted" style="margin-top:0;">{{t .Lang "r.d.sub"}}</p>
+      </div>
+
+      <div class="report-strip">
+        <div class="panel stat-card" data-daily="completed"><div class="muted">{{t .Lang "r.d.done"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.Completed}}</div></div>
+        <div class="panel stat-card" data-daily="walkins"><div class="muted">{{t .Lang "r.d.walk"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.WalkIns}}</div></div>
+        <div class="panel stat-card" data-daily="noshow"><div class="muted">{{t .Lang "r.d.noshow"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.NoShows}}</div></div>
+        <div class="panel stat-card" data-daily="cancelled"><div class="muted">{{t .Lang "r.d.cancel"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.Cancelled}}</div></div>
+        <div class="panel stat-card" data-daily="collected">
+          <div class="muted">{{t .Lang "r.d.taken"}}</div>
+          <div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Daily.CashIDR}}</div>
+          <div class="muted"><small>{{t .Lang "r.d.cash"}} · {{formatIDR .Daily.QRISIDR}} QRIS</small></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>{{t .Lang "r.d.upcoming"}} ({{len .Daily.Upcoming}})</h2>
+        <div style="overflow-x:auto;" class="table-cards">
+          <table class="table">
+            <thead><tr><th>{{t .Lang "r.d.time"}}</th><th>{{t .Lang "r.th.svc"}}</th><th>{{t .Lang "r.th.staff"}}</th><th>{{t .Lang "r.th.cust"}}</th></tr></thead>
+            <tbody>
+            {{range .Daily.Upcoming}}
+              <tr>
+                <td><strong>{{formatTime .StartAt "15:04"}}</strong></td>
+                <td>{{if .ServiceName}}{{.ServiceName}}{{else}}-{{end}}</td>
+                <td>{{if .StaffName}}{{.StaffName}}{{else}}-{{end}}</td>
+                <td>{{if .CustomerName}}{{.CustomerName}}{{else}}{{t $.Lang "p.bk.guest"}}{{end}}</td>
+              </tr>
+            {{else}}
+              <tr><td colspan="4" class="muted">{{t .Lang "r.d.none"}}</td></tr>
+            {{end}}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
     {{end}}
     </div>

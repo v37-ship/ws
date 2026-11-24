@@ -23,6 +23,99 @@ func NewReportRepo(pool *pgxpool.Pool) *ReportRepo { return &ReportRepo{pool: po
 
 const jakartaMonth = `date_trunc('month', %s AT TIME ZONE 'Asia/Jakarta') = $1::date`
 
+// jakartaDay is the daily reporting bucket: a timestamptz becomes a WIB
+// calendar day, never a UTC one. The daily view counts visits and payments
+// through this same predicate, so a payment at 00:30 WIB on the 2nd (17:30 UTC
+// on the 1st) belongs to the 2nd.
+const jakartaDay = `date(%s AT TIME ZONE 'Asia/Jakarta') = $1::date`
+
+// DailyCounts returns one WIB day's visit mix. Walk-ins count bookings whose
+// source is 'walkin' whatever their status; completed/no-show/cancelled count
+// statuses. It carries no money: payments are bucketed by paid_at, which is a
+// different day than the visit date.
+func (r *ReportRepo) DailyCounts(ctx context.Context, date string, locationID uuid.UUID) (domain.DailySummary, error) {
+	q := fmt.Sprintf(`SELECT
+		count(*) FILTER (WHERE b.status = 'completed'),
+		count(*) FILTER (WHERE b.source = 'walkin'),
+		count(*) FILTER (WHERE b.status = 'no_show'),
+		count(*) FILTER (WHERE b.status = 'cancelled')
+		FROM bookings b
+		WHERE `+jakartaDay, "b.start_at")
+	args := []any{date}
+	if locationID != uuid.Nil {
+		q += " AND b.location_id = $2"
+		args = append(args, locationID)
+	}
+	sum := domain.DailySummary{Date: date}
+	if err := r.pool.QueryRow(ctx, q, args...).Scan(
+		&sum.Completed, &sum.WalkIns, &sum.NoShows, &sum.Cancelled,
+	); err != nil {
+		return domain.DailySummary{}, err
+	}
+	return sum, nil
+}
+
+// DailyPayments sums paid money collected on a WIB day, split cash / QRIS.
+// Anything that is not cash falls into the QRIS side, matching MonthlyReport's
+// method split. Paid_at is the bucket: a payment belongs to the day the money
+// arrived, not the day of the visit.
+func (r *ReportRepo) DailyPayments(ctx context.Context, date string, locationID uuid.UUID) (cash, qris int64, err error) {
+	q := fmt.Sprintf(`SELECT
+		COALESCE(SUM(p.amount_idr) FILTER (WHERE p.payment_method = 'cash'), 0),
+		COALESCE(SUM(p.amount_idr) FILTER (WHERE p.payment_method <> 'cash'), 0)
+		FROM payments p
+		JOIN bookings b ON b.id = p.booking_id
+		WHERE p.status = 'paid' AND p.paid_at IS NOT NULL AND `+jakartaDay, "p.paid_at")
+	args := []any{date}
+	if locationID != uuid.Nil {
+		q += " AND b.location_id = $2"
+		args = append(args, locationID)
+	}
+	err = r.pool.QueryRow(ctx, q, args...).Scan(&cash, &qris)
+	return cash, qris, err
+}
+
+// DailyUpcoming returns the WIB day's confirmed rows that start after `at`
+// (today's remaining visits), soonest first. `at` is a parameter rather than
+// now() so the read is testable at a fixed clock; the service passes time.Now.
+func (r *ReportRepo) DailyUpcoming(ctx context.Context, date string, at time.Time, locationID uuid.UUID) ([]domain.ReportLine, error) {
+	q := fmt.Sprintf(`SELECT b.id, b.start_at, b.customer_id,
+		COALESCE(NULLIF(b.guest_name,''), u.full_name,''),
+		b.service_id, COALESCE(sv.name,''),
+		b.staff_id, COALESCE(st.name,''),
+		b.status
+		FROM bookings b
+		LEFT JOIN users u ON u.id = b.customer_id
+		LEFT JOIN services sv ON sv.id = b.service_id
+		LEFT JOIN staff st ON st.id = b.staff_id
+		WHERE b.status = 'confirmed' AND b.start_at > $2 AND `+jakartaDay, "b.start_at")
+	args := []any{date, at}
+	if locationID != uuid.Nil {
+		q += " AND b.location_id = $3"
+		args = append(args, locationID)
+	}
+	q += " ORDER BY b.start_at ASC, b.id ASC LIMIT 50"
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.ReportLine
+	for rows.Next() {
+		var ln domain.ReportLine
+		if err := rows.Scan(
+			&ln.BookingID, &ln.StartAt, &ln.CustomerID, &ln.CustomerName,
+			&ln.ServiceID, &ln.ServiceName,
+			&ln.StaffID, &ln.StaffName,
+			&ln.Status,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, ln)
+	}
+	return out, rows.Err()
+}
+
 // MonthlyLines returns paid payments in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportLine, error) {
 	q := fmt.Sprintf(`SELECT p.id, p.booking_id, p.amount_idr, p.payment_method, p.payment_purpose, p.paid_at,

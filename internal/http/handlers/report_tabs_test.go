@@ -381,6 +381,8 @@ func reportsSweepData(tab string) pageData {
 		Refunds:   reportFixtureRefunds(),
 		Tab:       tab,
 		Page:      1,
+		Date:      dailyFixture().Date,
+		Daily:     dailyFixture(),
 		Years:     []string{"2026", "2025"},
 		Locations: []domain.Location{{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "Kayu Putih"}},
 		Query:     url.Values{"month": {"2026-09"}, "tab": {tab}},

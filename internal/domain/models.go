@@ -431,6 +431,21 @@ type ReportSummary struct {
 	StaffRows   []StaffRow  // sorted desc by net
 }
 
+// DailySummary is one WIB day's operating picture for the reports page's Daily
+// tab. Counts are by the day's visits (bookings whose start_at falls on the
+// day); money is cash-basis by paid_at on that same WIB day, so it never
+// follows the visit date. Upcoming is only today's remaining confirmed rows.
+type DailySummary struct {
+	Date      string // YYYY-MM-DD, Asia/Jakarta
+	Completed int
+	WalkIns   int
+	NoShows   int
+	Cancelled int
+	CashIDR   int64
+	QRISIDR   int64
+	Upcoming  []ReportLine // today's remaining confirmed rows, by start time
+}
+
 // NameTotal is a named amount row (service breakdowns).
 type NameTotal struct {
 	Name  string
