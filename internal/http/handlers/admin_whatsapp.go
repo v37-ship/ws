@@ -195,7 +195,9 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 	if s.waOutbox != nil {
 		next, _ = s.waOutbox.ListUpcoming(ctx, "booking_remind", 20)
 		if failedView {
-			recent, _ = s.waOutbox.ListFailed(ctx, 20)
+			// The failed view exists to reach past the recent window, so it
+			// reads deeper than the page's 20-row recent list.
+			recent, _ = s.waOutbox.ListFailed(ctx, 200)
 		} else {
 			recent, _ = s.waOutbox.ListRecent(ctx, 20)
 		}
@@ -215,6 +217,7 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 		"Next":         next,
 		"Recent":       waOutboxViews(recent, time.Now()),
 		"OutboxFailed": failedView,
+		"FailedTrunc":  failedView && failed > len(recent),
 		"QueuePending": pending,
 		"QueueFailed":  failed,
 		"QueueOK":      queueOK,

@@ -168,6 +168,7 @@
         ·
         {{if .OutboxFailed}}<a href="/admin/whatsapp">{{t .Lang "a.wa.all"}}</a>{{else}}<strong>{{t .Lang "a.wa.all"}}</strong>{{end}}
       </p>
+      {{if .FailedTrunc}}<p class="muted" style="margin:0;">{{t .Lang "a.wa.cap"}}</p>{{end}}
       {{if .Recent}}
       <table class="table">
         <thead><tr><th>{{t .Lang "a.wa.when"}}</th><th>{{t .Lang "a.wa.sched"}}</th><th>{{t .Lang "a.wa.to"}}</th><th>{{t .Lang "a.wa.tpl"}}</th><th>{{t .Lang "a.wa.state"}}</th><th>{{t .Lang "a.wa.act"}}</th></tr></thead>

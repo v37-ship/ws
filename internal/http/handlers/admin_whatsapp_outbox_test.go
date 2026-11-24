@@ -34,19 +34,29 @@ type waOutboxAdminFake struct {
 	retried  []uuid.UUID
 	retryAt  []time.Time
 	views    []string
+	limits   map[string]int
+}
+
+func (f *waOutboxAdminFake) noteLimit(view string, limit int) {
+	if f.limits == nil {
+		f.limits = map[string]int{}
+	}
+	f.limits[view] = limit
 }
 
 func (f *waOutboxAdminFake) ListUpcoming(context.Context, string, int) ([]repo.WaOutboxItem, error) {
 	return nil, nil
 }
 
-func (f *waOutboxAdminFake) ListRecent(context.Context, int) ([]repo.WaOutboxItem, error) {
+func (f *waOutboxAdminFake) ListRecent(_ context.Context, limit int) ([]repo.WaOutboxItem, error) {
 	f.views = append(f.views, "recent")
+	f.noteLimit("recent", limit)
 	return f.recent, nil
 }
 
-func (f *waOutboxAdminFake) ListFailed(context.Context, int) ([]repo.WaOutboxItem, error) {
+func (f *waOutboxAdminFake) ListFailed(_ context.Context, limit int) ([]repo.WaOutboxItem, error) {
 	f.views = append(f.views, "failed")
+	f.noteLimit("failed", limit)
 	return f.failed, nil
 }
 
@@ -301,14 +311,30 @@ func TestAdminWhatsAppOutboxView(t *testing.T) {
 	if len(fake.views) != 1 || fake.views[0] != "recent" {
 		t.Errorf("default view reads = %v, want [recent]", fake.views)
 	}
+	if fake.limits["recent"] != 20 {
+		t.Errorf("recent limit = %d, want 20", fake.limits["recent"])
+	}
 
 	fake = &waOutboxAdminFake{recent: []repo.WaOutboxItem{recentRow}, failed: []repo.WaOutboxItem{failedRow}}
 	rec := render(t, "&outbox=failed", fake)
 	if len(fake.views) != 1 || fake.views[0] != "failed" {
 		t.Errorf("failed view reads = %v, want [failed]", fake.views)
 	}
+	if fake.limits["recent"] != 0 || fake.limits["failed"] != 200 {
+		t.Errorf("limits = %v, want failed=200 (recent untouched)", fake.limits)
+	}
 	if !strings.Contains(rec.Body.String(), failedRow.ID.String()) {
 		t.Error("failed view must render the failed row")
+	}
+	if strings.Contains(rec.Body.String(), "Only the newest 200") {
+		t.Error("an untruncated failed view must not show the cap note")
+	}
+
+	// A backlog beyond the 200-row cap says so instead of looking complete.
+	fake = &waOutboxAdminFake{failed: []repo.WaOutboxItem{failedRow}, failedN: 250}
+	rec = render(t, "&outbox=failed", fake)
+	if !strings.Contains(rec.Body.String(), "Only the newest 200 failed messages are listed.") {
+		t.Error("a truncated failed view must show the cap note")
 	}
 
 	fake = &waOutboxAdminFake{queueErr: errors.New("db down")}

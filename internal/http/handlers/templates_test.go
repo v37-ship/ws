@@ -129,6 +129,7 @@ func TestTemplatesExecute(t *testing.T) {
 			data["QueueFailed"] = 1
 			data["QueueOK"] = true
 			data["OutboxFailed"] = false
+			data["FailedTrunc"] = true
 		case "admin_payroll.html":
 			for k, v := range payrollSweepData("id") {
 				data[k] = v
@@ -288,6 +289,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["QueueFailed"] = 1
 				data["QueueOK"] = true
 				data["OutboxFailed"] = false
+				data["FailedTrunc"] = true
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":
@@ -368,6 +370,14 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				}
 				if !contains(out, retry) {
 					t.Errorf("admin_whatsapp.html (%s): missing retry action %q", lang, retry)
+				}
+				// The deeper failed list states its 200-row cap in both languages.
+				capLine := "Only the newest 200 failed messages are listed."
+				if lang == "id" {
+					capLine = "Hanya 200 pesan gagal terbaru yang ditampilkan."
+				}
+				if !contains(out, capLine) {
+					t.Errorf("admin_whatsapp.html (%s): missing the failed-list cap note %q", lang, capLine)
 				}
 			}
 			if (name == "home.html" || name == "login.html") && contains(out, "theme-btn nav-toggle") {
@@ -857,6 +867,7 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["QueueFailed"] = 1
 				data["QueueOK"] = true
 				data["OutboxFailed"] = false
+				data["FailedTrunc"] = true
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":
