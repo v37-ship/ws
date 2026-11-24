@@ -232,6 +232,36 @@ func TestAdminPayrollPayAlreadyPaid(t *testing.T) {
 	}
 }
 
+// Only the period key means "already paid". A unique violation on any other
+// constraint (a future schema addition, or a mis-wired test double) is a real
+// fault: it must take the 500 path and be logged, never the friendly retry
+// prompt that would hide a double-write.
+func TestAdminPayrollPayOtherUniqueViolation(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+	store := &fakePayoutStore{createErr: &pgconn.PgError{
+		Code:           "23505",
+		ConstraintName: "some_other_unique_key",
+	}}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+	rec := payrollPayPost(t, h, payrollPayAdmin(), payrollPayForm(t), true)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 for a foreign unique violation", rec.Code)
+	}
+	if got := rec.Header().Get("HX-Reswap"); got != "none" {
+		t.Errorf("HX-Reswap = %q, want none", got)
+	}
+	if !strings.Contains(rec.Header().Get("HX-Trigger"), "toast") {
+		t.Errorf("HX-Trigger = %q, want a toast", rec.Header().Get("HX-Trigger"))
+	}
+	if strings.Contains(rec.Header().Get("HX-Trigger"), i18n.T("id", "pr.already")) {
+		t.Error("a foreign unique violation was reported as already paid")
+	}
+	if !strings.Contains(store.logs.String(), "admin payroll pay") {
+		t.Errorf("the write failure was not logged: %q", store.logs.String())
+	}
+}
+
 // R25: a payout for an unconfigured rate is meaningless, so the write is
 // refused inline before it reaches the repo.
 func TestAdminPayrollPayRefusesMissingRate(t *testing.T) {

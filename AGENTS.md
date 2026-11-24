@@ -12,18 +12,18 @@ Goose + Midtrans QRIS.
   A 1-minute ticker expires booking holds and deletes expired sessions.
 - `internal/config` (env defaults: `SESSION_TTL=168h`, `BOOKING_HOLD_TTL=15m`),
   `internal/auth` (bcrypt, CSRF token), `internal/db/migrations` (Goose
-  001–024, single source of truth), `internal/domain` (models + helpers
+  001–025, single source of truth), `internal/domain` (models + helpers
   `OwnedBy`/`TokenOK`/`IsGuest`/`Net`/`DisplayName`), `internal/repo` (raw
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
-  testimonial/food/hero/report), `internal/service` (Auth, Catalog,
-  Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo +
-  validation), `internal/i18n` (EN+ID maps, 1115 keys each), `internal/email`
-  (SMTP sender), `internal/payment` (Midtrans QRIS client),
+  testimonial/food/hero/report/payroll), `internal/service` (Auth, Catalog,
+  Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo,
+  Payroll + validation), `internal/i18n` (EN+ID maps, 1172 keys each),
+  `internal/email` (SMTP sender), `internal/payment` (Midtrans QRIS client),
   `internal/whatsapp` (Evolution client, phone normalization, message copy),
   `internal/integration` (build-tagged execution suite against a disposable
   Postgres; harness + first-wave groups, see Commands).
 - `internal/http/handlers` — `Routes()` + `render`/`renderPartial`/`renderAuto`
-  + `templates/` (73 files: layouts 3, pages 15, partials 20, admin 11,
+  + `templates/` (75 files: layouts 3, pages 15, partials 20, admin 13,
   portal 24) + `static/` (vendored `htmx.min.js`/`alpine.min.js`, `app.js`,
   `app.css`/`modern.css`, `svc-*.svg`).
 - `internal/http/htmx` (`IsRequest`, `Trigger`/`Toast`, `Redirect`, `Refresh`,
@@ -447,6 +447,36 @@ Goose + Midtrans QRIS.
   the baseline is the whole previous month), or the "first days of the month"
   line when that baseline is ≤0; the revenue tab also draws a dependency-free
   six-month net sparkline (inline SVG, integer coordinates).
+- Therapist payroll (`/admin/payroll`, admin-only, plus `/admin/payroll.csv`,
+  `/admin/payroll/rates` and `POST /admin/payroll/pay`): accrual over
+  **completed visits by WIB service date**, payment-blind — an unpaid completed
+  visit still earns, so this is deliberately not the cash-basis revenue tab
+  (which counts `paid_at`). Gross is the visit's frozen `price_idr` under base
+  `list`, or `price_idr - discount_idr` under base `net` (floored at 0 per
+  visit); the booking fee and transport fee never count. Refunds deduct on the
+  date recorded and only for bookings still `completed` (a cancelled visit's
+  refund is a logistics reversal), capped per booking per period at that
+  booking's base under the resolved rate — the recorded refund line stays as
+  written while the deduction stops at the cap, and the cap is not carried
+  between periods, so a later refund-only period can be negative (net,
+  commission and total are schema-signed). Rates live in the append-only
+  `staff_comp` timeline: a raise or base change is a new row with a later
+  `effective_from` (unique per `(staff_id, effective_from)`), resolved as the
+  newest row with `effective_from <= period start`, so a future row queues a
+  raise and rewrites no past period. Fixed pay follows its own cadence
+  (`weekly`/`monthly`): weekly repeats for each contained WIB week on the month
+  view and is paid once on the week view; monthly is paid once on the month
+  view and is omitted with a note on the week view. Commission is
+  `round(net × percent_bp / 10000)` to the nearest Rp 1,000, half away from
+  zero; money is integer IDR. A therapist with work and no rate row is listed
+  and flagged (zero commission, net-default base for the refund cap), never
+  dropped. Marking a period paid recomputes it server-side (posted amounts are
+  never trusted) and freezes an immutable `staff_payouts` snapshot; the unique
+  period key makes a second mark "already paid", never a 500. A mistaken mark
+  is corrected by an adjustment payout recorded for a later period with a note
+  — never by editing a snapshot or adding a second one for the same period.
+  Payroll is location-agnostic (a rate follows the person, not the branch) and
+  never appears on `/portal`. Key prefix: `pr.*`.
 - Testimonials are moderated: `pending`/`approved`/`hidden`, only approved
   renders (homepage Alpine filmstrip: drag-to-slide, dots, no arrows).
   Entries snapshot name/photo/message (account edits never rewrite reviews);
@@ -509,7 +539,8 @@ Goose + Midtrans QRIS.
   CSV. Admin (`/admin`) owns cross-cutting setup: locations, CS accounts
   (create, toggle-active revoking sessions, password reset), jobs +
   applications (+CV download), testimonials, customer password reset, own
-  password change. `/admin/services` → `/portal/services`,
+  password change, and therapist payroll (rates, CSV, mark-paid).
+  `/admin/services` → `/portal/services`,
   `/admin/staff` → `/portal/schedule` and `/admin/bookings` →
   `/portal/bookings` are redirects, not pages (the legacy admin bookings
   table was deleted; its route is a 303 under `RequireAdmin`).

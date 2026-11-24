@@ -150,6 +150,12 @@ func TestPayrollReportOverSQL(t *testing.T) {
 		`UPDATE bookings SET distance_km = 4.0, distance_fee_idr = 25_000 WHERE id = $1`, a2); err != nil {
 		t.Fatalf("seed homecare transport fee: %v", err)
 	}
+	// The booking fee is the app's own charge, never commission: seeding it on
+	// Ayu's first visit makes a gross that included it visibly overshoot.
+	if _, err := pool.Exec(ctx,
+		`UPDATE bookings SET booking_fee_idr = 15_000 WHERE id = $1`, a1); err != nil {
+		t.Fatalf("seed booking fee: %v", err)
+	}
 	book(ayu, wibAt(2026, time.November, 30, 23, 30), 300_000, 0) // last minute of November
 	book(ayu, wibAt(2026, time.December, 1, 0, 5), 400_000, 0)
 
@@ -452,4 +458,66 @@ func rowByName(rep service.PayrollReport, name string) (service.PayrollRow, bool
 		}
 	}
 	return service.PayrollRow{}, false
+}
+
+// Payroll follows the therapist, not the branch: one period's report spans
+// every location. A booking made at another branch still pays its own
+// therapist, and one therapist's visits at two branches are a single row — the
+// same location-agnostic rule the rate form's ListStaff states on the read side.
+func TestPayrollReportSpansLocations(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+	ctx := context.Background()
+
+	branchA := insertLocation(t, pool, "Payroll Branch A")
+	branchB := insertLocation(t, pool, "Payroll Branch B")
+	treatmentA := insertService(t, pool, branchA, "Treatment A", 100_000)
+	treatmentB := insertService(t, pool, branchB, "Treatment B", 200_000)
+
+	ayu := insertStaff(t, pool, branchA, "Ayu")
+	bima := insertStaff(t, pool, branchB, "Bima")
+	comps := repo.NewStaffCompRepo(pool)
+	for _, staffID := range []uuid.UUID{ayu, bima} {
+		if err := comps.Create(ctx, &domain.StaffComp{
+			StaffID:        staffID,
+			PercentBp:      1000,
+			Cadence:        domain.CompCadenceMonthly,
+			CommissionBase: domain.CompBaseNet,
+			EffectiveFrom:  payrollDate(2026, time.January, 1),
+		}); err != nil {
+			t.Fatalf("create rate for staff %v: %v", staffID, err)
+		}
+	}
+
+	at := func(day, hour int) time.Time {
+		return time.Date(2026, time.November, day, hour, 0, 0, 0, wib)
+	}
+	insertBooking(t, pool, bookingSeed{
+		LocationID: branchA, ServiceID: treatmentA, StaffID: ayu,
+		StartAt: at(10, 10), Status: string(domain.BookingCompleted), PriceIDR: 100_000,
+	})
+	insertBooking(t, pool, bookingSeed{
+		LocationID: branchB, ServiceID: treatmentB, StaffID: ayu,
+		StartAt: at(11, 10), Status: string(domain.BookingCompleted), PriceIDR: 200_000,
+	})
+	insertBooking(t, pool, bookingSeed{
+		LocationID: branchB, ServiceID: treatmentB, StaffID: bima,
+		StartAt: at(12, 10), Status: string(domain.BookingCompleted), PriceIDR: 300_000,
+	})
+
+	rep := payrollReport(t, service.NewPayrollService(repo.NewPayrollRepo(pool), comps),
+		service.PayrollKindMonth, at(15, 0))
+	if len(rep.Rows) != 2 {
+		t.Fatalf("rows = %d, want Ayu and Bima from both branches", len(rep.Rows))
+	}
+	ayuRow := payrollRowNamed(t, rep, "Ayu")
+	if ayuRow.Sessions != 2 || ayuRow.GrossIDR != 300_000 || ayuRow.CommissionIDR != 30_000 {
+		t.Errorf("Ayu = sessions %d gross %d commission %d, want 2/300000/30000 (both branches)",
+			ayuRow.Sessions, ayuRow.GrossIDR, ayuRow.CommissionIDR)
+	}
+	bimaRow := payrollRowNamed(t, rep, "Bima")
+	if bimaRow.Sessions != 1 || bimaRow.GrossIDR != 300_000 || bimaRow.CommissionIDR != 30_000 {
+		t.Errorf("Bima = sessions %d gross %d commission %d, want 1/300000/30000",
+			bimaRow.Sessions, bimaRow.GrossIDR, bimaRow.CommissionIDR)
+	}
 }

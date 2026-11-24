@@ -248,6 +248,7 @@ Tests live next to the code (`*_test.go`); template/i18n-focused ones: `TestTemp
 
 ### 3. Admin — `/admin`
 - Everything CS can do.
+- **Therapist payroll** (`/admin/payroll`, admin only): an accrual report of what each therapist earned on completed visits in a WIB week or month — payment-blind, so it is deliberately not the cash-basis revenue tab. Commission is a percentage of the frozen treatment price (list, or net of the booking's discount); refunds deduct in the period they were recorded, capped per booking and completed-only, and can make a refund-only period negative. The booking fee and transport fee never count. Rates live in an append-only history at `/admin/payroll/rates`, resolved by effective date; a therapist with no rate is flagged, never dropped. Week/month navigation with expandable visits/refunds, CSV export and print. Marking a period paid freezes an immutable snapshot (`POST /admin/payroll/pay`): a second mark is refused, and corrections are recorded as later-period adjustments. Payroll is location-agnostic and never appears on `/portal`.
 - **CS Staff Management** (`/admin/cs`): Create CS staff accounts, toggle active/deactivate (instantly revoking sessions), and reset CS passwords.
 - **Job Openings** (`/admin/jobs`): Post vacancies for the public Careers page, close/reopen them, review applications, and download CVs.
 - **Testimonials** (`/admin/testimonials`): Approve, hide, or delete customer reviews (only approved renders on the homepage).

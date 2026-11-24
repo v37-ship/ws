@@ -151,6 +151,15 @@ func ratesPost(t *testing.T, h http.Handler, u *domain.User, form url.Values, ht
 	return rec
 }
 
+// ratePostedDate is the effective date every form post sends: a clock-relative
+// day that cannot collide with any fixture row (today −1 year, −2 years,
+// +1 month), so the "valid" submission stays valid whatever today happens to
+// be. A fixed calendar date used to land on the +1-month raise on a handful of
+// days a year.
+func ratePostedDate() string {
+	return payrollToday().AddDate(0, 0, 10).Format(payrollDayLayout)
+}
+
 // rateValidForm is a complete submission: the staff id, a comma decimal, a
 // whole-rupiah fixed, and the two enums.
 func rateValidForm() url.Values {
@@ -160,7 +169,7 @@ func rateValidForm() url.Values {
 		"fixed":     {"150000"},
 		"cadence":   {domain.CompCadenceMonthly},
 		"base":      {domain.CompBaseNet},
-		"effective": {"2026-12-01"},
+		"effective": {ratePostedDate()},
 	}
 }
 
@@ -304,7 +313,7 @@ func TestBuildStaffRate(t *testing.T) {
 	a, _ := buildStaffRate(rateForm{StaffID: dot.Get("staff_id"), Percent: dot.Get("percent"),
 		Fixed: dot.Get("fixed"), Cadence: dot.Get("cadence"), Base: dot.Get("base"), Effective: dot.Get("effective")}, staff, existing)
 	b, _ := buildStaffRate(rateForm{StaffID: rateAyuID.String(), Percent: "12,5",
-		Fixed: "150000", Cadence: "monthly", Base: "net", Effective: "2026-12-01"}, staff, existing)
+		Fixed: "150000", Cadence: "monthly", Base: "net", Effective: ratePostedDate()}, staff, existing)
 	if a == nil || b == nil || a.PercentBp != 1250 || b.PercentBp != 1250 {
 		t.Fatalf("locale spellings diverged: %+v vs %+v", a, b)
 	}
@@ -406,8 +415,8 @@ func TestAdminPayrollRatesCreate(t *testing.T) {
 		got.Cadence != domain.CompCadenceMonthly || got.CommissionBase != domain.CompBaseNet {
 		t.Fatalf("created row drifted: %+v", got)
 	}
-	if payrollDateKey(got.EffectiveFrom) != "2026-12-01" {
-		t.Errorf("effective = %s, want 2026-12-01", payrollDateKey(got.EffectiveFrom))
+	if payrollDateKey(got.EffectiveFrom) != ratePostedDate() {
+		t.Errorf("effective = %s, want the posted %s", payrollDateKey(got.EffectiveFrom), ratePostedDate())
 	}
 	if got.CreatedBy == nil || *got.CreatedBy != rateAdmID {
 		t.Errorf("CreatedBy = %v, want %v", got.CreatedBy, rateAdmID)

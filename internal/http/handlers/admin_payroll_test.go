@@ -147,9 +147,16 @@ func payrollTestReport(kind string) (service.PayrollReport, []payrollRowView) {
 			FixedOnMonth: kind == service.PayrollKindWeek,
 		},
 	}
+	// The stored period vocabulary is weekly/monthly; the page's view kind is
+	// week/month. The fixture must speak the stored one, or it teaches the exact
+	// confusion the mark-paid mapping exists to prevent.
+	payoutKind := domain.PeriodWeekly
+	if period.Kind == service.PayrollKindMonth {
+		payoutKind = domain.PeriodMonthly
+	}
 	rows := []payrollRowView{
 		{PayrollRow: report.Rows[0], Paid: &domain.StaffPayout{
-			StaffID: ayu, PeriodKind: period.Kind, PeriodStart: period.Start,
+			StaffID: ayu, PeriodKind: payoutKind, PeriodStart: period.Start,
 			TotalIDR: 75_000, Note: "transfer BCA", PaidAt: paidAt,
 		}},
 		{PayrollRow: report.Rows[1]},
