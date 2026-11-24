@@ -17,7 +17,7 @@ Goose + Midtrans QRIS.
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report/payroll), `internal/service` (Auth, Catalog,
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo,
-  Payroll + validation), `internal/i18n` (EN+ID maps, 1172 keys each),
+  Payroll + validation), `internal/i18n` (EN+ID maps, 1215 keys each),
   `internal/email` (SMTP sender), `internal/payment` (Midtrans QRIS client),
   `internal/whatsapp` (Evolution client, phone normalization, message copy),
   `internal/integration` (build-tagged execution suite against a disposable
@@ -214,7 +214,25 @@ Goose + Midtrans QRIS.
   `SamplePayload`/`EditableTemplates` — customer templates only, a `{name}`
   placeholder allowlist, preview, reset-to-default. Copy is resolved at
   **delivery** time (`WaService.deliver`), so an edit also fixes already-queued
-  rows. Staff group pings keep their code copy.
+  rows. Staff group pings keep their code copy. Each card carries a **segment
+  counter** (`whatsapp.Segments`) over the stored body — the override when set,
+  else the built-in copy, never the sample-expanded preview: GSM-7 carries
+  160/153 septets while its extension characters (`^ { } \ [ ~ ] | €`) cost
+  two septets each, and any non-GSM rune (emoji included) switches the whole
+  body to UCS-2 at 70/67 UTF-16 units, so an emoji is two units of the 70.
+  Each card also
+  shows an **audit line** — "last edited by <name> · <WIB timestamp>", or
+  "built-in copy" when no row exists; a deleted editor account falls back to a
+  neutral "an admin" label rather than an empty name.
+- Outbox page (`/admin/whatsapp`): pending and failed counters across the whole
+  `wa_outbox`, and a manual **retry** for `failed` rows only — a `cancelled`
+  row is a deliberate withdrawal, and neither it nor a failed row whose booking
+  has since become `cancelled`/`expired`/`no_show` is resurrected (the repo
+  enforces both predicates inside the UPDATE). Retry flips the same row in
+  place (attempts and error cleared, scheduled now), keeping its dedupe key.
+  Delivery logs mask the phone to its last four characters
+  (`whatsapp.MaskTarget`, JID suffix kept), and mock mode logs the template key
+  instead of the rendered body.
 - Pairing: `ssh -L 8081:127.0.0.1:8081 vps`, then `POST
   /instance/create` (or `/instance/connect/wangga`), render the QR and scan it
   from the dedicated phone. The phone is a linked device: keep it online
@@ -358,7 +376,10 @@ Goose + Midtrans QRIS.
   CF-IP `forwardedHeaders` trust) → app (no published ports; loopback
   `127.0.0.1:8088` only for admin/debug). This machine is dev-only.
 - Ship: `./scripts/deploy-vps.sh` (git pull + `docker compose -f
-  docker-compose.vps.yml up -d --build app` + health wait). Prod runtime
+  docker-compose.vps.yml up -d --build app` + health wait). If the public SSH
+  gate refuses with "Not allowed at this time", deploy over the tailnet:
+  `APP_URL=vps-tailnet ./scripts/deploy-vps.sh` (the script's `APP_URL` selects
+  the SSH alias, not the site URL). Prod runtime
   file is `docker-compose.vps.yml` (no Mailpit/Caddy, no published
   Postgres/Umami ports; real `${SMTP_*}`, `ANALYTICS_URL=https://wangga.biz.id/_u`
   — Traefik `umami-apex` router maps `/_u/*` on the apex to Umami, so the
