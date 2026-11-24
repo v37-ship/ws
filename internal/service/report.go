@@ -89,6 +89,32 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 	return sum, lines, refunds, nil
 }
 
+// DemandReport reads the month's business-health block. GrossPaid is passed in
+// from the caller's MonthlyReport summary — the same cash-basis figure the
+// sticky strip shows — so the demand read never re-derives revenue and never
+// pays for a second payments query. The two ratios are computed here, from the
+// raw counts, because the repo's job is rows, not percentages.
+func (s *ReportService) DemandReport(ctx context.Context, month string, locationID uuid.UUID, grossPaidIDR int64) (domain.ReportDemand, error) {
+	d, err := s.reports.DemandCounts(ctx, month, locationID)
+	if err != nil {
+		return domain.ReportDemand{}, err
+	}
+	d.GrossPaid = grossPaidIDR
+	d.HomecareShareBp = demandRateBp(d.HomecareVisits, d.Visits)
+	d.NoShowRateBp = demandRateBp(d.NoShowVisits, d.TerminalVisits)
+	return d, nil
+}
+
+// demandRateBp expresses part/whole as basis points (1 bp = 0.01%), rounded
+// half up. A zero (or negative) denominator yields 0: "0 of 0" has no rate, and
+// the template renders "—" for it rather than a silent 0%.
+func demandRateBp(part, whole int) int {
+	if part <= 0 || whole <= 0 {
+		return 0
+	}
+	return (part*10000 + whole/2) / whole
+}
+
 // DailyReport is the Daily tab's whole read: the WIB day's visit mix, the money
 // collected that day (by paid_at) and today's remaining confirmed rows. date is
 // expected already normalized by the handler (YYYY-MM-DD, not in the future);

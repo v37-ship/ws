@@ -156,6 +156,51 @@ func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID 
 	return out, rows.Err()
 }
 
+// DemandCounts returns the month's business-health figures in one pass over
+// bookings (plus the booking's single payment row, joined one-to-one). Two date
+// bases, matching the page: the funnel counts created_at, the visit mix counts
+// start_at, and paid figures count paid_at — all compared as Asia/Jakarta
+// months. The WHERE clause keeps the scan to rows that belong to at least one of
+// those buckets. No money is summed except the discount and transport snapshots
+// the booking froze; gross paid comes from the month summary, never from here.
+func (r *ReportRepo) DemandCounts(ctx context.Context, month string, locationID uuid.UUID) (domain.ReportDemand, error) {
+	created := fmt.Sprintf(jakartaMonth, "b.created_at")
+	visit := fmt.Sprintf(jakartaMonth, "b.start_at")
+	paid := fmt.Sprintf(jakartaMonth, "p.paid_at")
+	q := `SELECT
+		count(*) FILTER (WHERE ` + created + `),
+		count(*) FILTER (WHERE p.status = 'paid' AND p.paid_at IS NOT NULL AND ` + paid + `),
+		count(*) FILTER (WHERE ` + created + ` AND b.status = 'cancelled'),
+		count(*) FILTER (WHERE ` + created + ` AND b.status = 'no_show'),
+		count(*) FILTER (WHERE ` + visit + `),
+		count(*) FILTER (WHERE ` + visit + ` AND b.source = 'web'),
+		count(*) FILTER (WHERE ` + visit + ` AND b.source = 'walkin'),
+		count(*) FILTER (WHERE ` + visit + ` AND b.source = 'whatsapp'),
+		count(*) FILTER (WHERE ` + visit + ` AND b.source = 'phone'),
+		count(*) FILTER (WHERE ` + visit + ` AND b.place = 'homecare'),
+		count(*) FILTER (WHERE ` + visit + ` AND b.status IN ('completed','cancelled','no_show')),
+		count(*) FILTER (WHERE ` + visit + ` AND b.status = 'no_show'),
+		COALESCE(SUM(b.discount_idr) FILTER (WHERE ` + visit + `), 0),
+		COALESCE(SUM(b.distance_fee_idr) FILTER (WHERE ` + visit + `), 0)
+		FROM bookings b
+		LEFT JOIN payments p ON p.booking_id = b.id
+		WHERE (` + created + ` OR ` + visit + `
+			OR (p.status = 'paid' AND p.paid_at IS NOT NULL AND ` + paid + `))`
+	args := []any{month + "-01"}
+	if locationID != uuid.Nil {
+		q += " AND b.location_id = $2"
+		args = append(args, locationID)
+	}
+	var d domain.ReportDemand
+	err := r.pool.QueryRow(ctx, q, args...).Scan(
+		&d.BookingsCreated, &d.BookingsPaid, &d.Cancelled, &d.NoShows,
+		&d.Visits, &d.SourceWeb, &d.SourceWalkin, &d.SourceWhatsapp, &d.SourcePhone,
+		&d.HomecareVisits, &d.TerminalVisits, &d.NoShowVisits,
+		&d.PromoDiscIDR, &d.TransportIDR,
+	)
+	return d, err
+}
+
 // MonthlyRefunds returns active (non-voided) refunds recorded in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportRefund, error) {
 	q := fmt.Sprintf(`SELECT r.id, r.booking_id, r.amount_idr, r.reason, r.created_by_id,

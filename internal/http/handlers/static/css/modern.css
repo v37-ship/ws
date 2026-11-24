@@ -613,6 +613,14 @@ html[data-theme="dark"] code { background: #3a2b41; }
 }
 .report-tab:hover, .report-tab.active { color: var(--accent-deep); border-color: var(--accent-deep); text-decoration: none; }
 .tab-shell { display: grid; gap: 1rem; }
+/* Demand block: two labelled card groups inside one tab panel. Not sticky —
+   the money strip above is the page's only pinned element. */
+.demand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+.demand-num { font-size: 1.4rem; font-weight: 800; }
 .report-pager {
   display: flex;
   justify-content: flex-end;

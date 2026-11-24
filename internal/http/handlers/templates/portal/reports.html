@@ -224,7 +224,67 @@
     </section>
     {{else if eq .Tab "ops"}}
     <section class="tab-panel active" data-tab-panel="ops">
-      <div class="panel"><p class="muted" style="margin:0;">{{t .Lang "r.tab.soon"}}</p></div>
+      <div>
+        <h2 style="margin-bottom:0.2rem;">{{t .Lang "r.dem.title"}} · {{.Month}}</h2>
+        <p class="muted" style="margin-top:0;">{{t .Lang "r.dem.sub"}}</p>
+      </div>
+
+      {{if and (eq .Demand.BookingsCreated 0) (eq .Demand.Visits 0)}}
+      <div class="panel"><p class="muted" style="margin:0;">{{t .Lang "r.dem.empty"}}</p></div>
+      {{end}}
+
+      {{/* Funnel group: every count here is bucketed by the date the booking
+           row was created (WIB), except paid, which follows paid_at like the
+           rest of the page's money. The basis line is not optional: the same
+           page also shows visit-dated figures below. */}}
+      <div class="panel" data-demand-group="funnel">
+        <h3 style="margin-bottom:0.1rem;">{{t .Lang "r.dem.funnel"}}</h3>
+        <p class="muted" style="margin-top:0;"><small>{{t .Lang "r.dem.fbasis"}}</small></p>
+        <div class="demand-grid">
+          <div class="panel stat-card" data-demand="made"><div class="muted">{{t .Lang "r.dem.made"}}</div><div class="demand-num">{{.Demand.BookingsCreated}}</div></div>
+          <div class="panel stat-card" data-demand="paid"><div class="muted">{{t .Lang "r.dem.paid"}}</div><div class="demand-num">{{.Demand.BookingsPaid}}</div></div>
+          <div class="panel stat-card" data-demand="canc"><div class="muted">{{t .Lang "r.dem.canc"}}</div><div class="demand-num">{{.Demand.Cancelled}}</div></div>
+          <div class="panel stat-card" data-demand="noshow"><div class="muted">{{t .Lang "r.dem.noshow"}}</div><div class="demand-num">{{.Demand.NoShows}}</div></div>
+          <div class="panel stat-card" data-demand="gross"><div class="muted">{{t .Lang "r.dem.gross"}}</div><div class="demand-num">{{formatIDR .Demand.GrossPaid}}</div></div>
+          <div class="panel stat-card" data-demand="norate">
+            <div class="muted">{{t .Lang "r.dem.norate"}}</div>
+            {{if .Demand.TerminalVisits}}
+            <div class="demand-num" style="color:var(--danger);">{{percentBp .Demand.NoShowRateBp}}</div>
+            <div class="muted"><small>{{.Demand.NoShowVisits}} {{t .Lang "r.dem.of"}} {{.Demand.TerminalVisits}} {{t .Lang "r.dem.term"}}</small></div>
+            {{else}}
+            <div class="demand-num">—</div>
+            <div class="muted"><small>{{t .Lang "r.dem.noterm"}}</small></div>
+            {{end}}
+          </div>
+        </div>
+      </div>
+
+      {{/* Visit-mix group: bucketed by start_at (WIB). Status is deliberately
+           ignored — a cancelled visit still says which channel produced the
+           demand; the no-show rate above is the only status-conditioned
+           figure and it labels its denominator. */}}
+      <div class="panel" data-demand-group="mix">
+        <h3 style="margin-bottom:0.1rem;">{{t .Lang "r.dem.mix"}}</h3>
+        <p class="muted" style="margin-top:0;"><small>{{t .Lang "r.dem.mbasis"}}</small></p>
+        <div class="demand-grid">
+          <div class="panel stat-card" data-demand="visits"><div class="muted">{{t .Lang "r.dem.visits"}}</div><div class="demand-num">{{.Demand.Visits}}</div></div>
+          <div class="panel stat-card" data-demand="web"><div class="muted">{{t .Lang "r.dem.web"}}</div><div class="demand-num">{{.Demand.SourceWeb}}</div></div>
+          <div class="panel stat-card" data-demand="walk"><div class="muted">{{t .Lang "r.dem.walk"}}</div><div class="demand-num">{{.Demand.SourceWalkin}}</div></div>
+          <div class="panel stat-card" data-demand="wa"><div class="muted">{{t .Lang "r.dem.wa"}}</div><div class="demand-num">{{.Demand.SourceWhatsapp}}</div></div>
+          <div class="panel stat-card" data-demand="phone"><div class="muted">{{t .Lang "r.dem.phone"}}</div><div class="demand-num">{{.Demand.SourcePhone}}</div></div>
+          <div class="panel stat-card" data-demand="share">
+            <div class="muted">{{t .Lang "r.dem.share"}}</div>
+            {{if .Demand.Visits}}
+            <div class="demand-num">{{percentBp .Demand.HomecareShareBp}}</div>
+            <div class="muted"><small>{{.Demand.HomecareVisits}} {{t .Lang "r.dem.of"}} {{.Demand.Visits}} {{t .Lang "r.dem.vnoun"}}</small></div>
+            {{else}}
+            <div class="demand-num">—</div>
+            {{end}}
+          </div>
+          <div class="panel stat-card" data-demand="promo"><div class="muted">{{t .Lang "r.dem.promo"}}</div><div class="demand-num" style="color:var(--danger);">−{{formatIDR .Demand.PromoDiscIDR}}</div></div>
+          <div class="panel stat-card" data-demand="trans"><div class="muted">{{t .Lang "r.dem.trans"}}</div><div class="demand-num">{{formatIDR .Demand.TransportIDR}}</div></div>
+        </div>
+      </div>
     </section>
     {{else}}
     <section class="tab-panel active" data-tab-panel="daily">

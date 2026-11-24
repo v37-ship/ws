@@ -107,6 +107,9 @@ func New(
 			}
 			return i18n.SlotLabel(fmt.Sprintf("%v", lang), t.In(time.FixedZone("WIB", 7*3600)))
 		},
+		// percentBp renders integer basis points as one decimal of a percent
+		// (3000 -> "30.0%"). Display only: every rate is computed in integers.
+		"percentBp": percentBp,
 		"dateLong": func(lang any, t time.Time) string {
 			if t.IsZero() {
 				return "-"

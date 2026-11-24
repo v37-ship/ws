@@ -446,6 +446,44 @@ type DailySummary struct {
 	Upcoming  []ReportLine // today's remaining confirmed rows, by start time
 }
 
+// ReportDemand is the monthly business-health block (the reports page's
+// Operations tab). Every field comes from columns a booking already snapshots
+// (created_at, start_at, source, place, discount_idr, distance_fee_idr) or from
+// its payment, so the block never needs a schema change.
+//
+// Two date bases, stated on the page:
+//   - Funnel: BookingsCreated, Cancelled, NoShows bucket by created_at (the
+//     date the booking was made), and BookingsPaid by paid_at.
+//   - Visit mix: Visits, the four source counts, HomecareVisits and the two
+//     money snapshots bucket by start_at (the visit date), whatever the status.
+//
+// Rates are integer basis points (1 bp = 0.01%). A zero denominator leaves the
+// rate 0 and the template shows "—" rather than a misleading 0%.
+type ReportDemand struct {
+	// GrossPaid is copied from the month's ReportSummary, never re-derived.
+	GrossPaid int64
+
+	BookingsCreated int // bookings created this month
+	BookingsPaid    int // bookings whose paid payment landed this month
+	Cancelled       int // created this month, cancelled
+	NoShows         int // created this month, no-show
+
+	// No-show rate: no-shows among visits that reached a terminal state.
+	NoShowVisits   int
+	TerminalVisits int // completed + cancelled + no_show visits in the month
+	NoShowRateBp   int
+
+	Visits          int // bookings whose visit date falls in the month
+	SourceWeb       int
+	SourceWalkin    int
+	SourceWhatsapp  int
+	SourcePhone     int
+	HomecareVisits  int
+	HomecareShareBp int
+	PromoDiscIDR    int64
+	TransportIDR    int64
+}
+
 // NameTotal is a named amount row (service breakdowns).
 type NameTotal struct {
 	Name  string

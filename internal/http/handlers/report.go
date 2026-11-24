@@ -49,6 +49,16 @@ func currentDate() string {
 	return time.Now().In(wib()).Format("2006-01-02")
 }
 
+// percentBp formats integer basis points as one decimal of a percent
+// (3000 -> "30.0%"), for the demand block's rates. Display only: every rate is
+// computed in integers, and the template shows "—" when the denominator is zero.
+func percentBp(bp int) string {
+	if bp < 0 {
+		bp = 0
+	}
+	return fmt.Sprintf("%d.%d%%", bp/100, (bp%100)/10)
+}
+
 // normalizeReportDate keeps ?date= on a real WIB calendar day. Anything
 // malformed, non-canonical or in the future resolves to today in Asia/Jakarta:
 // the daily view is an operating picture, so a mistyped or bookmarked future
@@ -126,6 +136,7 @@ type reportsInput struct {
 	Page      int
 	Date      string              // daily tab's WIB day (YYYY-MM-DD)
 	Daily     domain.DailySummary // only fetched when Tab == "daily"
+	Demand    domain.ReportDemand // only fetched when Tab == "ops"
 	Years     []string
 	Locations []domain.Location
 	Query     url.Values
@@ -253,6 +264,7 @@ func reportsData(in reportsInput) pageData {
 		"Date":         date,
 		"DayMax":       todayDate,
 		"Daily":        daily,
+		"Demand":       in.Demand,
 		"PrevURL":      "",
 		"NextURL":      "",
 		"PrevMonthURL": monthURL(prevMonth),
@@ -301,6 +313,17 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// The demand block is the ops tab's whole read. Its gross is the summary's
+	// own cash-basis gross (already loaded above), so revenue is never
+	// recomputed and no second payments query is spent on it.
+	var demand domain.ReportDemand
+	if tab == "ops" {
+		demand, err = s.reports.DemandReport(r.Context(), month, locID, sum.GrossIDR)
+		if err != nil {
+			http.Error(w, "failed to load report", http.StatusInternalServerError)
+			return
+		}
+	}
 	today := currentMonth()
 	// Year dropdown: distinct data years + current year, desc.
 	years := []string{today[:4]}
@@ -331,6 +354,7 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 		Page:      normalizePage(qs.Get("page")),
 		Date:      date,
 		Daily:     daily,
+		Demand:    demand,
 		Years:     years,
 		Locations: locs,
 		Query:     qs,
