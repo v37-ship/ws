@@ -334,13 +334,26 @@ func reportsData(in reportsInput) pageData {
 // PortalReports renders the monthly revenue report (all portal staff).
 func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 	month, locID := s.reportParams(r)
-	sum, lines, refunds, err := s.reports.MonthlyReport(r.Context(), month, locID)
+	qs := r.URL.Query()
+	tab := normalizeReportTab(qs.Get("tab"))
+	// The staff tab buys one extra read (schedule + time-off + completed
+	// visits) for its utilization columns. Every other tab, the sticky strip
+	// and the CSV keep the plain monthly aggregation.
+	var (
+		sum     domain.ReportSummary
+		lines   []domain.ReportLine
+		refunds []domain.ReportRefund
+		err     error
+	)
+	if tab == "staff" {
+		sum, lines, refunds, err = s.reports.MonthlyReportWithUtilization(r.Context(), month, locID)
+	} else {
+		sum, lines, refunds, err = s.reports.MonthlyReport(r.Context(), month, locID)
+	}
 	if err != nil {
 		http.Error(w, "failed to load report", http.StatusInternalServerError)
 		return
 	}
-	qs := r.URL.Query()
-	tab := normalizeReportTab(qs.Get("tab"))
 	// Only the daily tab pays for the daily read; the monthly figures above are
 	// the sticky strip every tab shows.
 	date := normalizeReportDate(qs.Get("date"), time.Now())

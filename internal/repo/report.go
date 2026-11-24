@@ -275,6 +275,143 @@ func (r *ReportRepo) monthlyRefunds(ctx context.Context, month string, locationI
 	return out, rows.Err()
 }
 
+// StaffUtilization returns the staff tab's raw utilization inputs for one WIB
+// month: each staff member's completed-visit booked minutes and service-price
+// gross, every weekly staff_hours window at the branch, and the time-off ranges
+// overlapping the month. The scheduled minutes and the two ratios are derived
+// in the service from these rows (pure integer math, unit-tested); this SQL only
+// answers "which rows belong to the month".
+//
+// Booked minutes come from bookings.end_at - start_at, not services.duration_min.
+// Bookings snapshot no duration, and the interval is the calendar that was
+// actually occupied; a normal booking's end is start + the service's advertised
+// duration, so the two agree unless the catalog was edited after the visit — in
+// which case the visit that happened is the honest answer. Service gross is
+// Σ bookings.price_idr over those completed visits (never the booking fee or the
+// transport fee), which is deliberately not the payment-based Gross column.
+func (r *ReportRepo) StaffUtilization(ctx context.Context, month string, locationID uuid.UUID) ([]domain.StaffUtilization, error) {
+	byStaff := map[uuid.UUID]*domain.StaffUtilization{}
+	get := func(id uuid.UUID, name string) *domain.StaffUtilization {
+		u := byStaff[id]
+		if u == nil {
+			u = &domain.StaffUtilization{StaffID: id}
+			byStaff[id] = u
+		}
+		if u.Name == "" {
+			u.Name = name
+		}
+		return u
+	}
+
+	// Completed visits: booked minutes and the service-price snapshot.
+	q := fmt.Sprintf(`SELECT b.staff_id, COALESCE(st.name,''),
+		COALESCE(SUM(EXTRACT(EPOCH FROM (b.end_at - b.start_at)) / 60)::bigint, 0),
+		COALESCE(SUM(b.price_idr), 0)
+		FROM bookings b
+		LEFT JOIN staff st ON st.id = b.staff_id
+		WHERE b.status = 'completed' AND `+jakartaMonth, "b.start_at")
+	args := []any{month + "-01"}
+	if locationID != uuid.Nil {
+		q += " AND b.location_id = $2"
+		args = append(args, locationID)
+	}
+	q += " GROUP BY b.staff_id, st.name"
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id uuid.UUID
+		var name string
+		var bookedMin int
+		var gross int64
+		if err := rows.Scan(&id, &name, &bookedMin, &gross); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		u := get(id, name)
+		u.BookedMin = bookedMin
+		u.ServiceGrossIDR = gross
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Weekly schedule windows. Staff hours are wall-clock (TIME) rows, so they
+	// carry no month: the service expands them over the month's real days.
+	hq := `SELECT sh.staff_id, COALESCE(s.name,''), sh.weekday,
+		to_char(sh.start_time,'HH24:MI'), to_char(sh.end_time,'HH24:MI')
+		FROM staff_hours sh
+		JOIN staff s ON s.id = sh.staff_id`
+	hargs := []any{}
+	if locationID != uuid.Nil {
+		hq += " WHERE s.location_id = $1"
+		hargs = append(hargs, locationID)
+	}
+	hq += " ORDER BY sh.staff_id, sh.weekday, sh.start_time"
+	hrows, err := r.pool.Query(ctx, hq, hargs...)
+	if err != nil {
+		return nil, err
+	}
+	for hrows.Next() {
+		var id uuid.UUID
+		var name string
+		var h domain.StaffHours
+		if err := hrows.Scan(&id, &name, &h.Weekday, &h.StartTime, &h.EndTime); err != nil {
+			hrows.Close()
+			return nil, err
+		}
+		u := get(id, name)
+		h.StaffID = id
+		u.Hours = append(u.Hours, h)
+	}
+	hrows.Close()
+	if err := hrows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Time-off ranges that overlap the month (clipped to WIB month bounds).
+	tq := `SELECT t.staff_id, t.start_at, t.end_at
+		FROM staff_time_off t
+		JOIN staff s ON s.id = t.staff_id
+		WHERE t.start_at < (($1::date + interval '1 month') AT TIME ZONE 'Asia/Jakarta')
+		  AND t.end_at > ($1::date AT TIME ZONE 'Asia/Jakarta')`
+	targs := []any{month + "-01"}
+	if locationID != uuid.Nil {
+		tq += " AND s.location_id = $2"
+		targs = append(targs, locationID)
+	}
+	tq += " ORDER BY t.staff_id, t.start_at"
+	trows, err := r.pool.Query(ctx, tq, targs...)
+	if err != nil {
+		return nil, err
+	}
+	for trows.Next() {
+		var id uuid.UUID
+		var off domain.TimeSpan
+		if err := trows.Scan(&id, &off.StartAt, &off.EndAt); err != nil {
+			trows.Close()
+			return nil, err
+		}
+		// A leave range alone is not a utilization row: only attach it to a
+		// staff member already present through hours or completed visits.
+		if u := byStaff[id]; u != nil {
+			u.TimeOff = append(u.TimeOff, off)
+		}
+	}
+	trows.Close()
+	if err := trows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.StaffUtilization, 0, len(byStaff))
+	for _, u := range byStaff {
+		out = append(out, *u)
+	}
+	return out, nil
+}
+
 // AvailableMonths returns YYYY-MM months (desc) that have paid payments or
 // recorded refunds, for the jump-to-month dropdown. Bounded by limit.
 func (r *ReportRepo) AvailableMonths(ctx context.Context, locationID uuid.UUID, limit int) ([]string, error) {

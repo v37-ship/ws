@@ -182,20 +182,23 @@
         <h2>{{t .Lang "r.bystaff"}}</h2>
         <div style="overflow-x:auto;" class="table-cards">
           <table class="table">
-            <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th><th></th></tr></thead>
+            <thead><tr><th>{{t .Lang "r.th.staff"}}</th><th style="text-align:center;">{{t .Lang "r.th.sessions"}}</th><th style="text-align:center;">{{t .Lang "r.th.uniq"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.ut.rph"}}<br><small class="muted" style="font-weight:400;">{{t .Lang "r.ut.rpb"}}</small></th><th style="text-align:center; white-space:nowrap;">{{t .Lang "r.ut.occ"}}<br><small class="muted" style="font-weight:400;">{{t .Lang "r.ut.occb"}}</small></th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.avg"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.gross"}}</th><th style="text-align:right; white-space:nowrap;">{{t .Lang "r.th.net"}}</th><th></th></tr></thead>
             <tbody>
             {{range .Summary.StaffRows}}
               <tr>
                 <td><strong>{{if .Name}}{{.Name}}{{else}}-{{end}}</strong>{{if .TopServices}}<br><small class="muted">{{range $i, $s := .TopServices}}{{if $i}} · {{end}}{{$s.Name}} {{$s.Count}}×{{end}}{{if .MoreCount}} · +{{.MoreCount}} {{t $.Lang "r.more"}}{{end}}</small>{{end}}</td>
                 <td style="text-align:center;">{{.Sessions}}</td>
                 <td style="text-align:center;">{{.UniqueCustomers}}</td>
+                {{/* Utilization: the numerator is service gross of completed visits (not the payment Gross column); a staff member with no schedule shows "—", never a divide-by-zero rate. */}}
+                <td style="text-align:right; white-space:nowrap;">{{if .ScheduledMin}}{{formatIDR .RpPerHour}}{{else}}<span class="muted" title="{{t $.Lang "r.ut.none"}}">—</span>{{end}}</td>
+                <td style="text-align:center; white-space:nowrap;" data-scheduled="{{.ScheduledMin}}">{{if .ScheduledMin}}{{percentBp .OccupancyBp}}<br><small class="muted">{{.BookedMin}}/{{.ScheduledMin}} min</small>{{else}}<span class="muted" title="{{t $.Lang "r.ut.none"}}">—</span>{{end}}</td>
                 <td style="text-align:right; white-space:nowrap;">{{formatIDR .AvgIDR}}</td>
                 <td style="text-align:right; white-space:nowrap;">{{formatIDR .GrossIDR}}</td>
                 <td style="text-align:right; white-space:nowrap; font-weight:700;">{{formatIDR .NetIDR}}{{if .RefundIDR}} <small class="muted">(−{{formatIDR .RefundIDR}})</small>{{end}}</td>
                 <td><button type="button" class="btn secondary on-light btn-sm" @click="openId='{{.StaffID}}'">{{t $.Lang "r.detail"}}</button></td>
               </tr>
             {{else}}
-              <tr><td colspan="7" class="muted">{{t $.Lang "r.empty"}}</td></tr>
+              <tr><td colspan="9" class="muted">{{t $.Lang "r.empty"}}</td></tr>
             {{end}}
             </tbody>
           </table>

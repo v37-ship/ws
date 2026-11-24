@@ -538,6 +538,38 @@ type StaffRow struct {
 	MoreCount       int               // len(Services) - len(TopServices)
 	Lines           []ReportLine      // paid transactions, sorted by paid date
 	Refunds         []ReportRefund    // refunds recorded in the month, by record date
+
+	// Utilization (the staff tab only; zero on every other read).
+	// ScheduledMin is the weekly staff_hours expanded over the month's WIB days,
+	// minus the time-off overlap with those windows. BookedMin is the completed
+	// visits' booked minutes (the booking's own start/end, not the catalog
+	// duration). RpPerHour divides the completed visits' service gross by
+	// ScheduledMin/60; OccupancyBp divides BookedMin by ScheduledMin in basis
+	// points. A zero schedule leaves both ratios 0 and the page renders "—".
+	ScheduledMin int
+	BookedMin    int
+	RpPerHour    int64
+	OccupancyBp  int
+}
+
+// TimeSpan is one [StartAt, EndAt) range. It carries staff_time_off rows and,
+// in the utilization math, the expanded schedule windows.
+type TimeSpan struct {
+	StartAt time.Time
+	EndAt   time.Time
+}
+
+// StaffUtilization is one staff member's raw utilization inputs for a month:
+// the completed visits' minutes and service gross, the weekly schedule, and the
+// time-off ranges overlapping the month. The ratios are derived by the service
+// (integer math, never SQL), so a zero schedule can never become NaN.
+type StaffUtilization struct {
+	StaffID         uuid.UUID
+	Name            string
+	BookedMin       int
+	ServiceGrossIDR int64
+	Hours           []StaffHours
+	TimeOff         []TimeSpan
 }
 
 type Slot struct {

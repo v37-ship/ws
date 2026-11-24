@@ -28,7 +28,16 @@ func NewReportService(reports *repo.ReportRepo, bookings *repo.BookingRepo, paym
 // MonthlyReport aggregates paid payments (by paid_at month) and refunds
 // (by recorded month). Net = Gross - Refunds (cash basis, Asia/Jakarta).
 func (s *ReportService) MonthlyReport(ctx context.Context, month string, locationID uuid.UUID) (domain.ReportSummary, []domain.ReportLine, []domain.ReportRefund, error) {
-	return s.monthlyReport(ctx, month, locationID, 0)
+	return s.monthlyReport(ctx, month, locationID, 0, false)
+}
+
+// MonthlyReportWithUtilization is MonthlyReport plus the staff tab's utilization
+// columns (scheduled/booked minutes and the two ratios). It is a separate read
+// on purpose: every other tab, the CSV and the sparkline pay exactly the queries
+// they paid before, and only the staff panel buys the schedule/time-off/visit
+// aggregation.
+func (s *ReportService) MonthlyReportWithUtilization(ctx context.Context, month string, locationID uuid.UUID) (domain.ReportSummary, []domain.ReportLine, []domain.ReportRefund, error) {
+	return s.monthlyReport(ctx, month, locationID, 0, true)
 }
 
 // MonthlyReportThrough is the month-to-date read the delta line compares: the
@@ -38,11 +47,11 @@ func (s *ReportService) MonthlyReport(ctx context.Context, month string, locatio
 // uncut MonthlyReport keeps calling the unfiltered queries, so the existing
 // page numbers never gain a predicate.
 func (s *ReportService) MonthlyReportThrough(ctx context.Context, month string, locationID uuid.UUID, throughDay int) (domain.ReportSummary, error) {
-	sum, _, _, err := s.monthlyReport(ctx, month, locationID, throughDay)
+	sum, _, _, err := s.monthlyReport(ctx, month, locationID, throughDay, false)
 	return sum, err
 }
 
-func (s *ReportService) monthlyReport(ctx context.Context, month string, locationID uuid.UUID, throughDay int) (domain.ReportSummary, []domain.ReportLine, []domain.ReportRefund, error) {
+func (s *ReportService) monthlyReport(ctx context.Context, month string, locationID uuid.UUID, throughDay int, withUtil bool) (domain.ReportSummary, []domain.ReportLine, []domain.ReportRefund, error) {
 	var (
 		lines   []domain.ReportLine
 		refunds []domain.ReportRefund
@@ -114,6 +123,18 @@ func (s *ReportService) monthlyReport(ctx context.Context, month string, locatio
 	sum.StaffRows = buildStaffRows(staffAgg, staffOrder)
 	attachStaffLines(sum.StaffRows, lines)
 	attachStaffRefunds(sum.StaffRows, refunds)
+	// The staff tab's utilization columns are an opt-in extra read. A staff
+	// member with only a schedule (no paid line) or only completed visits (no
+	// payment this month) is still a row here: the tab is a workload view, and
+	// dropping those rows would hide exactly the idle or unpaid work it exists
+	// to show.
+	if withUtil {
+		utils, err := s.reports.StaffUtilization(ctx, month, locationID)
+		if err != nil {
+			return domain.ReportSummary{}, nil, nil, err
+		}
+		sum.StaffRows = mergeStaffUtilization(month, sum.StaffRows, utils)
+	}
 	return sum, lines, refunds, nil
 }
 
@@ -235,6 +256,14 @@ func buildStaffRows(staffAgg map[uuid.UUID]*staffAccum, staffOrder map[uuid.UUID
 		}
 		rows = append(rows, row)
 	}
+	sortStaffRows(rows)
+	return rows
+}
+
+// sortStaffRows orders the staff table: net desc, gross desc, name asc. It is
+// shared by the revenue fold and the utilization merge, so attaching schedule
+// data can never silently reorder the table.
+func sortStaffRows(rows []domain.StaffRow) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].NetIDR == rows[j].NetIDR {
 			if rows[i].GrossIDR == rows[j].GrossIDR {
@@ -244,7 +273,152 @@ func buildStaffRows(staffAgg map[uuid.UUID]*staffAccum, staffOrder map[uuid.UUID
 		}
 		return rows[i].NetIDR > rows[j].NetIDR
 	})
+}
+
+// mergeStaffUtilization attaches the staff tab's utilization numbers to the
+// revenue rows. It never touches GrossIDR/NetIDR/Sessions: those stay the
+// payment-based figures the rest of the page uses. A staff member with only a
+// schedule or only completed visits is added with zero revenue so the workload
+// view is complete. The result keeps the table's net ordering.
+func mergeStaffUtilization(month string, rows []domain.StaffRow, utils []domain.StaffUtilization) []domain.StaffRow {
+	idx := make(map[uuid.UUID]int, len(rows))
+	for i := range rows {
+		idx[rows[i].StaffID] = i
+	}
+	for _, u := range utils {
+		scheduled := scheduledMinutesInMonth(month, u.Hours, u.TimeOff)
+		rpPerHour, occupancyBp := staffUtilNumbers(scheduled, u.BookedMin, u.ServiceGrossIDR)
+		i, ok := idx[u.StaffID]
+		if !ok {
+			i = len(rows)
+			idx[u.StaffID] = i
+			rows = append(rows, domain.StaffRow{StaffID: u.StaffID, Name: u.Name})
+		}
+		row := &rows[i]
+		if row.Name == "" {
+			row.Name = u.Name
+		}
+		row.ScheduledMin = scheduled
+		row.BookedMin = u.BookedMin
+		row.RpPerHour = rpPerHour
+		row.OccupancyBp = occupancyBp
+	}
+	sortStaffRows(rows)
 	return rows
+}
+
+// staffUtilNumbers derives the two ratios from raw minutes and the completed
+// visits' service gross. Everything is integer: a zero (or negative) schedule
+// returns zeros — the template renders "—", so there is no divide-by-zero and no
+// NaN/Inf path at all. RpPerHour is rounded to the rupiah half away from zero;
+// occupancy is basis points of a percent (1 bp = 0.01%).
+func staffUtilNumbers(scheduledMin, bookedMin int, serviceGrossIDR int64) (rpPerHour int64, occupancyBp int) {
+	if scheduledMin <= 0 {
+		return 0, 0
+	}
+	return divRound(serviceGrossIDR*60, int64(scheduledMin)),
+		int(divRound(int64(bookedMin)*10000, int64(scheduledMin)))
+}
+
+// scheduledMinutesInMonth expands the weekly staff_hours windows over the
+// month's real Asia/Jakarta days, then subtracts the time-off overlap with those
+// windows. Expanding by day (rather than multiplying a weekly total by a number
+// of weeks) is what clamps a partial week at either month edge: November 2026
+// ends on a Monday, so its fifth Monday counts, while the days of the last week
+// that fall in December do not.
+func scheduledMinutesInMonth(month string, hours []domain.StaffHours, timeOff []domain.TimeSpan) int {
+	first, err := time.ParseInLocation("2006-01", month, wib)
+	if err != nil {
+		return 0
+	}
+	last := first.AddDate(0, 1, 0)
+	var windows []domain.TimeSpan
+	for day := first; day.Before(last); day = day.AddDate(0, 0, 1) {
+		weekday := int(day.Weekday())
+		for _, h := range hours {
+			if h.Weekday != weekday {
+				continue
+			}
+			startMin, okStart := clockMinutes(h.StartTime)
+			endMin, okEnd := clockMinutes(h.EndTime)
+			if !okStart || !okEnd || endMin <= startMin {
+				continue
+			}
+			windows = append(windows, domain.TimeSpan{
+				StartAt: time.Date(day.Year(), day.Month(), day.Day(), startMin/60, startMin%60, 0, 0, wib),
+				EndAt:   time.Date(day.Year(), day.Month(), day.Day(), endMin/60, endMin%60, 0, 0, wib),
+			})
+		}
+	}
+	mergedOff := mergeSpans(timeOff)
+	total := 0
+	for _, w := range windows {
+		minutes := int(w.EndAt.Sub(w.StartAt) / time.Minute)
+		for _, off := range mergedOff {
+			minutes -= spanOverlap(w, off)
+		}
+		total += minutes
+	}
+	if total < 0 {
+		return 0
+	}
+	return total
+}
+
+// clockMinutes parses a DB TIME rendered as "HH:MM" (or "HH:MM:SS") into
+// minutes since midnight. A malformed value is skipped rather than silently
+// read as midnight.
+func clockMinutes(v string) (int, bool) {
+	v = strings.TrimSpace(v)
+	if v == "24:00" || v == "24:00:00" {
+		return 24 * 60, true
+	}
+	t, err := time.Parse("15:04", v)
+	if err != nil {
+		t, err = time.Parse("15:04:05", v)
+		if err != nil {
+			return 0, false
+		}
+	}
+	return t.Hour()*60 + t.Minute(), true
+}
+
+// mergeSpans sorts and coalesces overlapping [start,end) ranges, so the same
+// minute cannot be subtracted twice by two overlapping time-off rows.
+func mergeSpans(spans []domain.TimeSpan) []domain.TimeSpan {
+	valid := make([]domain.TimeSpan, 0, len(spans))
+	for _, s := range spans {
+		if s.EndAt.After(s.StartAt) {
+			valid = append(valid, s)
+		}
+	}
+	sort.Slice(valid, func(i, j int) bool { return valid[i].StartAt.Before(valid[j].StartAt) })
+	merged := valid[:0]
+	for _, s := range valid {
+		if n := len(merged); n > 0 && !s.StartAt.After(merged[n-1].EndAt) {
+			if s.EndAt.After(merged[n-1].EndAt) {
+				merged[n-1].EndAt = s.EndAt
+			}
+			continue
+		}
+		merged = append(merged, s)
+	}
+	return merged
+}
+
+// spanOverlap is the whole minutes two ranges share (0 when disjoint).
+func spanOverlap(a, b domain.TimeSpan) int {
+	start, end := a.StartAt, a.EndAt
+	if b.StartAt.After(start) {
+		start = b.StartAt
+	}
+	if b.EndAt.Before(end) {
+		end = b.EndAt
+	}
+	if !end.After(start) {
+		return 0
+	}
+	return int(end.Sub(start) / time.Minute)
 }
 
 // sortedTotals flattens a name->total map into desc-sorted rows.
@@ -293,7 +467,7 @@ func (s *ReportService) MonthlyNetSeries(ctx context.Context, endMonth string, l
 		if month == "" {
 			return nil, fmt.Errorf("invalid end month %q", endMonth)
 		}
-		sum, _, _, err := s.monthlyReport(ctx, month, locationID, 0)
+		sum, _, _, err := s.monthlyReport(ctx, month, locationID, 0, false)
 		if err != nil {
 			return nil, err
 		}
