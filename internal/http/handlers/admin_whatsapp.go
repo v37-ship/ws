@@ -207,10 +207,13 @@ func (s *Server) AdminTestWhatsApp(w http.ResponseWriter, r *http.Request) {
 	}
 	dedupe := fmt.Sprintf("test:%d", time.Now().UnixNano())
 	if _, err := s.wa.Enqueue(r.Context(), target, "test", map[string]any{"text": text}, nil, dedupe, time.Time{}); err != nil {
-		s.log.Error("wa test send", "err", err)
+		// Same masked target on both paths: the full number never reaches the
+		// logs (ruling R5), and the message body never does either.
+		s.log.Warn("wa test send failed", "admin", u.ID, "target", whatsapp.MaskTarget(target), "err", err)
 		s.renderAdminWhatsApp(w, r, "", "Could not queue the test message")
 		return
 	}
+	s.log.Info("wa test send queued", "admin", u.ID, "target", whatsapp.MaskTarget(target))
 	http.Redirect(w, r, "/admin/whatsapp?success="+url.QueryEscape("Test message queued — check the outbox below"), http.StatusSeeOther)
 }
 

@@ -121,7 +121,8 @@
 
     <div class="panel stack">
       <h2>{{t .Lang "a.wa.test"}}</h2>
-      <form method="post" action="/admin/whatsapp/test" class="stack">
+      <form method="post" action="/admin/whatsapp/test" class="stack"
+            onsubmit="return confirm('{{t .Lang "a.wa.sendto"}} ' + this.elements.target.value + '?')">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label>{{t .Lang "a.wa.tophone"}}
           <input type="text" name="target" placeholder="62812… atau 1234-567@g.us" required>

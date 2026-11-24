@@ -2,17 +2,24 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"spa-booking/internal/config"
 	"spa-booking/internal/domain"
+	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
 	"spa-booking/internal/whatsapp"
+
+	"github.com/google/uuid"
 )
 
 func TestParseWaSettingsFormTriState(t *testing.T) {
@@ -258,5 +265,164 @@ func TestAdminWhatsAppAuditLine(t *testing.T) {
 	mixed := waTestRender(t, s, "en", []waTemplateView{edited, builtin})
 	if !strings.Contains(mixed, "Last edited by Bu Sari") || !strings.Contains(mixed, "Built-in copy") {
 		t.Error("a mixed card set must render one line per branch")
+	}
+}
+
+// newWaTestServer builds a template-only server with the given logger, the
+// same skeleton the page tests use.
+func newWaTestServer(t *testing.T, logger *slog.Logger) *Server {
+	t.Helper()
+	s, err := New(config.Config{}, logger, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	return s
+}
+
+// TestAdminWhatsAppTestSendConfirm pins the browser confirmation (ruling R5)
+// and, more importantly, how it reads the field: `this.target` is the form's
+// target attribute, so the handler must go through this.elements.
+func TestAdminWhatsAppTestSendConfirm(t *testing.T) {
+	s := newWaTestServer(t, slog.Default())
+	out := waTestRender(t, s, "en", waTemplatesSweep())
+	if !strings.Contains(out, "this.elements.target.value") {
+		t.Error("test-send form must confirm with this.elements.target.value")
+	}
+	if strings.Contains(out, "this.target.value") {
+		t.Error("this.target is the form target attribute, not the input named target")
+	}
+	if !strings.Contains(out, "confirm(") {
+		t.Error("test-send form must carry an onsubmit confirm")
+	}
+	// The page's other confirms are localized, so this one is too.
+	if !strings.Contains(out, "Send to") {
+		t.Error("english confirm is missing its translated prefix")
+	}
+	if id := waTestRender(t, s, "id", waTemplatesSweep()); !strings.Contains(id, "Kirim ke") {
+		t.Error("indonesian confirm is missing its translated prefix")
+	}
+}
+
+// waLogCapture is a slog.Handler that keeps every record so a test can assert
+// on exactly what reached the logs.
+type waLogCapture struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *waLogCapture) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *waLogCapture) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+
+func (h *waLogCapture) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *waLogCapture) WithGroup(string) slog.Handler      { return h }
+
+func (h *waLogCapture) all() []slog.Record {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]slog.Record(nil), h.records...)
+}
+
+// waOutboxFake is the outbox seam behind the real WaService. Only Enqueue is
+// exercised by the test-send handler; the other methods keep the interface
+// satisfied without inventing behaviour no test asks for.
+type waOutboxFake struct {
+	err     error
+	enqueue []string
+}
+
+func (f *waOutboxFake) Enqueue(_ context.Context, phone, _ string, _ map[string]any, _ *uuid.UUID, _ string, _ time.Time) (bool, error) {
+	f.enqueue = append(f.enqueue, phone)
+	return f.err == nil, f.err
+}
+
+func (f *waOutboxFake) UpsertScheduled(context.Context, string, string, map[string]any, *uuid.UUID, string, time.Time) (bool, error) {
+	return false, nil
+}
+
+func (f *waOutboxFake) CancelPending(context.Context, uuid.UUID, ...string) (int64, error) {
+	return 0, nil
+}
+
+func (f *waOutboxFake) ClaimDue(context.Context, int) ([]repo.WaOutboxItem, error) {
+	return nil, nil
+}
+
+func (f *waOutboxFake) MarkSent(context.Context, uuid.UUID) error { return nil }
+
+func (f *waOutboxFake) RetryLater(context.Context, uuid.UUID, time.Time, string) error {
+	return nil
+}
+
+func (f *waOutboxFake) MarkFailed(context.Context, uuid.UUID, string) error { return nil }
+
+func (f *waOutboxFake) RequeueSending(context.Context) (int64, error) { return 0, nil }
+
+// TestAdminTestWhatsAppLogsMaskedTarget drives the real handler through the
+// real outbox service: one info line must carry the admin id and only the
+// masked target. The raw number (and the message body) must never be logged
+// (ruling R5).
+func TestAdminTestWhatsAppLogsMaskedTarget(t *testing.T) {
+	const raw = "6281234567890"
+	var logs waLogCapture
+	logger := slog.New(&logs)
+	s := newWaTestServer(t, logger)
+	store := &waOutboxFake{}
+	s.wa = service.NewWaService(store, nil, logger, false, 0, nil)
+
+	adminID := uuid.New()
+	form := url.Values{"csrf": {"token"}, "target": {raw}, "message": {"halo"}}
+	req := httptest.NewRequest(http.MethodPost, "/admin/whatsapp/test", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "csrf", Value: "token"})
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserKey,
+		&domain.User{ID: adminID, Role: domain.RoleAdmin}))
+
+	rec := httptest.NewRecorder()
+	s.AdminTestWhatsApp(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if len(store.enqueue) != 1 || store.enqueue[0] != raw {
+		t.Fatalf("enqueued = %v, want the free-form target once", store.enqueue)
+	}
+
+	records := logs.all()
+	if len(records) != 1 {
+		t.Fatalf("got %d log records, want exactly one: %v", len(records), records)
+	}
+	if records[0].Level != slog.LevelInfo || records[0].Message != "wa test send queued" {
+		t.Errorf("log = (%s, %q), want (INFO, wa test send queued)",
+			records[0].Level, records[0].Message)
+	}
+	attrs := map[string]string{}
+	records[0].Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.String()
+		return true
+	})
+	if attrs["admin"] != adminID.String() {
+		t.Errorf("admin attr = %q, want %s", attrs["admin"], adminID)
+	}
+	if attrs["target"] != "…7890" {
+		t.Errorf("target attr = %q, want the masked tail", attrs["target"])
+	}
+	for _, r := range records {
+		var values []string
+		r.Attrs(func(a slog.Attr) bool {
+			values = append(values, a.Value.String())
+			return true
+		})
+		if strings.Contains(r.Message, raw) || strings.Contains(strings.Join(values, " "), raw) {
+			t.Errorf("raw target leaked into the logs: %q %v", r.Message, values)
+		}
+		if strings.Contains(strings.Join(values, " "), "halo") {
+			t.Errorf("message body leaked into the logs: %v", values)
+		}
 	}
 }
