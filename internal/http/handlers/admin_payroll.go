@@ -35,12 +35,16 @@ type payrollReporter interface {
 	Report(ctx context.Context, kind string, start time.Time) (service.PayrollReport, error)
 }
 
-// payoutStore resolves the paid snapshot for one therapist's period and writes
-// the one that marks it paid (repo.StaffPayoutRepo). ForPeriod returns
-// (nil, nil) while the period is still unpaid.
+// payoutStore resolves the paid snapshots for one therapist's period, writes
+// the one that marks it paid, lists a period range for the month's week count,
+// and voids a mistaken mark (repo.StaffPayoutRepo). ForPeriod returns (nil, nil)
+// while the period is still unpaid.
 type payoutStore interface {
 	ForPeriod(ctx context.Context, staffID uuid.UUID, kind string, periodStart time.Time) (*domain.StaffPayout, error)
 	Create(ctx context.Context, p *domain.StaffPayout) error
+	ListFor(ctx context.Context, from, to time.Time) ([]domain.StaffPayout, error)
+	HistoryFor(ctx context.Context, staffID uuid.UUID, kind string, periodStart time.Time) ([]domain.StaffPayout, error)
+	Void(ctx context.Context, id uuid.UUID, by uuid.UUID, reason string) (bool, error)
 }
 
 const payrollDayLayout = "2006-01-02"
@@ -48,14 +52,24 @@ const payrollDayLayout = "2006-01-02"
 // payrollWIB is the reporting clock every period boundary is stated in.
 var payrollWIB = time.FixedZone("WIB", 7*3600)
 
-// payrollRowView is one computed row plus the paid snapshot the page badges.
+// payrollRowView is one computed row plus the paid snapshot the page badges and
+// the voided snapshots that remain in its history.
 type payrollRowView struct {
 	service.PayrollRow
 	Paid *domain.StaffPayout
+	// Voided is this row's period history that no longer counts as paid, newest
+	// first. It never makes the period paid; it is shown so a correction has an
+	// audit trail.
+	Voided []domain.StaffPayout
+	// PaidWeeks/TotalWeeks are the month view's contained-week count for a
+	// weekly-cadence row ("3/5 weeks paid"), so the settlement note explains how
+	// far the weekly settlement has got.
+	PaidWeeks  int
+	TotalWeeks int
 	// SnapshotDiff marks a closed period whose frozen total no longer matches
 	// the recomputed row (a late refund, or a rate row added afterwards). The
-	// page keeps showing the snapshot and says the difference is corrected in
-	// a later period; it never silently rewrites either figure.
+	// page keeps showing the snapshot and says the difference is corrected by
+	// voiding and re-marking; it never silently rewrites either figure.
 	SnapshotDiff bool
 }
 
@@ -66,6 +80,10 @@ type payrollPage struct {
 	Rows     []payrollRowView
 	Missing  []string
 	Sessions int
+	// UnpaidIDR is the sum of the rows this view can still pay and has not
+	// paid. It is deliberately not TotalIDR: paid rows stay in the grand total,
+	// and rows that settle on the other view are not outstanding here.
+	UnpaidIDR int64
 }
 
 // payrollToday is the current WIB calendar day at midnight.
@@ -145,7 +163,8 @@ func payrollPayoutKind(kind string) string {
 	return domain.PeriodMonthly
 }
 
-// loadPayroll reads the period report and each row's paid state. ForPeriod is
+// loadPayroll reads the period report, each row's paid state and voided history,
+// and the month's weekly settlements for the "n/m weeks paid" note. ForPeriod is
 // called per row (there is no bulk read that matches the page's period), and a
 // page-level read error is an outage, not an empty payroll.
 func (s *Server) loadPayroll(ctx context.Context, kind string, start time.Time) (payrollPage, error) {
@@ -161,18 +180,51 @@ func (s *Server) loadPayroll(ctx context.Context, kind string, start time.Time) 
 		Report: report,
 		Rows:   make([]payrollRowView, 0, len(report.Rows)),
 	}
+	storedKind := payrollPayoutKind(report.Period.Kind)
+
+	// A weekly cadence on the month view may already have some contained weeks
+	// paid; one range read answers the count for every row.
+	var monthPayouts []domain.StaffPayout
+	if s.payouts != nil && report.Period.Kind == service.PayrollKindMonth {
+		monthPayouts, err = s.payouts.ListFor(ctx, report.Period.Start, report.Period.End)
+		if err != nil {
+			return payrollPage{}, err
+		}
+	}
+
 	for _, row := range report.Rows {
 		view := payrollRowView{PayrollRow: row}
 		if s.payouts != nil {
-			paid, err := s.payouts.ForPeriod(ctx, row.StaffID, payrollPayoutKind(report.Period.Kind), report.Period.Start)
+			paid, err := s.payouts.ForPeriod(ctx, row.StaffID, storedKind, report.Period.Start)
 			if err != nil {
 				return payrollPage{}, err
 			}
 			view.Paid = paid
 			view.SnapshotDiff = paid != nil && paid.TotalIDR != row.TotalIDR
+
+			history, err := s.payouts.HistoryFor(ctx, row.StaffID, storedKind, report.Period.Start)
+			if err != nil {
+				return payrollPage{}, err
+			}
+			for _, p := range history {
+				if p.VoidedAt != nil {
+					view.Voided = append(view.Voided, p)
+				}
+			}
+		}
+		if report.Period.Kind == service.PayrollKindMonth && row.Cadence == domain.CompCadenceWeekly {
+			view.TotalWeeks = service.PayrollWeeksInMonth(report.Period.Start)
+			for _, p := range monthPayouts {
+				if p.StaffID == row.StaffID && p.PeriodKind == domain.PeriodWeekly && p.VoidedAt == nil {
+					view.PaidWeeks++
+				}
+			}
 		}
 		if row.RateMissing {
 			page.Missing = append(page.Missing, row.StaffName)
+		}
+		if view.Paid == nil && service.CadenceMatchesView(row.Cadence, report.Period.Kind) {
+			page.UnpaidIDR += row.TotalIDR
 		}
 		page.Sessions += row.Sessions
 		page.Rows = append(page.Rows, view)
@@ -199,6 +251,7 @@ func payrollPageData(lang string, page payrollPage) pageData {
 		"Rows":        page.Rows,
 		"Missing":     page.Missing,
 		"Sessions":    page.Sessions,
+		"UnpaidIDR":   page.UnpaidIDR,
 		"CSVURL":      "/admin/payroll.csv?kind=" + page.Period.Kind + "&start=" + start,
 	}
 }
@@ -308,7 +361,7 @@ func payrollRateCSV(lang string, row service.PayrollRow) string {
 	if row.Base != "" {
 		base = " (" + i18n.T(lang, "pr.base."+row.Base) + ")"
 	}
-	return percentBp(row.PercentBp) + base
+	return ratePercent(row.PercentBp) + base
 }
 
 // payrollPaidLabel is the paid cell's text; the note rides along in the export
@@ -364,8 +417,9 @@ func (s *Server) payrollPayFail(w http.ResponseWriter, r *http.Request, kind str
 // AdminPayrollPay marks one therapist's period paid. The period is recomputed
 // here and the row found by staff id — a posted amount is never trusted — and
 // the resulting numbers are frozen as an immutable snapshot. The database's
-// unique key owns "once": a second submit answers "already paid" inline, never
-// a 500. A rate-less row is refused because its payout would be meaningless.
+// partial unique index owns "once" for LIVE rows: a second submit answers
+// "already paid" inline, never a 500. A rate-less row is refused because its
+// payout would be meaningless.
 func (s *Server) AdminPayrollPay(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {
@@ -410,6 +464,13 @@ func (s *Server) AdminPayrollPay(w http.ResponseWriter, r *http.Request) {
 		s.staffFail(w, r, http.StatusInternalServerError, failPayPay)
 		return
 	}
+	// A period that has not started cannot be settled: future accrual would be
+	// a guess, and the page would keep recomputing it.
+	if current, err := service.PayrollPeriodFor(report.Period.Kind, payrollToday()); err == nil &&
+		report.Period.Start.After(current.Start) {
+		refuse("pr.future")
+		return
+	}
 	var row *service.PayrollRow
 	for i := range report.Rows {
 		if report.Rows[i].StaffID == staffID {
@@ -425,6 +486,20 @@ func (s *Server) AdminPayrollPay(w http.ResponseWriter, r *http.Request) {
 		// R25: no rate means no commission, so a snapshot would record a
 		// number nobody agreed to. The rate page is the fix.
 		refuse("pr.payrate")
+		return
+	}
+	// R27: cadence is the settlement granularity. A weekly therapist is paid on
+	// week views and a monthly one on month views; paying the other kind would
+	// write a snapshot the matching view never sees, so the same visits could be
+	// paid twice.
+	if !service.CadenceMatchesView(row.Cadence, report.Period.Kind) {
+		refuse("pr.paysettle")
+		return
+	}
+	// An empty row has nothing to freeze. A refund-only row is deliberate: its
+	// negative total is exactly what must be recorded.
+	if row.Sessions == 0 && row.TotalIDR == 0 {
+		refuse("pr.nothing")
 		return
 	}
 
@@ -458,9 +533,60 @@ func (s *Server) AdminPayrollPay(w http.ResponseWriter, r *http.Request) {
 
 const failPayPay = "Could not mark the period paid. Try again."
 
-// isDuplicatePayout reports whether err is the unique period key losing a race
-// (a double click or two tabs). Only that constraint is "already paid"; an FK
-// or another table's unique key is a real fault.
+// AdminPayrollPayoutVoid voids a mistaken mark with a required reason. The
+// snapshot row stays as history; the period becomes unpaid and can be marked
+// again as a NEW snapshot (the partial unique key only guards live rows).
+func (s *Server) AdminPayrollPayoutVoid(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if !s.requireCSRF(r) {
+		s.staffFail(w, r, http.StatusBadRequest, failSession)
+		return
+	}
+	u := middleware.UserFrom(r.Context())
+	if u == nil || u.Role != domain.RoleAdmin {
+		s.staffFail(w, r, http.StatusForbidden, failAdmin)
+		return
+	}
+	if s.payouts == nil {
+		s.log.Error("admin payroll void: payouts not configured")
+		s.staffFail(w, r, http.StatusInternalServerError, failPayPay)
+		return
+	}
+
+	kind, start, ok := payrollFormPeriod(r.FormValue("kind"), r.FormValue("start"))
+	if !ok {
+		fbKind, fbStart := payrollParams(r)
+		s.payrollPayFail(w, r, fbKind, fbStart, "pr.per.bad")
+		return
+	}
+	refuse := func(key string) { s.payrollPayFail(w, r, kind, start, key) }
+
+	id, err := uuid.Parse(strings.TrimSpace(r.FormValue("id")))
+	if err != nil {
+		refuse("pr.voidbad")
+		return
+	}
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	if reason == "" || utf8.RuneCountInString(reason) > payrollNoteMaxRunes {
+		refuse("pr.voidbad")
+		return
+	}
+	voided, err := s.payouts.Void(r.Context(), id, u.ID, reason)
+	if err != nil {
+		s.log.Error("admin payroll void", "err", err)
+		s.staffFail(w, r, http.StatusInternalServerError, failPayPay)
+		return
+	}
+	if !voided {
+		refuse("pr.voidgone")
+		return
+	}
+	s.renderPayroll(w, r, kind, start, "", "pr.voidok")
+}
+
+// isDuplicatePayout reports whether err is the partial unique period index
+// losing a race (a double click or two tabs). Only that index is "already paid"
+// for a live row; an FK or another table's unique key is a real fault.
 func isDuplicatePayout(err error) bool {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {

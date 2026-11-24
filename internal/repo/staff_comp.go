@@ -132,30 +132,33 @@ func (r *StaffCompRepo) ListAll(ctx context.Context) ([]domain.StaffComp, error)
 	return out, nil
 }
 
-// StaffPayoutRepo reads and writes the immutable per-period paid snapshots. The
-// database's unique (staff_id, period_kind, period_start) is what makes "mark
-// paid" happen exactly once.
+// StaffPayoutRepo reads and writes the per-period paid snapshots. The database's
+// partial unique (staff_id, period_kind, period_start) WHERE voided_at IS NULL
+// is what makes "mark paid" happen exactly once per live period while a voided
+// snapshot stays in history for the audit trail.
 type StaffPayoutRepo struct{ pool *pgxpool.Pool }
 
 func NewStaffPayoutRepo(pool *pgxpool.Pool) *StaffPayoutRepo { return &StaffPayoutRepo{pool: pool} }
 
 const staffPayoutCols = `id, staff_id, period_kind, period_start, period_end,
-	gross_idr, refund_idr, net_idr, percent_bp, fixed_idr, commission_idr, total_idr, note, paid_by, paid_at`
+	gross_idr, refund_idr, net_idr, percent_bp, fixed_idr, commission_idr, total_idr, note, paid_by, paid_at,
+	voided_at, voided_by, void_reason`
 
 func scanStaffPayout(row pgx.Row) (*domain.StaffPayout, error) {
 	var p domain.StaffPayout
 	if err := row.Scan(&p.ID, &p.StaffID, &p.PeriodKind, &p.PeriodStart,
 		&p.PeriodEnd, &p.GrossIDR, &p.RefundIDR, &p.NetIDR, &p.PercentBp, &p.FixedIDR,
-		&p.CommissionIDR, &p.TotalIDR, &p.Note, &p.PaidBy, &p.PaidAt); err != nil {
+		&p.CommissionIDR, &p.TotalIDR, &p.Note, &p.PaidBy, &p.PaidAt,
+		&p.VoidedAt, &p.VoidedBy, &p.VoidReason); err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-// Create writes one paid snapshot. A duplicate staff/kind/period is a real
-// error (the unique key refuses the second write), not a silent overwrite, so
-// the caller can tell the second tab it was already marked paid. A zero PaidAt
-// falls back to the database clock.
+// Create writes one paid snapshot. A duplicate live staff/kind/period is a real
+// error (the partial unique index refuses the second live write), not a silent
+// overwrite, so the caller can tell the second tab it was already marked paid.
+// A zero PaidAt falls back to the database clock.
 func (r *StaffPayoutRepo) Create(ctx context.Context, p *domain.StaffPayout) error {
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
@@ -179,13 +182,15 @@ func (r *StaffPayoutRepo) Create(ctx context.Context, p *domain.StaffPayout) err
 	return nil
 }
 
-// ForPeriod returns the snapshot that marked one staff member's period paid, or
-// (nil, nil) while the period is still unpaid — the portal's badge reads that
-// absence as "not paid yet", so it is not an error.
+// ForPeriod returns the LIVE snapshot that marked one staff member's period
+// paid, or (nil, nil) while the period is still unpaid — the portal's badge
+// reads that absence as "not paid yet", so it is not an error. Voided rows are
+// history: they never make a period paid again.
 func (r *StaffPayoutRepo) ForPeriod(ctx context.Context, staffID uuid.UUID, kind string, periodStart time.Time) (*domain.StaffPayout, error) {
 	const q = `SELECT ` + staffPayoutCols + `
 		FROM staff_payouts
-		WHERE staff_id = $1 AND period_kind = $2 AND period_start = $3`
+		WHERE staff_id = $1 AND period_kind = $2 AND period_start = $3
+		  AND voided_at IS NULL`
 	p, err := scanStaffPayout(r.pool.QueryRow(ctx, q, staffID, kind, dateOnly(periodStart)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -196,9 +201,54 @@ func (r *StaffPayoutRepo) ForPeriod(ctx context.Context, staffID uuid.UUID, kind
 	return p, nil
 }
 
+// HistoryFor returns every snapshot for one staff member's period, voided rows
+// included, newest first. It is the audit read behind the page's voided list;
+// ForPeriod is the live badge.
+func (r *StaffPayoutRepo) HistoryFor(ctx context.Context, staffID uuid.UUID, kind string, periodStart time.Time) ([]domain.StaffPayout, error) {
+	const q = `SELECT ` + staffPayoutCols + `
+		FROM staff_payouts
+		WHERE staff_id = $1 AND period_kind = $2 AND period_start = $3
+		ORDER BY paid_at DESC, id DESC`
+	rows, err := r.pool.Query(ctx, q, staffID, kind, dateOnly(periodStart))
+	if err != nil {
+		return nil, fmt.Errorf("staff payout history: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]domain.StaffPayout, 0, 2)
+	for rows.Next() {
+		p, err := scanStaffPayout(rows)
+		if err != nil {
+			return nil, fmt.Errorf("staff payout history: %w", err)
+		}
+		out = append(out, *p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("staff payout history: %w", err)
+	}
+	return out, nil
+}
+
+// Void marks one snapshot voided with a required reason, atomically and only
+// while it is still live. The row is never deleted or edited: it stays in
+// history, stops counting as paid, and the partial unique index then lets the
+// period be marked again. The bool reports whether this call actually voided
+// it (false = already voided or absent), so a double submit is an inline
+// message, not a second write.
+func (r *StaffPayoutRepo) Void(ctx context.Context, id uuid.UUID, by uuid.UUID, reason string) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `UPDATE staff_payouts
+		SET voided_at = now(), voided_by = $2, void_reason = $3
+		WHERE id = $1 AND voided_at IS NULL`, id, by, reason)
+	if err != nil {
+		return false, fmt.Errorf("void staff payout: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // ListFor returns the snapshots whose period starts inside [from, to],
-// inclusive, newest period first. It is the payout-history read, so it never
-// filters by staff: the caller groups by StaffID.
+// inclusive, newest period first. It is the payout-history read, so it includes
+// voided rows and never filters by staff: the caller groups by StaffID and
+// filters the live ones where the badge or a week count needs it.
 func (r *StaffPayoutRepo) ListFor(ctx context.Context, from, to time.Time) ([]domain.StaffPayout, error) {
 	const q = `SELECT ` + staffPayoutCols + `
 		FROM staff_payouts

@@ -64,6 +64,147 @@ func payrollPayPost(t *testing.T, h http.Handler, u *domain.User, form url.Value
 	return rec
 }
 
+// payrollVoidPost drives the void form the way the browser does, with the same
+// CSRF and identity plumbing as the pay form.
+func payrollVoidPost(t *testing.T, h http.Handler, u *domain.User, form url.Values, htmx bool) *httptest.ResponseRecorder {
+	t.Helper()
+	form.Set("csrf", "tok")
+	req := httptest.NewRequest(http.MethodPost, "/admin/payroll/payout/void", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if htmx {
+		req.Header.Set("HX-Request", "true")
+	}
+	req.AddCookie(&http.Cookie{Name: "csrf", Value: "tok"})
+	if u != nil {
+		req = req.WithContext(context.WithValue(req.Context(), middleware.UserKey, u))
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func payrollVoidForm(t *testing.T) url.Values {
+	t.Helper()
+	return url.Values{
+		"id":     {uuid.New().String()},
+		"kind":   {service.PayrollKindWeek},
+		"start":  {"2026-11-25"},
+		"reason": {"wrong amount"},
+	}
+}
+
+// Void is admin-only like the rest of payroll, and a stale CSRF token keeps the
+// house dead-button contract.
+func TestAdminPayrollVoidRequiresAdminAndCSRF(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+	store := &fakePayoutStore{voidOK: true}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+	if rec := payrollVoidPost(t, h, &domain.User{Role: domain.RoleCS}, payrollVoidForm(t), false); rec.Code != http.StatusForbidden {
+		t.Errorf("cs POST status = %d, want 403", rec.Code)
+	}
+	rec := payrollVoidPost(t, h, nil, payrollVoidForm(t), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Errorf("anonymous POST status = %d, want 303", rec.Code)
+	}
+
+	form := payrollVoidForm(t)
+	req := httptest.NewRequest(http.MethodPost, "/admin/payroll/payout/void", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserKey, payrollPayAdmin()))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "portal-error") {
+		t.Errorf("plain CSRF failure = %d, want the portal error page at 200", rec.Code)
+	}
+	if len(store.voidCalls) != 0 {
+		t.Errorf("a refused void reached the repo %d times", len(store.voidCalls))
+	}
+}
+
+// A void needs a real reason: empty, over-long, and a malformed id all answer
+// the same inline message and never reach the repo.
+func TestAdminPayrollVoidRequiresReason(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+	for _, tc := range []struct{ name, id, reason string }{
+		{"empty reason", uuid.New().String(), "   "},
+		{"501-rune reason", uuid.New().String(), strings.Repeat("a", 501)},
+		{"malformed id", "not-a-uuid", "wrong amount"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakePayoutStore{voidOK: true}
+			h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+			form := payrollVoidForm(t)
+			form.Set("id", tc.id)
+			form.Set("reason", tc.reason)
+			rec := payrollVoidPost(t, h, payrollPayAdmin(), form, false)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 inline", rec.Code)
+			}
+			if !strings.Contains(rec.Body.String(), i18n.T("id", "pr.voidbad")) {
+				t.Error("the void-reason refusal copy is missing")
+			}
+			if len(store.voidCalls) != 0 {
+				t.Errorf("an invalid void reached the repo %d times", len(store.voidCalls))
+			}
+		})
+	}
+}
+
+// A successful void re-renders the period with the success copy; an already
+// voided row answers the already-voided message.
+func TestAdminPayrollVoidSuccessAndAlreadyVoided(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+
+	t.Run("success", func(t *testing.T) {
+		store := &fakePayoutStore{voidOK: true}
+		h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+		form := payrollVoidForm(t)
+		id := uuid.MustParse(form.Get("id"))
+		rec := payrollVoidPost(t, h, payrollPayAdmin(), form, false)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), i18n.T("id", "pr.voidok")) {
+			t.Error("the void success copy is missing")
+		}
+		if len(store.voidCalls) != 1 || store.voidCalls[0] != id {
+			t.Errorf("void calls = %v, want [%v]", store.voidCalls, id)
+		}
+	})
+
+	t.Run("already voided", func(t *testing.T) {
+		store := &fakePayoutStore{voidOK: false}
+		h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+		rec := payrollVoidPost(t, h, payrollPayAdmin(), payrollVoidForm(t), false)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200 inline", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), i18n.T("id", "pr.voidgone")) {
+			t.Error("the already-voided copy is missing")
+		}
+	})
+}
+
+// A void write failure is a real fault: the staffFail contract keeps the button
+// honest and logs the cause.
+func TestAdminPayrollVoidWriteFailure(t *testing.T) {
+	report, _ := payrollTestReport(service.PayrollKindWeek)
+	store := &fakePayoutStore{voidErr: testError("void failed")}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+	rec := payrollVoidPost(t, h, payrollPayAdmin(), payrollVoidForm(t), true)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if got := rec.Header().Get("HX-Reswap"); got != "none" {
+		t.Errorf("HX-Reswap = %q, want none", got)
+	}
+	if !strings.Contains(store.logs.String(), "admin payroll void") {
+		t.Errorf("the void failure was not logged: %q", store.logs.String())
+	}
+}
+
 // Salaries stay admin-only on the write too: CS is refused by the route group
 // and an anonymous post is sent to login before the handler runs.
 func TestAdminPayrollPayRequiresAdmin(t *testing.T) {
@@ -437,3 +578,122 @@ func TestAdminPayrollPaidBadgeShowsSnapshot(t *testing.T) {
 }
 
 var errTestPayCreate = testError("payout create failed")
+
+// R27: cadence is the settlement granularity. A weekly therapist cannot be paid
+// from the month view and a monthly one cannot be paid from the week view; the
+// write is refused inline before any insert, in both directions.
+func TestAdminPayrollPayRefusesCadenceMismatch(t *testing.T) {
+	cases := []struct {
+		kind, start string
+	}{
+		{service.PayrollKindWeek, "2026-11-25"},
+		{service.PayrollKindMonth, "2026-11-15"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.kind, func(t *testing.T) {
+			report, rows := payrollTestReport(tc.kind)
+			mismatch := rows[3] // Dewi: the other cadence by construction
+			store := &fakePayoutStore{}
+			h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+			form := payrollPayForm(t)
+			form.Set("staff", mismatch.StaffID.String())
+			form.Set("kind", tc.kind)
+			form.Set("start", tc.start)
+			rec := payrollPayPost(t, h, payrollPayAdmin(), form, false)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 inline", rec.Code)
+			}
+			if !strings.Contains(rec.Body.String(), i18n.T("id", "pr.paysettle")) {
+				t.Error("the cadence-mismatch refusal copy is missing")
+			}
+			if len(store.created) != 0 {
+				t.Errorf("a mismatched cadence wrote %d rows", len(store.created))
+			}
+		})
+	}
+}
+
+// R26: a fixed-only retainer has a real total and is pay-capable even with zero
+// sessions.
+func TestAdminPayrollPayFixedOnly(t *testing.T) {
+	report, rows := payrollTestReport(service.PayrollKindMonth)
+	eka := rows[4]
+	store := &fakePayoutStore{}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+	form := payrollPayForm(t)
+	form.Set("staff", eka.StaffID.String())
+	form.Set("kind", service.PayrollKindMonth)
+	form.Set("start", "2026-11-15")
+	rec := payrollPayPost(t, h, payrollPayAdmin(), form, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303; body: %s", rec.Code, rec.Body.String())
+	}
+	if len(store.created) != 1 {
+		t.Fatalf("created %d rows, want 1", len(store.created))
+	}
+	if got := store.created[0]; got.TotalIDR != 500_000 || got.FixedIDR != 500_000 || got.GrossIDR != 0 {
+		t.Errorf("fixed-only snapshot = %+v, want total/fixed 500000 and gross 0", got)
+	}
+}
+
+// A future period is refused before any insert (nothing to freeze yet).
+func TestAdminPayrollPayRefusesFuturePeriod(t *testing.T) {
+	report, rows := payrollTestReport(service.PayrollKindMonth)
+	report.Period = service.PayrollPeriod{
+		Kind:  service.PayrollKindMonth,
+		Start: time.Date(2099, 1, 1, 0, 0, 0, 0, payrollTestWIB()),
+		End:   time.Date(2099, 1, 31, 0, 0, 0, 0, payrollTestWIB()),
+	}
+	store := &fakePayoutStore{}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+	form := payrollPayForm(t)
+	form.Set("staff", rows[2].StaffID.String())
+	form.Set("kind", service.PayrollKindMonth)
+	form.Set("start", "2099-01-15")
+	rec := payrollPayPost(t, h, payrollPayAdmin(), form, false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 inline", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), i18n.T("id", "pr.future")) {
+		t.Error("the future-period refusal copy is missing")
+	}
+	if len(store.created) != 0 {
+		t.Errorf("a future period wrote %d rows", len(store.created))
+	}
+}
+
+// An empty row (no sessions, zero total) has nothing to freeze; a refund-only
+// negative row is not empty and stays payable (covered by the integration
+// negative-net test).
+func TestAdminPayrollPayRefusesEmptyRow(t *testing.T) {
+	period := payrollTestPeriod(service.PayrollKindMonth)
+	staff := uuid.New()
+	report := service.PayrollReport{
+		Period: period,
+		Rows: []service.PayrollRow{{
+			StaffID: staff, StaffName: "Zero Row", Sessions: 0,
+			PercentBp: 2000, Base: domain.CompBaseNet,
+			Cadence: domain.CompCadenceMonthly, TotalIDR: 0,
+		}},
+	}
+	store := &fakePayoutStore{}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, store)
+
+	form := payrollPayForm(t)
+	form.Set("staff", staff.String())
+	form.Set("kind", service.PayrollKindMonth)
+	form.Set("start", "2026-11-15")
+	rec := payrollPayPost(t, h, payrollPayAdmin(), form, false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 inline", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), i18n.T("id", "pr.nothing")) {
+		t.Error("the nothing-to-pay refusal copy is missing")
+	}
+	if len(store.created) != 0 {
+		t.Errorf("an empty row wrote %d rows", len(store.created))
+	}
+}

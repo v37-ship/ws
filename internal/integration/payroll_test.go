@@ -255,6 +255,9 @@ func TestPayrollReportOverSQL(t *testing.T) {
 			t.Errorf("Ayu refund line = %d, want the recorded 400000 (deduction is capped separately)",
 				ayuRow.RefundLines[0].AmountIDR)
 		}
+		if ayuRow.RefundLines[0].AppliedIDR != 150_000 {
+			t.Errorf("Ayu refund applied = %d, want the capped 150000", ayuRow.RefundLines[0].AppliedIDR)
+		}
 
 		bimaRow := payrollRowNamed(t, rep, "Bima")
 		// b1 plus the Monday 00:05 visit; the October and confirmed rows are out.
@@ -429,13 +432,19 @@ func TestPayrollReportOverSQL(t *testing.T) {
 
 	t.Run("October stays separate", func(t *testing.T) {
 		rep := payrollReport(t, svc, service.PayrollKindMonth, wibAt(2026, time.October, 15, 0, 0))
-		if len(rep.Rows) != 1 {
-			t.Fatalf("October rows = %d, want only Bima", len(rep.Rows))
+		if len(rep.Rows) != 2 {
+			t.Fatalf("October rows = %d, want Bima's visit and Ayu's fixed-only retainer", len(rep.Rows))
 		}
 		row := payrollRowNamed(t, rep, "Bima")
 		if row.Sessions != 1 || row.GrossIDR != 200_000 || row.RefundIDR != 0 {
 			t.Errorf("Bima October = sessions %d gross %d refund %d, want 1/200000/0",
 				row.Sessions, row.GrossIDR, row.RefundIDR)
+		}
+		// Ayu is active with a monthly fixed and no October visit: R26 lists the
+		// retainer rather than silently dropping it.
+		ayu := payrollRowNamed(t, rep, "Ayu")
+		if !ayu.FixedOnly || ayu.Sessions != 0 || ayu.TotalIDR != 500_000 {
+			t.Errorf("Ayu October retainer = %+v, want FixedOnly total 500000", ayu)
 		}
 	})
 

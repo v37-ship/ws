@@ -10,11 +10,12 @@
 --   staff_payouts — the immutable "this period is paid" snapshot. The numbers
 --                   are copied in at mark-paid time and never edited, so a
 --                   closed period cannot be rewritten by a later rate change or
---                   a late refund. A mistaken mark-paid is corrected by an
---                   ADJUSTMENT payout recorded for a later period, with a note
---                   saying what it fixes — the unique key means one staff
---                   member's period can never hold a second snapshot, so a
---                   double click cannot write two.
+--                   a late refund. A mistaken mark is VOIDED with a required
+--                   reason (voided_at/voided_by/void_reason) and the period can
+--                   then be marked again as a new row; the voided row stays in
+--                   history. The partial unique index refuses only a second
+--                   LIVE snapshot for the same staff member, kind and period,
+--                   so a double click still cannot write two.
 --
 -- Money is BIGINT IDR; percent_bp is basis points of a percent (2500 =
 -- 25.00%), so commission math never needs a float. A payout's commission and
@@ -65,14 +66,25 @@ CREATE TABLE IF NOT EXISTS staff_payouts (
     note TEXT NOT NULL DEFAULT '',
     paid_by UUID REFERENCES users(id) ON DELETE SET NULL,
     paid_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- RESTRICT above plus this key: a paid period survives, and one staff
-    -- member cannot be marked paid twice for the same period.
-    CONSTRAINT staff_payouts_period_key UNIQUE (staff_id, period_kind, period_start)
+    -- A void is the correction path: the row stays (audit trail) but stops
+    -- counting as paid, so the period can be marked again as a new snapshot.
+    voided_at TIMESTAMPTZ,
+    voided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    void_reason TEXT NOT NULL DEFAULT ''
 );
 
--- The paid badge (per staff) rides the unique key's index; the payout history
+-- R28: the paid-once guarantee applies to LIVE rows only. A voided snapshot
+-- stays in history, so the partial index still refuses a second live mark but
+-- lets the period be re-marked after a void. The index keeps the former
+-- constraint's name, which is what the handler's duplicate detection reads.
+CREATE UNIQUE INDEX IF NOT EXISTS staff_payouts_period_key
+    ON staff_payouts (staff_id, period_kind, period_start)
+    WHERE voided_at IS NULL;
+
+-- The paid badge (per staff) rides the partial unique index; the payout history
 -- filters a period_start range with this one. Its paid_at/staff_id tie-breaks
--- are a sort of the filtered rows, which stay few (one per staff per period).
+-- are a sort of the filtered rows, which stay few (one live row per staff per
+-- period, plus any voided history).
 CREATE INDEX IF NOT EXISTS staff_payouts_period_idx
     ON staff_payouts (period_start DESC, period_kind);
 

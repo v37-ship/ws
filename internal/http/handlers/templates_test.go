@@ -568,6 +568,9 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				for _, key := range []string{
 					"pr.miss.w", "pr.fixed.mo", "pr.paid", "pr.unpaid", "pr.rule",
 					"pr.pay", "pr.corr", "pr.snapdiff", "pr.payok", "pr.already",
+					"pr.fixedonly", "pr.settle.w", "pr.settle.m", "pr.wpaid",
+					"pr.void", "pr.voidwhy", "pr.voided", "pr.voidat", "pr.voidr",
+					"pr.capped", "pr.unpd.sum",
 				} {
 					if contains(out, ">"+key+"<") {
 						t.Errorf("admin_payroll.html (%s): missing translation for %s", lang, key)

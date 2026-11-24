@@ -123,6 +123,12 @@ func New(
 		// percentBp renders integer basis points as one decimal of a percent
 		// (3000 -> "30.0%"). Display only: every rate is computed in integers.
 		"percentBp": percentBp,
+		// ratePercent is the rate page's precision (1255 -> "12.55%"), reused
+		// on the payroll report so the same rate never reads differently on two
+		// pages.
+		"ratePercent": ratePercent,
+		// cadenceOK is R27: only the view matching the rate's cadence can pay.
+		"cadenceOK": service.CadenceMatchesView,
 		// deltaPct is the signed month-over-month formatter (+12.3%).
 		"deltaPct": deltaPct,
 		// monthShort renders a YYYY-MM month as the language's short month
@@ -837,8 +843,11 @@ func (s *Server) Routes(r chi.Router) {
 		ar.Get("/payroll/rates", s.AdminPayrollRates)
 		ar.Post("/payroll/rates", s.AdminPayrollRateCreate)
 		// Mark-paid: recomputes the period and freezes the row as an immutable
-		// snapshot; the unique key makes it once per therapist and period.
+		// snapshot; the partial unique key makes it once per live period.
 		ar.Post("/payroll/pay", s.AdminPayrollPay)
+		// Void: a mistaken mark is voided with a reason and the period can be
+		// marked again; the voided snapshot stays in history.
+		ar.Post("/payroll/payout/void", s.AdminPayrollPayoutVoid)
 
 		// Waiting-room TV kiosk links (generate, show, revoke).
 		ar.Get("/tv", s.AdminTVPage)

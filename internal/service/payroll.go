@@ -69,13 +69,15 @@ type PayrollVisit struct {
 
 // PayrollRefundLine is one recorded refund on the row. AmountIDR is what was
 // recorded — the lines are the audit trail, so they are not scaled to the cap;
-// RefundIDR is the capped deduction.
+// AppliedIDR is the capped deduction the period actually took (AmountIDR unless
+// the booking's base under the resolved rate capped it).
 type PayrollRefundLine struct {
-	RefundID  uuid.UUID
-	BookingID uuid.UUID
-	CreatedAt time.Time
-	AmountIDR int64
-	Reason    string
+	RefundID   uuid.UUID
+	BookingID  uuid.UUID
+	CreatedAt  time.Time
+	AmountIDR  int64
+	AppliedIDR int64
+	Reason     string
 }
 
 // PayrollRow is one therapist's period. NetIDR = GrossIDR - RefundIDR and may be
@@ -90,12 +92,13 @@ type PayrollRow struct {
 	GrossIDR  int64
 	RefundIDR int64
 	NetIDR    int64
-	// PercentBp and Base are the resolved rate. Base is empty when the rate is
-	// missing (RateMissing), because no base was ever chosen — the gross then
-	// uses the spec's net default so the therapist is not silently priced at
-	// list.
+	// PercentBp, Base and Cadence are the resolved rate. Base and Cadence are
+	// empty when the rate is missing (RateMissing), because no base or cadence
+	// was ever chosen — the gross then uses the spec's net default so the
+	// therapist is not silently priced at list.
 	PercentBp int
 	Base      string
+	Cadence   string
 	// CommissionIDR, FixedIDR and TotalIDR are the payable figures; all three
 	// can be negative (a refund-only period) except FixedIDR.
 	CommissionIDR int64
@@ -105,9 +108,14 @@ type PayrollRow struct {
 	// because it is paid once on the month view; the page says "counted on
 	// the month" instead of showing an unexplained zero.
 	FixedOnMonth bool
-	RateMissing  bool
-	Visits       []PayrollVisit
-	RefundLines  []PayrollRefundLine
+	// FixedOnly marks a row added for an active therapist whose resolved rate
+	// has a fixed component and whose cadence matches the view, even though the
+	// period holds no visits or refunds. The retainer is payable; the row's
+	// commission and sessions are zero.
+	FixedOnly   bool
+	RateMissing bool
+	Visits      []PayrollVisit
+	RefundLines []PayrollRefundLine
 }
 
 // PayrollReport is the whole period. Rows are the union of therapists with
@@ -125,11 +133,12 @@ type PayrollReport struct {
 	TotalIDR           int64
 }
 
-// payrollVisitsReader is the two period reads (repo.PayrollRepo in production,
-// a fake in the unit tables).
-type payrollVisitsReader interface {
+// payrollPeriodReader is the period's two reads plus the roster the fixed-only
+// rows come from (repo.PayrollRepo in production, a fake in the unit tables).
+type payrollPeriodReader interface {
 	CompletedVisits(ctx context.Context, from, to time.Time) ([]repo.PayrollVisitRow, error)
 	RefundsInRange(ctx context.Context, from, to time.Time) ([]repo.PayrollRefundRow, error)
+	ListStaff(ctx context.Context) ([]domain.Staff, error)
 }
 
 // payrollRateReader is the rate timeline's point read; absence is (nil, nil).
@@ -137,10 +146,10 @@ type payrollRateReader interface {
 	EffectiveFor(ctx context.Context, staffID uuid.UUID, periodStart time.Time) (*domain.StaffComp, error)
 }
 
-// PayrollService computes period payroll. It is constructed directly by its
-// tests for now; the server wiring lands with the page.
+// PayrollService computes period payroll. It is constructed by cmd/server and
+// directly by its tests.
 type PayrollService struct {
-	visits payrollVisitsReader
+	visits payrollPeriodReader
 	rates  payrollRateReader
 }
 
@@ -203,6 +212,33 @@ func (s *PayrollService) Report(ctx context.Context, kind string, start time.Tim
 		refundsByStaff[rf.StaffID] = append(refundsByStaff[rf.StaffID], rf)
 	}
 
+	// R26: fixed pay is an entitlement, not visit-contingent. An active
+	// therapist whose resolved rate carries a fixed component and whose cadence
+	// matches the view is payable even with no visits or refunds in the period;
+	// without this row the retainer would be silently unpayable. A therapist
+	// with work already has a row above and is left untouched, and a
+	// percent-only (or inactive) therapist is not added.
+	staff, err := s.visits.ListStaff(ctx)
+	if err != nil {
+		return PayrollReport{}, fmt.Errorf("payroll staff: %w", err)
+	}
+	for _, st := range staff {
+		if !st.Active {
+			continue
+		}
+		if _, ok := rows[st.ID]; ok {
+			continue
+		}
+		comp, err := s.rates.EffectiveFor(ctx, st.ID, period.Start)
+		if err != nil {
+			return PayrollReport{}, fmt.Errorf("payroll rate for %s: %w", st.ID, err)
+		}
+		if comp == nil || comp.FixedIDR <= 0 || !CadenceMatchesView(comp.Cadence, period.Kind) {
+			continue
+		}
+		rows[st.ID] = &PayrollRow{StaffID: st.ID, StaffName: st.Name, FixedOnly: true}
+	}
+
 	report := PayrollReport{Period: period, Rows: make([]PayrollRow, 0, len(rows))}
 	for id, row := range rows {
 		comp, err := s.rates.EffectiveFor(ctx, id, period.Start)
@@ -220,6 +256,7 @@ func (s *PayrollService) Report(ctx context.Context, kind string, start time.Tim
 		} else {
 			row.PercentBp = comp.PercentBp
 			row.Base = comp.CommissionBase
+			row.Cadence = comp.Cadence
 			base = comp.CommissionBase
 			row.FixedIDR = resolveFixed(comp.FixedIDR, comp.Cadence, period.Kind, weeks)
 			// The week view omits a monthly fixed by design; flag it so the
@@ -252,11 +289,12 @@ func (s *PayrollService) Report(ctx context.Context, kind string, start time.Tim
 			spent[rf.BookingID] += applied
 			row.RefundIDR += applied
 			row.RefundLines = append(row.RefundLines, PayrollRefundLine{
-				RefundID:  rf.RefundID,
-				BookingID: rf.BookingID,
-				CreatedAt: rf.CreatedAt,
-				AmountIDR: rf.AmountIDR,
-				Reason:    rf.Reason,
+				RefundID:   rf.RefundID,
+				BookingID:  rf.BookingID,
+				CreatedAt:  rf.CreatedAt,
+				AmountIDR:  rf.AmountIDR,
+				AppliedIDR: applied,
+				Reason:     rf.Reason,
 			})
 		}
 
@@ -280,6 +318,25 @@ func (s *PayrollService) Report(ctx context.Context, kind string, start time.Tim
 	})
 	return report, nil
 }
+
+// CadenceMatchesView reports whether a rate cadence settles on this page view:
+// weekly staff settle only on week views, monthly staff only on month views
+// (R27). It is the one source of truth for both the pay control and the pay
+// handler's refusal, because a payout keyed by the other kind would never see
+// this one and the same visits could be paid twice.
+func CadenceMatchesView(cadence, kind string) bool {
+	switch kind {
+	case PayrollKindWeek:
+		return cadence == domain.CompCadenceWeekly
+	case PayrollKindMonth:
+		return cadence == domain.CompCadenceMonthly
+	}
+	return false
+}
+
+// PayrollWeeksInMonth exposes the contained-WIB-week count the month view uses
+// for a weekly cadence's fixed and its "n/m weeks paid" note.
+func PayrollWeeksInMonth(start time.Time) int { return weeksInMonth(start) }
 
 // PayrollPeriodFor normalises any instant to the WIB week (Monday–Sunday) or
 // month containing it. Start is that day's midnight and End the last day's

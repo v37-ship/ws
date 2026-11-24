@@ -214,9 +214,10 @@ type StaffComp struct {
 
 // StaffPayout is the immutable snapshot written when a staff member's period is
 // marked paid: the numbers are copied in, never recomputed later, so a rate
-// change or a late refund cannot rewrite a closed period. A mistaken mark-paid
-// is corrected by an adjustment payout for a later period (the note says what
-// it fixes); the unique key means the same period never gets a second snapshot.
+// change or a late refund cannot rewrite a closed period. A mistaken mark is
+// voided with a reason (VoidedAt/VoidedBy/VoidReason) and the period is marked
+// again as a NEW snapshot; the voided row stays in history, and the partial
+// unique key only refuses a second LIVE snapshot for the same period.
 // CommissionIDR and TotalIDR may be negative — a late refund for an earlier
 // visit can land in a period with no visits.
 type StaffPayout struct {
@@ -235,6 +236,9 @@ type StaffPayout struct {
 	Note          string
 	PaidBy        *uuid.UUID
 	PaidAt        time.Time
+	VoidedAt      *time.Time
+	VoidedBy      *uuid.UUID
+	VoidReason    string
 }
 
 // ValidCadence reports whether s is a payroll cadence. It mirrors the

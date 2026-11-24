@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"spa-booking/internal/config"
@@ -72,6 +74,20 @@ func payrollPayRequest(t *testing.T, h http.Handler, admin uuid.UUID, form url.V
 func payrollPageGet(t *testing.T, h http.Handler, admin uuid.UUID, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserKey,
+		&domain.User{ID: admin, Role: domain.RoleAdmin, FullName: "Payroll Admin"}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// payrollVoidRequest posts the void form through the real router.
+func payrollVoidRequest(t *testing.T, h http.Handler, admin uuid.UUID, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	form.Set("csrf", "tok")
+	req := httptest.NewRequest(http.MethodPost, "/admin/payroll/payout/void", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "csrf", Value: "tok"})
 	req = req.WithContext(context.WithValue(req.Context(), middleware.UserKey,
 		&domain.User{ID: admin, Role: domain.RoleAdmin, FullName: "Payroll Admin"}))
 	rec := httptest.NewRecorder()
@@ -217,6 +233,257 @@ func TestPayrollMarkPaidSnapshot(t *testing.T) {
 	}
 }
 
+// TestPayrollCadenceBlocksDoublePay pins R27 on real rows: a weekly therapist
+// paid on the week view cannot be paid again from the month view (and the
+// mirror), because the two snapshots live under different period kinds and
+// would never see each other.
+func TestPayrollCadenceBlocksDoublePay(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+	ctx := context.Background()
+	h, _, _ := payrollPayoutServer(t, pool)
+
+	loc := insertLocation(t, pool, "Cadence Branch")
+	svcID := insertService(t, pool, loc, "Cadence Treatment", 100_000)
+	weekly := insertStaff(t, pool, loc, "Weekly Therapist")
+	monthly := insertStaff(t, pool, loc, "Monthly Therapist")
+	admin := insertUser(t, pool, "cadence-admin@example.com", string(domain.RoleAdmin))
+	comps := repo.NewStaffCompRepo(pool)
+	for _, seed := range []struct {
+		staff   uuid.UUID
+		cadence string
+	}{
+		{weekly, domain.CompCadenceWeekly},
+		{monthly, domain.CompCadenceMonthly},
+	} {
+		if err := comps.Create(ctx, &domain.StaffComp{
+			StaffID: seed.staff, PercentBp: 2000, Cadence: seed.cadence,
+			CommissionBase: domain.CompBaseNet, EffectiveFrom: payrollDate(2026, time.January, 1),
+		}); err != nil {
+			t.Fatalf("seed rate: %v", err)
+		}
+	}
+	insertBooking(t, pool, bookingSeed{
+		LocationID: loc, ServiceID: svcID, StaffID: weekly,
+		StartAt: time.Date(2026, time.November, 24, 10, 0, 0, 0, wib),
+		Status:  string(domain.BookingCompleted), PriceIDR: 100_000,
+	})
+	insertBooking(t, pool, bookingSeed{
+		LocationID: loc, ServiceID: svcID, StaffID: monthly,
+		StartAt: time.Date(2026, time.November, 24, 11, 0, 0, 0, wib),
+		Status:  string(domain.BookingCompleted), PriceIDR: 100_000,
+	})
+
+	weekPay := url.Values{"staff": {weekly.String()}, "kind": {"week"}, "start": {"2026-11-25"}}
+	rec := payrollPayRequest(t, h, admin, weekPay)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("weekly week pay = %d, want 303; body: %s", rec.Code, rec.Body.String())
+	}
+	monthAttempt := url.Values{"staff": {weekly.String()}, "kind": {"month"}, "start": {"2026-11-15"}}
+	rec = payrollPayRequest(t, h, admin, monthAttempt)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), i18n.T("id", "pr.paysettle")) {
+		t.Fatalf("weekly month attempt = %d, want the inline cadence refusal; body: %s", rec.Code, rec.Body.String())
+	}
+	if n := payrollPayoutCount(t, pool); n != 1 {
+		t.Fatalf("payout rows after the refused cross-kind pay = %d, want 1", n)
+	}
+
+	monthPay := url.Values{"staff": {monthly.String()}, "kind": {"month"}, "start": {"2026-11-15"}}
+	rec = payrollPayRequest(t, h, admin, monthPay)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("monthly month pay = %d, want 303; body: %s", rec.Code, rec.Body.String())
+	}
+	weekAttempt := url.Values{"staff": {monthly.String()}, "kind": {"week"}, "start": {"2026-11-25"}}
+	rec = payrollPayRequest(t, h, admin, weekAttempt)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), i18n.T("id", "pr.paysettle")) {
+		t.Fatalf("monthly week attempt = %d, want the inline cadence refusal; body: %s", rec.Code, rec.Body.String())
+	}
+	if n := payrollPayoutCount(t, pool); n != 2 {
+		t.Fatalf("payout rows after the mirror = %d, want 2 (one per cadence)", n)
+	}
+}
+
+// TestPayrollVoidAndRemark pins R28 end to end: voiding requires a reason at
+// the handler, the period then reads unpaid, a re-mark writes a second row, the
+// voided row stays in history, and the partial unique index still refuses a
+// second LIVE mark.
+func TestPayrollVoidAndRemark(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+	staffID, adminID, _ := payrollSeedPayable(t, pool)
+	h, payouts, _ := payrollPayoutServer(t, pool)
+	ctx := context.Background()
+	periodStart := payrollDate(2026, time.November, 1)
+
+	rec := payrollPayRequest(t, h, adminID, url.Values{
+		"staff": {staffID.String()}, "kind": {"month"}, "start": {"2026-11-01"},
+		"note": {"first mark"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("first pay = %d, want 303; body: %s", rec.Code, rec.Body.String())
+	}
+	first, err := payouts.ForPeriod(ctx, staffID, domain.PeriodMonthly, periodStart)
+	if err != nil || first == nil {
+		t.Fatalf("first snapshot = (%+v, %v)", first, err)
+	}
+
+	// No reason = no void.
+	rec = payrollVoidRequest(t, h, adminID, url.Values{
+		"id": {first.ID.String()}, "kind": {"month"}, "start": {"2026-11-01"}, "reason": {"  "},
+	})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), i18n.T("id", "pr.voidbad")) {
+		t.Fatalf("reasonless void = %d, want the inline reason refusal; body: %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := payouts.ForPeriod(ctx, staffID, domain.PeriodMonthly, periodStart); got == nil {
+		t.Fatal("a refused void marked the period unpaid")
+	}
+
+	rec = payrollVoidRequest(t, h, adminID, url.Values{
+		"id": {first.ID.String()}, "kind": {"month"}, "start": {"2026-11-01"},
+		"reason": {"wrong amount"},
+	})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), i18n.T("id", "pr.voidok")) {
+		t.Fatalf("void = %d, want the success copy; body: %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := payouts.ForPeriod(ctx, staffID, domain.PeriodMonthly, periodStart); got != nil {
+		t.Fatalf("ForPeriod after void = %+v, want nil (voided rows never count as paid)", got)
+	}
+	hist, err := payouts.HistoryFor(ctx, staffID, domain.PeriodMonthly, periodStart)
+	if err != nil || len(hist) != 1 {
+		t.Fatalf("history after void = (%d rows, %v), want 1", len(hist), err)
+	}
+	if hist[0].ID != first.ID || hist[0].VoidedAt == nil || hist[0].VoidReason != "wrong amount" {
+		t.Fatalf("voided history row = %+v, want the first snapshot voided with its reason", hist[0])
+	}
+	if hist[0].VoidedBy == nil || *hist[0].VoidedBy != adminID {
+		t.Errorf("voided_by = %v, want %v", hist[0].VoidedBy, adminID)
+	}
+
+	// The period can be marked again; the new snapshot is a new row.
+	rec = payrollPayRequest(t, h, adminID, url.Values{
+		"staff": {staffID.String()}, "kind": {"month"}, "start": {"2026-11-01"},
+		"note": {"re-marked"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("re-mark = %d, want 303; body: %s", rec.Code, rec.Body.String())
+	}
+	second, err := payouts.ForPeriod(ctx, staffID, domain.PeriodMonthly, periodStart)
+	if err != nil || second == nil {
+		t.Fatalf("second snapshot = (%+v, %v)", second, err)
+	}
+	if second.ID == first.ID {
+		t.Error("the re-mark reused the voided snapshot's id; want a new row")
+	}
+	hist, err = payouts.HistoryFor(ctx, staffID, domain.PeriodMonthly, periodStart)
+	if err != nil || len(hist) != 2 {
+		t.Fatalf("history after re-mark = (%d rows, %v), want 2", len(hist), err)
+	}
+	live := 0
+	for _, p := range hist {
+		if p.VoidedAt == nil {
+			live++
+		}
+	}
+	if live != 1 {
+		t.Errorf("live snapshots in history = %d, want exactly 1", live)
+	}
+
+	// The partial unique index still refuses a second LIVE row for the period.
+	dup := *second
+	dup.ID = uuid.Nil
+	err = payouts.Create(ctx, &dup)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" || pgErr.ConstraintName != "staff_payouts_period_key" {
+		t.Fatalf("second live mark error = %v, want 23505 on staff_payouts_period_key", err)
+	}
+
+	// The page shows the paid badge plus the voided history with its reason.
+	page := payrollPageGet(t, h, adminID, "/admin/payroll?kind=month&start=2026-11-01")
+	if page.Code != http.StatusOK {
+		t.Fatalf("page status = %d, want 200", page.Code)
+	}
+	out := page.Body.String()
+	if !strings.Contains(out, i18n.T("id", "pr.voided")) || !strings.Contains(out, "wrong amount") {
+		t.Error("the page does not show the voided snapshot and its reason")
+	}
+}
+
+// TestPayrollFixedOnlyPayableOverSQL pins R26 against the real roster read: an
+// active monthly retainer with no visits appears on the month view and can be
+// paid; a weekly one appears on the week view; an inactive one does not appear.
+func TestPayrollFixedOnlyPayableOverSQL(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+	ctx := context.Background()
+
+	loc := insertLocation(t, pool, "Retainer Branch")
+	monthly := insertStaff(t, pool, loc, "Monthly Retainer")
+	weekly := insertStaff(t, pool, loc, "Weekly Retainer")
+	inactive := insertStaff(t, pool, loc, "Inactive Retainer")
+	admin := insertUser(t, pool, "retainer-admin@example.com", string(domain.RoleAdmin))
+	if _, err := pool.Exec(ctx, `UPDATE staff SET active=false WHERE id=$1`, inactive); err != nil {
+		t.Fatalf("deactivate: %v", err)
+	}
+	comps := repo.NewStaffCompRepo(pool)
+	for _, seed := range []struct {
+		staff   uuid.UUID
+		fixed   int64
+		cadence string
+	}{
+		{monthly, 500_000, domain.CompCadenceMonthly},
+		{weekly, 300_000, domain.CompCadenceWeekly},
+		{inactive, 900_000, domain.CompCadenceMonthly},
+	} {
+		if err := comps.Create(ctx, &domain.StaffComp{
+			StaffID: seed.staff, FixedIDR: seed.fixed, Cadence: seed.cadence,
+			CommissionBase: domain.CompBaseNet, EffectiveFrom: payrollDate(2026, time.January, 1),
+		}); err != nil {
+			t.Fatalf("seed retainer: %v", err)
+		}
+	}
+
+	h, _, svc := payrollPayoutServer(t, pool)
+	month, err := svc.Report(ctx, service.PayrollKindMonth, payrollDate(2026, time.November, 1))
+	if err != nil {
+		t.Fatalf("month report: %v", err)
+	}
+	row := payrollRowNamed(t, month, "Monthly Retainer")
+	if !row.FixedOnly || row.TotalIDR != 500_000 || row.Sessions != 0 {
+		t.Fatalf("monthly retainer row = %+v, want FixedOnly total 500000, zero sessions", row)
+	}
+	for _, name := range []string{"Weekly Retainer", "Inactive Retainer"} {
+		for _, r := range month.Rows {
+			if r.StaffName == name {
+				t.Errorf("month view invented a row for %q", name)
+			}
+		}
+	}
+	week, err := svc.Report(ctx, service.PayrollKindWeek, payrollDate(2026, time.November, 23))
+	if err != nil {
+		t.Fatalf("week report: %v", err)
+	}
+	if got := payrollRowNamed(t, week, "Weekly Retainer"); !got.FixedOnly || got.TotalIDR != 300_000 {
+		t.Fatalf("weekly retainer week row = %+v, want FixedOnly total 300000", got)
+	}
+
+	// The retainer can be paid: a fixed-only row has a real total to freeze.
+	rec := payrollPayRequest(t, h, admin, url.Values{
+		"staff": {monthly.String()}, "kind": {"month"}, "start": {"2026-11-01"},
+		"note": {"retainer"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("retainer pay = %d, want 303; body: %s", rec.Code, rec.Body.String())
+	}
+	got, err := repo.NewStaffPayoutRepo(pool).ForPeriod(ctx, monthly, domain.PeriodMonthly, payrollDate(2026, time.November, 1))
+	if err != nil || got == nil {
+		t.Fatalf("retainer snapshot = (%+v, %v)", got, err)
+	}
+	if got.GrossIDR != 0 || got.FixedIDR != 500_000 || got.TotalIDR != 500_000 {
+		t.Errorf("retainer snapshot = gross %d fixed %d total %d, want 0/500000/500000",
+			got.GrossIDR, got.FixedIDR, got.TotalIDR)
+	}
+}
+
 // A refund recorded after the period was paid moves the recomputed report but
 // never the snapshot; the page explains the difference and keeps the frozen
 // figure.
@@ -333,20 +600,24 @@ func TestPayrollMarkPaidNegativeNet(t *testing.T) {
 	h, payouts, _ := payrollPayoutServer(t, pool)
 	ctx := context.Background()
 
-	// Recorded in December on the completed November visit: December has no
-	// visit, only the deduction.
+	// The visit is September's, and the refund is recorded in October: October
+	// has no visit, only the deduction, and is safely in the past.
+	if _, err := pool.Exec(ctx, `UPDATE bookings SET start_at=$2::timestamptz, end_at=$2::timestamptz + interval '1 hour' WHERE id=$1`,
+		bookingID, time.Date(2026, time.September, 24, 10, 0, 0, 0, wib)); err != nil {
+		t.Fatalf("move visit to September: %v", err)
+	}
 	seedPayrollRefund(t, pool, ctx, bookingID, 50_000,
-		time.Date(2026, time.December, 2, 12, 0, 0, 0, wib), "late refund")
+		time.Date(2026, time.October, 2, 12, 0, 0, 0, wib), "late refund")
 
 	rec := payrollPayRequest(t, h, adminID, url.Values{
 		"staff": {staffID.String()},
 		"kind":  {"month"},
-		"start": {"2026-12-01"},
+		"start": {"2026-10-01"},
 	})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303; body: %s", rec.Code, rec.Body.String())
 	}
-	got, err := payouts.ForPeriod(ctx, staffID, domain.PeriodMonthly, payrollDate(2026, time.December, 1))
+	got, err := payouts.ForPeriod(ctx, staffID, domain.PeriodMonthly, payrollDate(2026, time.October, 1))
 	if err != nil || got == nil {
 		t.Fatalf("snapshot = (%+v, %v)", got, err)
 	}

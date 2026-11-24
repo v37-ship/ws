@@ -470,13 +470,23 @@ Goose + Midtrans QRIS.
   `round(net × percent_bp / 10000)` to the nearest Rp 1,000, half away from
   zero; money is integer IDR. A therapist with work and no rate row is listed
   and flagged (zero commission, net-default base for the refund cap), never
-  dropped. Marking a period paid recomputes it server-side (posted amounts are
-  never trusted) and freezes an immutable `staff_payouts` snapshot; the unique
-  period key makes a second mark "already paid", never a 500. A mistaken mark
-  is corrected by an adjustment payout recorded for a later period with a note
-  — never by editing a snapshot or adding a second one for the same period.
-  Payroll is location-agnostic (a rate follows the person, not the branch) and
-  never appears on `/portal`. Key prefix: `pr.*`.
+  dropped. An **active** therapist whose resolved rate has `fixed_idr > 0` and
+  whose cadence matches the view is listed even with no visits (flagged
+  fixed-only) so the retainer is payable; inactive and percent-only staff are
+  not invented. **Cadence is the settlement granularity**: weekly staff are paid
+  only on week views and monthly staff only on month views; the other view
+  shows the row with a settlement note (and, for a weekly cadence on the month
+  view, how many contained weeks are already paid) and the pay handler refuses
+  the mismatch. Marking a period paid recomputes it server-side (posted amounts
+  are never trusted), refuses a future period and an empty row, and freezes an
+  immutable `staff_payouts` snapshot; the partial unique key
+  `(staff_id, period_kind, period_start) WHERE voided_at IS NULL` makes a second
+  live mark "already paid", never a 500. A mistaken mark is **voided** with a
+  required reason (`POST /admin/payroll/payout/void`); the voided snapshot stays
+  in history, the period reads unpaid again, and it can be marked again as a
+  new snapshot. Nothing is edited in place or deleted. Payroll is
+  location-agnostic (a rate follows the person, not the branch) and never
+  appears on `/portal`. Key prefix: `pr.*`.
 - Testimonials are moderated: `pending`/`approved`/`hidden`, only approved
   renders (homepage Alpine filmstrip: drag-to-slide, dots, no arrows).
   Entries snapshot name/photo/message (account edits never rewrite reviews);

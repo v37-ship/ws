@@ -44,7 +44,11 @@ func (f *fakePayrollReporter) Report(_ context.Context, kind string, start time.
 
 type fakePayoutStore struct {
 	byKey     map[string]*domain.StaffPayout
+	list      []domain.StaffPayout
 	createErr error
+	voidErr   error
+	voidOK    bool
+	voidCalls []uuid.UUID
 	created   []domain.StaffPayout
 	calls     int
 	logs      *bytes.Buffer
@@ -64,6 +68,40 @@ func (f *fakePayoutStore) Create(_ context.Context, p *domain.StaffPayout) error
 	}
 	f.created = append(f.created, *p)
 	return nil
+}
+
+func (f *fakePayoutStore) ListFor(_ context.Context, from, to time.Time) ([]domain.StaffPayout, error) {
+	if f.list != nil {
+		return f.list, nil
+	}
+	out := make([]domain.StaffPayout, 0, len(f.byKey))
+	for _, p := range f.byKey {
+		if p != nil && !p.PeriodStart.Before(from) && !p.PeriodStart.After(to) {
+			out = append(out, *p)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakePayoutStore) HistoryFor(_ context.Context, staffID uuid.UUID, kind string, periodStart time.Time) ([]domain.StaffPayout, error) {
+	var out []domain.StaffPayout
+	if p := f.byKey[payrollPayoutKey(staffID, kind, periodStart)]; p != nil {
+		out = append(out, *p)
+	}
+	for _, p := range f.list {
+		if p.StaffID == staffID && p.PeriodKind == kind && p.PeriodStart.Equal(periodStart) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakePayoutStore) Void(_ context.Context, id uuid.UUID, _ uuid.UUID, _ string) (bool, error) {
+	if f.voidErr != nil {
+		return false, f.voidErr
+	}
+	f.voidCalls = append(f.voidCalls, id)
+	return f.voidOK, nil
 }
 
 func payrollPayoutKey(staffID uuid.UUID, kind string, start time.Time) string {
@@ -100,14 +138,23 @@ func payrollTestPeriod(kind string) service.PayrollPeriod {
 }
 
 // payrollTestReport is the representative period: a normal commission row with
-// a visit, a missing-rate row, and a monthly-fixed row whose fixed the week
-// view omits (the "counted on the month" note).
+// a visit (paid), a missing-rate row, an unpaid commission row, a cadence
+// mismatch that settles on the other view, and a fixed-only retainer. The paid
+// row's cadence matches the view (R27); the mismatch row exercises the
+// settlement note and the month view's week count.
 func payrollTestReport(kind string) (service.PayrollReport, []payrollRowView) {
 	period := payrollTestPeriod(kind)
 	ayu := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	bima := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	citra := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	dewi := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	eka := uuid.MustParse("55555555-5555-5555-5555-555555555555")
 	paidAt := time.Date(2026, 11, 30, 10, 0, 0, 0, payrollTestWIB())
+
+	ownCadence, otherCadence := domain.CompCadenceWeekly, domain.CompCadenceMonthly
+	if kind == service.PayrollKindMonth {
+		ownCadence, otherCadence = domain.CompCadenceMonthly, domain.CompCadenceWeekly
+	}
 
 	report := service.PayrollReport{
 		Period:             period,
@@ -115,14 +162,14 @@ func payrollTestReport(kind string) (service.PayrollReport, []payrollRowView) {
 		TotalGrossIDR:      550_000,
 		TotalRefundIDR:     50_000,
 		TotalCommissionIDR: 165_000,
-		TotalFixedIDR:      0,
-		TotalIDR:           165_000,
+		TotalFixedIDR:      500_000,
+		TotalIDR:           665_000,
 	}
 	report.Rows = []service.PayrollRow{
 		{
 			StaffID: ayu, StaffName: "Ayu", Sessions: 2,
 			GrossIDR: 300_000, RefundIDR: 50_000, NetIDR: 250_000,
-			PercentBp: 3000, Base: domain.CompBaseNet,
+			PercentBp: 3000, Base: domain.CompBaseNet, Cadence: ownCadence,
 			CommissionIDR: 75_000, FixedIDR: 0, TotalIDR: 75_000,
 			Visits: []service.PayrollVisit{{
 				BookingID: uuid.New(), StartAt: period.Start.Add(10 * time.Hour),
@@ -131,7 +178,10 @@ func payrollTestReport(kind string) (service.PayrollReport, []payrollRowView) {
 			}},
 			RefundLines: []service.PayrollRefundLine{{
 				RefundID: uuid.New(), CreatedAt: period.Start.Add(48 * time.Hour),
-				AmountIDR: 50_000, Reason: "late arrival",
+				AmountIDR: 50_000, AppliedIDR: 50_000, Reason: "late arrival",
+			}, {
+				RefundID: uuid.New(), CreatedAt: period.Start.Add(60 * time.Hour),
+				AmountIDR: 70_000, AppliedIDR: 30_000, Reason: "over the cap",
 			}},
 		},
 		{
@@ -142,9 +192,20 @@ func payrollTestReport(kind string) (service.PayrollReport, []payrollRowView) {
 		{
 			StaffID: citra, StaffName: "Citra", Sessions: 1,
 			GrossIDR: 100_000, NetIDR: 100_000,
-			PercentBp: 9000, Base: domain.CompBaseList,
+			PercentBp: 9000, Base: domain.CompBaseList, Cadence: ownCadence,
 			CommissionIDR: 90_000, TotalIDR: 90_000,
+		},
+		{
+			StaffID: dewi, StaffName: "Dewi", Sessions: 1,
+			GrossIDR: 100_000, NetIDR: 100_000,
+			PercentBp: 1000, Base: domain.CompBaseNet, Cadence: otherCadence,
+			CommissionIDR: 10_000, TotalIDR: 10_000,
 			FixedOnMonth: kind == service.PayrollKindWeek,
+		},
+		{
+			StaffID: eka, StaffName: "Eka", Sessions: 0,
+			PercentBp: 0, Base: domain.CompBaseNet, Cadence: ownCadence,
+			FixedIDR: 500_000, TotalIDR: 500_000, FixedOnly: true,
 		},
 	}
 	// The stored period vocabulary is weekly/monthly; the page's view kind is
@@ -161,6 +222,16 @@ func payrollTestReport(kind string) (service.PayrollReport, []payrollRowView) {
 		}},
 		{PayrollRow: report.Rows[1]},
 		{PayrollRow: report.Rows[2]},
+		{PayrollRow: report.Rows[3]},
+		{PayrollRow: report.Rows[4]},
+	}
+	if kind == service.PayrollKindMonth {
+		// A weekly-cadence row on the month view says how many contained weeks
+		// are already settled.
+		rows[3].PaidWeeks, rows[3].TotalWeeks = 2, 5
+		rows[3].FixedIDR, rows[3].TotalIDR = 1_500_000, 1_510_000
+	} else {
+		rows[3].PaidWeeks, rows[3].TotalWeeks = 0, 1
 	}
 	return report, rows
 }
@@ -190,6 +261,12 @@ func payrollSweepData(lang string) pageData {
 	// must render the snapshot-wins line (a refund landed after payment).
 	rows[0].Paid.TotalIDR = 60_000
 	rows[0].SnapshotDiff = true
+	voidedAt := time.Date(2026, 11, 28, 9, 0, 0, 0, payrollTestWIB())
+	rows[0].Voided = []domain.StaffPayout{{
+		StaffID: rows[0].StaffID, PeriodKind: rows[0].Paid.PeriodKind,
+		PeriodStart: report.Period.Start, TotalIDR: 55_000,
+		VoidedAt: &voidedAt, VoidReason: "wrong amount",
+	}}
 	start := report.Period.Start.Format(payrollDayLayout)
 	return pageData{
 		"Lang":        lang,
@@ -208,6 +285,7 @@ func payrollSweepData(lang string) pageData {
 		"Rows":        rows,
 		"Missing":     []string{"Bima"},
 		"Sessions":    4,
+		"UnpaidIDR":   int64(600_000),
 	}
 }
 
@@ -234,6 +312,7 @@ func payrollEmptySweepData(lang string) pageData {
 		"Rows":        []payrollRowView{},
 		"Missing":     []string{},
 		"Sessions":    0,
+		"UnpaidIDR":   int64(0),
 	}
 }
 
@@ -295,6 +374,62 @@ func firstPayrollKeyLeak(out string) string {
 		}
 	}
 	return ""
+}
+
+// The month view must render the R26-R29 branches: a fixed-only retainer, a
+// weekly cadence's settlement note with its week count, an applied-vs-recorded
+// refund cap, the voided history, and the unpaid footer. The mismatch row has
+// no pay form; only the payable rows do.
+func TestAdminPayrollMonthSettlementAndHistoryCopy(t *testing.T) {
+	report, rows := payrollTestReport(service.PayrollKindMonth)
+	voidedAt := time.Date(2026, 11, 28, 9, 0, 0, 0, payrollTestWIB())
+	voided := domain.StaffPayout{
+		StaffID: rows[0].StaffID, PeriodKind: domain.PeriodMonthly,
+		PeriodStart: report.Period.Start, TotalIDR: 55_000,
+		VoidedAt: &voidedAt, VoidReason: "wrong amount",
+	}
+	payouts := &fakePayoutStore{
+		byKey: map[string]*domain.StaffPayout{
+			payrollPayoutKey(rows[0].StaffID, payrollPayoutKind(report.Period.Kind), report.Period.Start): rows[0].Paid,
+		},
+		list: []domain.StaffPayout{
+			*rows[0].Paid, voided,
+			{StaffID: rows[3].StaffID, PeriodKind: domain.PeriodWeekly,
+				PeriodStart: time.Date(2026, 11, 2, 0, 0, 0, 0, payrollTestWIB()), TotalIDR: 300_000},
+			{StaffID: rows[3].StaffID, PeriodKind: domain.PeriodWeekly,
+				PeriodStart: time.Date(2026, 11, 9, 0, 0, 0, 0, payrollTestWIB()), TotalIDR: 300_000},
+		},
+	}
+	h := newPayrollServer(t, &fakePayrollReporter{report: report}, payouts)
+
+	rec := adminGet(t, h, "/admin/payroll?kind=month&start=2026-11-15")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	out := rec.Body.String()
+	for _, want := range []string{
+		i18n.T("id", "pr.settle.w"),
+		"2/5 " + i18n.T("id", "pr.wpaid"),
+		i18n.T("id", "pr.fixedonly"),
+		i18n.T("id", "pr.capped") + " Rp 30.000",
+		i18n.T("id", "pr.voided"),
+		i18n.T("id", "pr.voidr"),
+		i18n.T("id", "pr.unpd.sum"),
+		i18n.T("id", "pr.voidwhy"),
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("month payroll page missing %q", want)
+		}
+	}
+	// Ayu (paid) and Dewi (weekly cadence on the month view) carry no pay form:
+	// only Citra and the fixed-only Eka do.
+	if got := strings.Count(out, `action="/admin/payroll/pay"`); got != 2 {
+		t.Errorf("mark-paid forms = %d, want 2 (the cadence mismatch and the paid row have none)", got)
+	}
+	// The voided snapshot's reason is visible in history, not just its date.
+	if !strings.Contains(out, "wrong amount") {
+		t.Error("voided history does not show the reason")
+	}
 }
 
 // Period navigation is pure arithmetic: a week steps ±7 days, a month steps to

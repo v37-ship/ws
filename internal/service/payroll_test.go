@@ -23,11 +23,13 @@ import (
 // asked for, because a WIB boundary bug lives in the range the service passes,
 // not in the rows it gets back.
 type fakePayrollVisits struct {
-	visits  []repo.PayrollVisitRow
-	refunds []repo.PayrollRefundRow
-	from    time.Time
-	to      time.Time
-	calls   int
+	visits   []repo.PayrollVisitRow
+	refunds  []repo.PayrollRefundRow
+	staff    []domain.Staff
+	staffErr error
+	from     time.Time
+	to       time.Time
+	calls    int
 }
 
 func (f *fakePayrollVisits) CompletedVisits(_ context.Context, from, to time.Time) ([]repo.PayrollVisitRow, error) {
@@ -40,6 +42,10 @@ func (f *fakePayrollVisits) RefundsInRange(_ context.Context, from, to time.Time
 	f.calls++
 	f.from, f.to = from, to
 	return f.refunds, nil
+}
+
+func (f *fakePayrollVisits) ListStaff(_ context.Context) ([]domain.Staff, error) {
+	return f.staff, f.staffErr
 }
 
 // fakePayrollRates resolves a rate per staff member; absence is (nil, nil), the
@@ -439,9 +445,13 @@ func TestPayrollRefundCap(t *testing.T) {
 		t.Fatalf("refund lines = %d, want all 3 recorded refunds", len(row.RefundLines))
 	}
 	wantAmounts := []int64{60_000, 50_000, 5_000}
+	wantApplied := []int64{60_000, 40_000, 0}
 	for i, ln := range row.RefundLines {
 		if ln.AmountIDR != wantAmounts[i] {
 			t.Errorf("refund line %d amount = %d, want the recorded %d", i, ln.AmountIDR, wantAmounts[i])
+		}
+		if ln.AppliedIDR != wantApplied[i] {
+			t.Errorf("refund line %d applied = %d, want the capped deduction %d", i, ln.AppliedIDR, wantApplied[i])
 		}
 		if ln.BookingID != booking {
 			t.Errorf("refund line %d booking = %v, want %v", i, ln.BookingID, booking)
@@ -614,6 +624,107 @@ func TestPayrollReportWeekBoundary(t *testing.T) {
 	previousEndExclusive := time.Date(2026, 11, 30, 0, 0, 0, 0, wib)
 	if mondayEarly.Before(previousEndExclusive) {
 		t.Errorf("Monday 00:05 WIB %v unexpectedly falls in the previous week", mondayEarly)
+	}
+}
+
+// TestPayrollFixedOnlyRows pins R26: an active therapist whose resolved rate has
+// a fixed component and whose cadence matches the view is listed with zero
+// sessions/gross and total = fixed, even with no visits. A percent-only
+// therapist, an inactive therapist, and a cadence that settles on the other
+// view are not invented.
+func TestPayrollFixedOnlyRows(t *testing.T) {
+	monthly := uuid.New()
+	withVisits := uuid.New()
+	weekly := uuid.New()
+	inactive := uuid.New()
+	percentOnly := uuid.New()
+
+	nov := time.Date(2026, 11, 23, 0, 0, 0, 0, wib)
+	visits := &fakePayrollVisits{
+		visits: []repo.PayrollVisitRow{
+			payrollVisit(withVisits, "With Visits", nov.Add(10*time.Hour), 200_000, 0),
+		},
+		staff: []domain.Staff{
+			{ID: monthly, Name: "Monthly Retainer", Active: true},
+			{ID: withVisits, Name: "With Visits", Active: true},
+			{ID: weekly, Name: "Weekly Retainer", Active: true},
+			{ID: inactive, Name: "Inactive Retainer", Active: false},
+			{ID: percentOnly, Name: "Percent Only", Active: true},
+		},
+	}
+	rates := &fakePayrollRates{byStaff: map[uuid.UUID]*domain.StaffComp{
+		monthly:     {StaffID: monthly, FixedIDR: 500_000, Cadence: domain.CompCadenceMonthly, CommissionBase: domain.CompBaseNet},
+		withVisits:  {StaffID: withVisits, PercentBp: 2000, FixedIDR: 500_000, Cadence: domain.CompCadenceMonthly, CommissionBase: domain.CompBaseNet},
+		weekly:      {StaffID: weekly, FixedIDR: 300_000, Cadence: domain.CompCadenceWeekly, CommissionBase: domain.CompBaseNet},
+		inactive:    {StaffID: inactive, FixedIDR: 900_000, Cadence: domain.CompCadenceMonthly, CommissionBase: domain.CompBaseNet},
+		percentOnly: {StaffID: percentOnly, PercentBp: 2500, Cadence: domain.CompCadenceMonthly, CommissionBase: domain.CompBaseNet},
+	}}
+
+	month, err := payrollService(visits, rates).Report(context.Background(), PayrollKindMonth, nov)
+	if err != nil {
+		t.Fatalf("month Report: %v", err)
+	}
+	if len(month.Rows) != 2 {
+		t.Fatalf("month rows = %d (%s), want the monthly retainer and the visit row", len(month.Rows), payrollNames(month))
+	}
+	retainer := payrollRow(t, month, "Monthly Retainer")
+	if !retainer.FixedOnly || retainer.Sessions != 0 || retainer.GrossIDR != 0 || retainer.RefundIDR != 0 {
+		t.Errorf("fixed-only row = %+v, want FixedOnly with zero sessions/gross/refund", retainer)
+	}
+	if retainer.Cadence != domain.CompCadenceMonthly || retainer.FixedIDR != 500_000 || retainer.TotalIDR != 500_000 {
+		t.Errorf("fixed-only cadence/fixed/total = %q/%d/%d, want monthly/500000/500000",
+			retainer.Cadence, retainer.FixedIDR, retainer.TotalIDR)
+	}
+	// A therapist with visits is unchanged: one row, normal commission + fixed.
+	with := payrollRow(t, month, "With Visits")
+	if with.FixedOnly || with.Sessions != 1 || with.CommissionIDR != 40_000 || with.TotalIDR != 540_000 {
+		t.Errorf("visit row = %+v, want unchanged 1 session, 40000 commission + 500000 fixed", with)
+	}
+	// Inactive, percent-only, and weekly-cadence-on-month are absent by design.
+	for _, name := range []string{"Inactive Retainer", "Percent Only", "Weekly Retainer"} {
+		for _, row := range month.Rows {
+			if row.StaffName == name {
+				t.Errorf("month view invented a row for %q: %+v", name, row)
+			}
+		}
+	}
+
+	week, err := payrollService(visits, rates).Report(context.Background(), PayrollKindWeek, nov)
+	if err != nil {
+		t.Fatalf("week Report: %v", err)
+	}
+	if len(week.Rows) != 2 {
+		t.Fatalf("week rows = %d (%s), want the weekly retainer and the visit row", len(week.Rows), payrollNames(week))
+	}
+	weekRetainer := payrollRow(t, week, "Weekly Retainer")
+	if !weekRetainer.FixedOnly || weekRetainer.TotalIDR != 300_000 {
+		t.Errorf("weekly fixed-only row = %+v, want FixedOnly total 300000", weekRetainer)
+	}
+	for _, row := range week.Rows {
+		if row.StaffName == "Monthly Retainer" {
+			t.Errorf("week view invented a monthly fixed-only row: %+v", row)
+		}
+	}
+}
+
+// TestPayrollCadenceMatchesView pins the R27 matrix the page and the pay handler
+// both read.
+func TestPayrollCadenceMatchesView(t *testing.T) {
+	cases := []struct {
+		cadence, kind string
+		want          bool
+	}{
+		{domain.CompCadenceWeekly, PayrollKindWeek, true},
+		{domain.CompCadenceWeekly, PayrollKindMonth, false},
+		{domain.CompCadenceMonthly, PayrollKindMonth, true},
+		{domain.CompCadenceMonthly, PayrollKindWeek, false},
+		{"", PayrollKindMonth, false},
+		{domain.CompCadenceMonthly, "daily", false},
+	}
+	for _, tc := range cases {
+		if got := CadenceMatchesView(tc.cadence, tc.kind); got != tc.want {
+			t.Errorf("CadenceMatchesView(%q, %q) = %v, want %v", tc.cadence, tc.kind, got, tc.want)
+		}
 	}
 }
 
