@@ -159,7 +159,7 @@
     </div>
 
     <div class="panel stack">
-      <h2>{{t .Lang "a.wa.recent"}}</h2>
+      <h2>{{if .OutboxFailed}}{{t .Lang "a.wa.failed"}}{{else}}{{t .Lang "a.wa.recent"}}{{end}}</h2>
       <p class="muted">
         {{if .QueueOK}}<a href="/admin/whatsapp?outbox=failed">{{t .Lang "a.wa.pend"}} {{.QueuePending}} · {{t .Lang "a.wa.fail"}} {{.QueueFailed}}</a>{{else}}—{{end}}
       </p>
