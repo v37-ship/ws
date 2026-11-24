@@ -180,7 +180,7 @@
       <h2>{{t .Lang "a.wa.copy"}}</h2>
       <p class="muted">{{t .Lang "a.wa.copyx"}}</p>
       {{range .Templates}}
-      <div class="panel stack" style="background:var(--surface-2,#faf7f2);">
+      <div class="panel stack" style="background:var(--bg-2, #faf7f2);">
         <h3 style="margin:0;">{{t $.Lang .LabelKey}} <code class="muted">{{.Key}}</code></h3>
         <p class="muted">{{t $.Lang "a.wa.ph"}}: {{range .Fields}}<code>{ {{.}} }</code> {{end}}</p>
         <form method="post" action="/admin/whatsapp/template" class="stack">
