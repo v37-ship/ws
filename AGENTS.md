@@ -17,7 +17,7 @@ Goose + Midtrans QRIS.
   SQL via pgx: user/session/catalog/booking/payment/promo/career/
   testimonial/food/hero/report/payroll), `internal/service` (Auth, Catalog,
   Availability, Booking, Report, Career, Testimonial, Food, Hero, Promo,
-  Payroll + validation), `internal/i18n` (EN+ID maps, 1216 keys each),
+  Payroll + validation), `internal/i18n` (EN+ID maps, 1223 keys each),
   `internal/email` (SMTP sender), `internal/payment` (Midtrans QRIS client),
   `internal/whatsapp` (Evolution client, phone normalization, message copy),
   `internal/integration` (build-tagged execution suite against a disposable
