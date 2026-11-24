@@ -170,7 +170,9 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 // AdminRetryWaOutbox re-queues one failed message (ruling R6): the same row
 // flips back to pending, so the dedupe key and history stay put. A cancelled
 // row is a deliberate withdrawal and is refused with the other non-retryable
-// statuses (sent/claimed and unknown ids), never silently re-sent.
+// statuses (sent/claimed and unknown ids), as is a failed row whose booking has
+// since closed (the repo owns both predicates). Nothing is ever silently
+// re-sent for a visit that no longer holds.
 func (s *Server) AdminRetryWaOutbox(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if !s.requireCSRF(r) {

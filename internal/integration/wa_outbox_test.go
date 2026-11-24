@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"spa-booking/internal/domain"
 	"spa-booking/internal/repo"
 
 	"github.com/google/uuid"
@@ -15,7 +16,8 @@ import (
 
 // waOutboxSeed is the writable subset insertWaOutbox accepts. Zero values:
 // Status "pending", TemplateKey "test", ScheduledAt now. A non-empty DedupeKey
-// is the row identity the retry must never touch (ruling R6).
+// is the row identity the retry must never touch (ruling R6); BookingID links
+// the message to a visit so the retry can see its current status.
 type waOutboxSeed struct {
 	Phone       string
 	TemplateKey string
@@ -23,6 +25,7 @@ type waOutboxSeed struct {
 	Attempts    int
 	LastError   string
 	DedupeKey   string
+	BookingID   *uuid.UUID
 	ScheduledAt time.Time
 }
 
@@ -48,9 +51,9 @@ func insertWaOutbox(t *testing.T, pool *pgxpool.Pool, seed waOutboxSeed) uuid.UU
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO wa_outbox (id, phone, template_key, status, attempts, last_error, dedupe_key, scheduled_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		id, seed.Phone, seed.TemplateKey, seed.Status, seed.Attempts, seed.LastError, dedupe, seed.ScheduledAt,
+		`INSERT INTO wa_outbox (id, phone, template_key, status, attempts, last_error, dedupe_key, booking_id, scheduled_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		id, seed.Phone, seed.TemplateKey, seed.Status, seed.Attempts, seed.LastError, dedupe, seed.BookingID, seed.ScheduledAt,
 	); err != nil {
 		t.Fatalf("insertWaOutbox: %v", err)
 	}
@@ -145,6 +148,98 @@ func TestWaRetryFailedFlipsOnlyRetryableRows(t *testing.T) {
 
 	if changed, err := wa.RetryFailed(ctx, uuid.New()); err != nil || changed {
 		t.Errorf("unknown id = (changed=%v err=%v), want (false, nil)", changed, err)
+	}
+}
+
+// TestWaRetryFailedRefusesClosedBookings pins the stale-lifecycle guard: a
+// failed row whose booking has since become cancelled/expired/no_show would
+// tell the customer about a visit that no longer holds, so the retry is
+// refused. A confirmed/completed booking and a row with no booking stay
+// retryable. ListRecent must report the joined status for the page.
+func TestWaRetryFailedRefusesClosedBookings(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+	wa := repo.NewWaRepo(pool)
+	ctx := context.Background()
+
+	loc := insertLocation(t, pool, "Retry Branch")
+	svc := insertService(t, pool, loc, "Retry Treatment", 150_000)
+	staff := insertStaff(t, pool, loc, "Retry Therapist")
+
+	seedAt := time.Date(2026, 11, 25, 9, 0, 0, 0, time.UTC)
+	booking := func(status domain.BookingStatus, hour int) uuid.UUID {
+		return insertBooking(t, pool, bookingSeed{
+			LocationID: loc, ServiceID: svc, StaffID: staff,
+			StartAt: seedAt.Add(time.Duration(hour) * time.Hour),
+			Status:  string(status),
+		})
+	}
+	failedRow := func(name string, bookingID *uuid.UUID) uuid.UUID {
+		return insertWaOutbox(t, pool, waOutboxSeed{
+			Phone: "6281111111111", Status: "failed", Attempts: 3,
+			LastError: "boom", DedupeKey: "stale:" + name, BookingID: bookingID,
+		})
+	}
+
+	refused := map[string]uuid.UUID{}
+	for i, status := range []domain.BookingStatus{domain.BookingCancelled, domain.BookingExpired, domain.BookingNoShow} {
+		b := booking(status, i)
+		refused[string(status)] = failedRow(string(status), &b)
+	}
+	confirmedBooking := booking(domain.BookingConfirmed, 3)
+	confirmedRow := failedRow("confirmed", &confirmedBooking)
+	completedBooking := booking(domain.BookingCompleted, 4)
+	completedRow := failedRow("completed", &completedBooking)
+	noBookingRow := failedRow("none", nil)
+
+	for name, id := range refused {
+		changed, err := wa.RetryFailed(ctx, id)
+		if err != nil {
+			t.Fatalf("%s retry: %v", name, err)
+		}
+		if changed {
+			t.Errorf("%s booking: retry changed = true, want refused", name)
+		}
+		if row := readWaOutbox(t, pool, id); row.Status != "failed" {
+			t.Errorf("%s booking: status = %q after a refused retry, want failed", name, row.Status)
+		}
+	}
+
+	for name, id := range map[string]uuid.UUID{
+		"confirmed":  confirmedRow,
+		"completed":  completedRow,
+		"no booking": noBookingRow,
+	} {
+		changed, err := wa.RetryFailed(ctx, id)
+		if err != nil {
+			t.Fatalf("%s retry: %v", name, err)
+		}
+		if !changed {
+			t.Errorf("%s row: retry changed = false, want allowed", name)
+			continue
+		}
+		if row := readWaOutbox(t, pool, id); row.Status != "pending" {
+			t.Errorf("%s row: status = %q, want pending", name, row.Status)
+		}
+	}
+
+	// The page decides from one read: recent rows carry the joined status.
+	recent, err := wa.ListRecent(ctx, 100)
+	if err != nil {
+		t.Fatalf("ListRecent: %v", err)
+	}
+	got := map[uuid.UUID]string{}
+	for _, row := range recent {
+		got[row.ID] = row.BookingStatus
+	}
+	if got[refused["cancelled"]] != "cancelled" {
+		t.Errorf("recent cancelled booking status = %q, want cancelled", got[refused["cancelled"]])
+	}
+	if got[confirmedRow] != "confirmed" {
+		t.Errorf("recent confirmed booking status = %q, want confirmed", got[confirmedRow])
+	}
+	if got[noBookingRow] != "" {
+		t.Errorf("recent no-booking status = %q, want empty", got[noBookingRow])
 	}
 }
 

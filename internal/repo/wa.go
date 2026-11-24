@@ -26,6 +26,10 @@ type WaOutboxItem struct {
 	LastError   string
 	Status      string
 	CreatedAt   time.Time
+	// BookingStatus is the referenced booking's *current* status, joined in
+	// for the admin log (empty when the row has no booking). A failed row whose
+	// booking has since closed is not retryable.
+	BookingStatus string
 }
 
 type WaRepo struct{ pool *pgxpool.Pool }
@@ -178,11 +182,21 @@ func (r *WaRepo) RetryLater(ctx context.Context, id uuid.UUID, nextAt time.Time,
 // pending/sending row is already in play, and a cancelled row was deliberately
 // withdrawn (booking cancelled/expired/rescheduled, review un-finished) — it
 // must never be re-sent. The dedupe key is untouched: the row identity is it.
+//
+// The message is also stale when its booking has closed since it failed:
+// CancelPending only flips pending rows, so a failed reminder for a booking
+// that later became cancelled/expired/no_show would otherwise be resurrected
+// and tell the customer about a visit that no longer holds. Such a row is
+// refused in the same atomic statement; a row with no booking is unaffected.
 func (r *WaRepo) RetryFailed(ctx context.Context, id uuid.UUID) (bool, error) {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE wa_outbox SET status='pending', attempts=0, last_error='',
 		        scheduled_at=now(), updated_at=now()
-		 WHERE id=$1 AND status = 'failed'`, id)
+		 WHERE id=$1 AND status = 'failed'
+		   AND NOT EXISTS (
+		       SELECT 1 FROM bookings b
+		       WHERE b.id = wa_outbox.booking_id
+		         AND b.status IN ('cancelled', 'expired', 'no_show'))`, id)
 	if err != nil {
 		return false, err
 	}
@@ -214,14 +228,19 @@ func (r *WaRepo) RequeueSending(ctx context.Context) (int64, error) {
 	return tag.RowsAffected(), nil
 }
 
-// ListRecent returns the most recently created outbox rows (admin log).
+// ListRecent returns the most recently created outbox rows (admin log) with
+// their booking's current status, so the page can hide the retry control for a
+// message whose visit has closed without a second query per row.
 func (r *WaRepo) ListRecent(ctx context.Context, limit int) ([]WaOutboxItem, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	const q = `SELECT id, phone, template_key, payload, booking_id, dedupe_key,
-		scheduled_at, attempts, max_attempts, last_error, status, created_at
-		FROM wa_outbox ORDER BY created_at DESC LIMIT $1`
+	const q = `SELECT o.id, o.phone, o.template_key, o.payload, o.booking_id, o.dedupe_key,
+		o.scheduled_at, o.attempts, o.max_attempts, o.last_error, o.status, o.created_at,
+		COALESCE(b.status, '')
+		FROM wa_outbox o
+		LEFT JOIN bookings b ON b.id = o.booking_id
+		ORDER BY o.created_at DESC LIMIT $1`
 	return r.scanList(ctx, q, limit)
 }
 
@@ -255,7 +274,8 @@ func (r *WaRepo) ListUpcoming(ctx context.Context, templateKey string, limit int
 	return out, rows.Err()
 }
 
-// scanList reads outbox rows in the shared column order.
+// scanList reads outbox rows in the shared column order (ListRecent's query
+// also joins the booking's status as the last column).
 func (r *WaRepo) scanList(ctx context.Context, q string, arg any) ([]WaOutboxItem, error) {
 	rows, err := r.pool.Query(ctx, q, arg)
 	if err != nil {
@@ -267,7 +287,7 @@ func (r *WaRepo) scanList(ctx context.Context, q string, arg any) ([]WaOutboxIte
 		var it WaOutboxItem
 		if err := rows.Scan(&it.ID, &it.Phone, &it.TemplateKey, &it.Payload, &it.BookingID,
 			&it.DedupeKey, &it.ScheduledAt, &it.Attempts, &it.MaxAttempts, &it.LastError,
-			&it.Status, &it.CreatedAt); err != nil {
+			&it.Status, &it.CreatedAt, &it.BookingStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, it)

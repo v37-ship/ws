@@ -172,7 +172,9 @@
             <td><code>{{.TemplateKey}}</code></td>
             <td>{{.Status}}{{if .LastError}} · <span class="muted">{{.LastError}}</span>{{end}}</td>
             <td>
-              {{if eq .Status "failed"}}
+              {{/* Retry a failed message only; a cancelled row is a withdrawal,
+                   and a failed row whose booking has since closed is stale. */}}
+              {{if and (eq .Status "failed") (not (or (eq .BookingStatus "cancelled") (eq .BookingStatus "expired") (eq .BookingStatus "no_show")))}}
               <form method="post" action="/admin/whatsapp/outbox/{{.ID}}/retry">
                 <input type="hidden" name="csrf" value="{{$.CSRF}}">
                 <button class="btn secondary on-light btn-sm" type="submit">{{t $.Lang "a.wa.retry"}}</button>

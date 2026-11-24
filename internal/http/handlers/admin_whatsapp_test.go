@@ -142,23 +142,28 @@ func waTemplatesSweep() []waTemplateView {
 	return views
 }
 
-// waSweepFailedID etc. are fixed ids so a test can name the row it expects a
-// retry form for; a random id would differ between the two sweep calls.
+// waSweep*IDs are fixed ids so a test can name the row it expects (or does not
+// expect) a retry form for; random ids would differ between sweep calls.
 var (
 	waSweepFailedID    = uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	waSweepSentID      = uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	waSweepCancelledID = uuid.MustParse("33333333-3333-4333-8333-333333333333")
+	waSweepNoBookingID = uuid.MustParse("44444444-4444-4444-8444-444444444444")
+	waSweepClosedID    = uuid.MustParse("55555555-5555-4555-8555-555555555555")
 )
 
-// waQueueSweep returns one recent row per outbox branch (failed, sent,
+// waQueueSweep returns one recent row per outbox branch (failed with a live
+// booking, failed with no booking, failed whose booking closed, sent,
 // cancelled), stamped like the copy audit fixtures so the sweep renders
-// deterministically. Only the failed row is retryable; cancelled is a
-// withdrawal.
+// deterministically. Only the failed rows with a live (or no) booking are
+// retryable; cancelled is a withdrawal and a closed booking is stale.
 func waQueueSweep() []repo.WaOutboxItem {
 	return []repo.WaOutboxItem{
-		{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "booking_remind", Status: "failed", LastError: "boom", CreatedAt: waAuditWhen},
-		{ID: waSweepSentID, Phone: "6281200000002", TemplateKey: "booking_confirm", Status: "sent", CreatedAt: waAuditWhen},
-		{ID: waSweepCancelledID, Phone: "6281200000003", TemplateKey: "booking_cancelled", Status: "cancelled", CreatedAt: waAuditWhen},
+		{ID: waSweepFailedID, Phone: "6281200000001", TemplateKey: "booking_remind", Status: "failed", LastError: "boom", BookingStatus: "confirmed", CreatedAt: waAuditWhen},
+		{ID: waSweepNoBookingID, Phone: "6281200000002", TemplateKey: "test", Status: "failed", BookingStatus: "", CreatedAt: waAuditWhen},
+		{ID: waSweepClosedID, Phone: "6281200000003", TemplateKey: "booking_remind", Status: "failed", BookingStatus: "cancelled", CreatedAt: waAuditWhen},
+		{ID: waSweepSentID, Phone: "6281200000004", TemplateKey: "booking_confirm", Status: "sent", BookingStatus: "confirmed", CreatedAt: waAuditWhen},
+		{ID: waSweepCancelledID, Phone: "6281200000005", TemplateKey: "booking_cancelled", Status: "cancelled", BookingStatus: "cancelled", CreatedAt: waAuditWhen},
 	}
 }
 

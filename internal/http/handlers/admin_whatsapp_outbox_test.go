@@ -103,13 +103,15 @@ func TestAdminRetryWaOutboxNotRetryable(t *testing.T) {
 	fake := &waOutboxAdminFake{changed: false}
 	s.waOutbox = fake
 
-	// A cancelled row is a deliberate withdrawal: the repo refuses it and the
-	// handler must land on the same notice as an already-sent or unknown row.
+	// A cancelled row is a deliberate withdrawal and a failed row whose booking
+	// has since closed is stale: the repo refuses both, and the handler must
+	// land on the same notice as an already-sent or unknown row.
 	for _, tc := range []struct {
 		name string
 		id   uuid.UUID
 	}{
 		{"cancelled", waSweepCancelledID},
+		{"stale (booking closed)", waSweepClosedID},
 		{"already sent", waSweepSentID},
 		{"unknown", uuid.New()},
 	} {
@@ -207,10 +209,11 @@ func TestAdminRetryWaOutboxAdminOnly(t *testing.T) {
 	}
 }
 
-// TestAdminWhatsAppRetryFormOnlyOnFailedRows renders both branches in both
-// languages: the counters line, the retry form on failed rows only (a cancelled
-// row is a withdrawal, not a failure), and no raw i18n key leaking.
-func TestAdminWhatsAppRetryFormOnlyOnFailedRows(t *testing.T) {
+// TestAdminWhatsAppRetryFormOnlyOnLiveFailedRows renders every branch in both
+// languages: the counters line, the retry form on failed rows whose booking is
+// live (or absent) only — a cancelled row is a withdrawal and a failed row
+// whose booking closed is stale — and no raw i18n key leaking.
+func TestAdminWhatsAppRetryFormOnlyOnLiveFailedRows(t *testing.T) {
 	s := newWaTestServer(t, slog.Default())
 	out := func(lang string) string {
 		return waTestRender(t, s, lang, waTemplatesSweep())
@@ -234,23 +237,27 @@ func TestAdminWhatsAppRetryFormOnlyOnFailedRows(t *testing.T) {
 		if strings.Contains(page, "a.wa.") {
 			t.Errorf("%s: raw i18n key leaked", lang)
 		}
-		// Exactly the failed row carries a form.
-		if got := strings.Count(page, `action="/admin/whatsapp/outbox/`); got != 1 {
-			t.Errorf("%s: retry forms = %d, want 1 (failed only)", lang, got)
+		// The two live failed rows (live booking + no booking) carry a form.
+		if got := strings.Count(page, `action="/admin/whatsapp/outbox/`); got != 2 {
+			t.Errorf("%s: retry forms = %d, want 2 (live failed rows only)", lang, got)
 		}
-		want := `action="/admin/whatsapp/outbox/` + waSweepFailedID.String() + `/retry"`
-		if !strings.Contains(page, want) {
-			t.Errorf("%s: missing the retry form for the failed row", lang)
+		for _, id := range []uuid.UUID{waSweepFailedID, waSweepNoBookingID} {
+			want := `action="/admin/whatsapp/outbox/` + id.String() + `/retry"`
+			if !strings.Contains(page, want) {
+				t.Errorf("%s: missing the retry form for %s", lang, id)
+			}
 		}
-		// Sent and cancelled rows must not gain one; the cancelled row keeps
-		// its status text with no action.
-		for _, id := range []uuid.UUID{waSweepSentID, waSweepCancelledID} {
+		// A failed row whose booking closed, a sent row and a cancelled row
+		// must not gain one; the rows keep their status text regardless.
+		for _, id := range []uuid.UUID{waSweepClosedID, waSweepSentID, waSweepCancelledID} {
 			if strings.Contains(page, id.String()+`/retry`) {
 				t.Errorf("%s: row %s must not be retryable", lang, id)
 			}
 		}
-		if !strings.Contains(page, "cancelled") {
-			t.Errorf("%s: the cancelled row lost its status text", lang)
+		for _, status := range []string{"failed", "cancelled", "sent"} {
+			if !strings.Contains(page, status) {
+				t.Errorf("%s: the %s status text is missing", lang, status)
+			}
 		}
 	}
 }
