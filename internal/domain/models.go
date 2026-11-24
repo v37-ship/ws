@@ -180,6 +180,75 @@ type StaffService struct {
 	ServiceID uuid.UUID
 }
 
+// Payroll vocabulary. A rate row's cadence decides which period kind pays it,
+// and a payout snapshot is keyed by that same kind, so cadence and period kind
+// share one set of values (the migration's CHECK constraints list them too).
+const (
+	PeriodWeekly  = "weekly"
+	PeriodMonthly = "monthly"
+
+	CompCadenceWeekly  = PeriodWeekly
+	CompCadenceMonthly = PeriodMonthly
+
+	CompBaseList = "list"
+	CompBaseNet  = "net"
+)
+
+// StaffComp is one row of a staff member's rate history. Rows are append-only:
+// a raise or a change of base is a new row with a later EffectiveFrom, never an
+// edit, so any past period still resolves to the rate that was in force then
+// (effective_from may also be in the future, queueing a raise). PercentBp is a
+// commission in basis points of a percent (2500 = 25.00%); FixedIDR is the
+// per-cadence fixed component.
+type StaffComp struct {
+	ID             uuid.UUID
+	StaffID        uuid.UUID
+	PercentBp      int
+	FixedIDR       int64
+	Cadence        string
+	CommissionBase string
+	EffectiveFrom  time.Time // date-only
+	CreatedBy      *uuid.UUID
+	CreatedAt      time.Time
+}
+
+// StaffPayout is the immutable snapshot written when a staff member's period is
+// marked paid: the numbers are copied in, never recomputed later, so a rate
+// change or a late refund cannot rewrite a closed period (corrections are a new
+// payout row with a note). CommissionIDR and TotalIDR may be negative — a late
+// refund for an earlier visit can land in a period with no visits.
+type StaffPayout struct {
+	ID            uuid.UUID
+	StaffID       uuid.UUID
+	PeriodKind    string
+	PeriodStart   time.Time // date-only
+	PeriodEnd     time.Time // date-only
+	GrossIDR      int64
+	PercentBp     int
+	FixedIDR      int64
+	CommissionIDR int64
+	TotalIDR      int64
+	Note          string
+	PaidBy        *uuid.UUID
+	PaidAt        time.Time
+}
+
+// ValidCadence reports whether s is a payroll cadence. It mirrors the
+// staff_comp/staff_payouts CHECK constraints so form validation and the
+// database agree on the same two values.
+func ValidCadence(s string) bool {
+	return s == CompCadenceWeekly || s == CompCadenceMonthly
+}
+
+// ValidCommissionBase reports whether s is a commission base (list price or net
+// of discount).
+func ValidCommissionBase(s string) bool {
+	return s == CompBaseList || s == CompBaseNet
+}
+
+// ValidPercentBp reports whether bp is a valid commission (0–100.00%).
+func ValidPercentBp(bp int) bool { return bp >= 0 && bp <= 10000 }
+
 type BookingStatus string
 
 const (

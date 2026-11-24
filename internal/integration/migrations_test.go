@@ -40,16 +40,16 @@ func TestMigrationsFromBlank(t *testing.T) {
 	assertAppliedVersions(t, pool, want)
 
 	// Correct version rows could still sit on half-built DDL, so check a table
-	// owned by the newest migration (024): its presence proves the last file of
+	// owned by the newest migration (025): its presence proves the last file of
 	// the chain ran, not just the bookkeeping.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	var hasTVDevices bool
-	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.tv_devices') IS NOT NULL`).Scan(&hasTVDevices); err != nil {
+	var hasStaffPayouts bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.staff_payouts') IS NOT NULL`).Scan(&hasStaffPayouts); err != nil {
 		t.Fatalf("migrations: inspect last-migration table: %v", err)
 	}
-	if !hasTVDevices {
-		t.Fatal("migrations: tv_devices (migration 024) is missing after a full chain run")
+	if !hasStaffPayouts {
+		t.Fatal("migrations: staff_payouts (migration 025) is missing after a full chain run")
 	}
 }
 
