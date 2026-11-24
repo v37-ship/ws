@@ -112,7 +112,28 @@ func TestSegments(t *testing.T) {
 			wantSegs: 2,
 		},
 		{
-			name:     "accented text outside gsm is ucs-2",
+			name:     "price with digits stays gsm-7",
+			body:     "Rp 150.000",
+			wantEnc:  "GSM-7",
+			wantChar: 10,
+			wantSegs: 1,
+		},
+		{
+			name:     "time with digits stays gsm-7",
+			body:     "Halo, jadwal jam 14.00 WIB",
+			wantEnc:  "GSM-7",
+			wantChar: 26,
+			wantSegs: 1,
+		},
+		{
+			name:     "digits plus an emoji is ucs-2",
+			body:     "Rp 150.000 😀",
+			wantEnc:  "UCS-2",
+			wantChar: 12,
+			wantSegs: 1,
+		},
+		{
+			name:     "lowercase u with acute is outside gsm",
 			body:     "Café ñandú",
 			wantEnc:  "UCS-2",
 			wantChar: 10,
@@ -148,5 +169,33 @@ func TestSegments(t *testing.T) {
 					tt.body, enc, chars, segs, tt.wantEnc, tt.wantChar, tt.wantSegs)
 			}
 		})
+	}
+}
+
+// TestGSM7BasicIsComplete pins the alphabet table to the real GSM 03.38 basic
+// set: 127 characters, the 128 code positions minus ESC. ESC is deliberately
+// omitted because a literal ESC is untypeable and would only ever appear as
+// the prefix of an extension pair, which gsm7Extension already models. A
+// dropped character here silently misclassifies every message that uses it
+// (the digits 0-9 went missing once and made prices and times UCS-2).
+func TestGSM7BasicIsComplete(t *testing.T) {
+	runes := []rune(gsm7Basic)
+	if len(runes) != 127 {
+		t.Fatalf("gsm7Basic has %d characters, want 127 (GSM 03.38 basic set minus ESC)", len(runes))
+	}
+	seen := make(map[rune]bool, len(runes))
+	for _, r := range runes {
+		if r == 0x1B {
+			t.Error("gsm7Basic must not contain ESC; extension pairs live in gsm7Extension")
+		}
+		if seen[r] {
+			t.Errorf("duplicate character %q in gsm7Basic", r)
+		}
+		seen[r] = true
+	}
+	for r := '0'; r <= '9'; r++ {
+		if !seen[r] {
+			t.Errorf("digit %q missing from gsm7Basic", r)
+		}
 	}
 }

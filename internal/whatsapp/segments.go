@@ -15,10 +15,11 @@ const (
 	ucsMultipart = 67
 )
 
-// gsm7Basic is the GSM 03.38 basic character set, including the Latin letters,
-// the space and the two line-control characters. A rune outside this set (and
-// outside gsm7Extension) forces the whole message into UCS-2.
-const gsm7Basic = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+// gsm7Basic is the GSM 03.38 basic character set in code-position order,
+// including the digits, the Latin letters, the space and the two line-control
+// characters. A rune outside this set (and outside gsm7Extension) forces the
+// whole message into UCS-2.
+const gsm7Basic = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
 
 // gsm7Extension holds the characters that ride in an escape pair, costing two
 // septets each.
