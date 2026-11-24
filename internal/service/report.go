@@ -28,11 +28,39 @@ func NewReportService(reports *repo.ReportRepo, bookings *repo.BookingRepo, paym
 // MonthlyReport aggregates paid payments (by paid_at month) and refunds
 // (by recorded month). Net = Gross - Refunds (cash basis, Asia/Jakarta).
 func (s *ReportService) MonthlyReport(ctx context.Context, month string, locationID uuid.UUID) (domain.ReportSummary, []domain.ReportLine, []domain.ReportRefund, error) {
-	lines, err := s.reports.MonthlyLines(ctx, month, locationID)
+	return s.monthlyReport(ctx, month, locationID, 0)
+}
+
+// MonthlyReportThrough is the month-to-date read the delta line compares: the
+// same cash-basis aggregation as MonthlyReport, cut at throughDay (a WIB
+// day-of-month, inclusive) on both the payment and refund sides. throughDay <= 0
+// means the whole month, so a caller can use one path either way — but the
+// uncut MonthlyReport keeps calling the unfiltered queries, so the existing
+// page numbers never gain a predicate.
+func (s *ReportService) MonthlyReportThrough(ctx context.Context, month string, locationID uuid.UUID, throughDay int) (domain.ReportSummary, error) {
+	sum, _, _, err := s.monthlyReport(ctx, month, locationID, throughDay)
+	return sum, err
+}
+
+func (s *ReportService) monthlyReport(ctx context.Context, month string, locationID uuid.UUID, throughDay int) (domain.ReportSummary, []domain.ReportLine, []domain.ReportRefund, error) {
+	var (
+		lines   []domain.ReportLine
+		refunds []domain.ReportRefund
+		err     error
+	)
+	if throughDay > 0 {
+		lines, err = s.reports.MonthlyLinesThrough(ctx, month, locationID, throughDay)
+	} else {
+		lines, err = s.reports.MonthlyLines(ctx, month, locationID)
+	}
 	if err != nil {
 		return domain.ReportSummary{}, nil, nil, err
 	}
-	refunds, err := s.reports.MonthlyRefunds(ctx, month, locationID)
+	if throughDay > 0 {
+		refunds, err = s.reports.MonthlyRefundsThrough(ctx, month, locationID, throughDay)
+	} else {
+		refunds, err = s.reports.MonthlyRefunds(ctx, month, locationID)
+	}
 	if err != nil {
 		return domain.ReportSummary{}, nil, nil, err
 	}
@@ -248,6 +276,174 @@ func PrevMonth(month string) string { return shiftMonth(month, -1) }
 
 // NextMonth returns the month after the given YYYY-MM ("" if invalid).
 func NextMonth(month string) string { return shiftMonth(month, 1) }
+
+// MonthlyNetSeries returns the cash-basis net for `months` consecutive months
+// ending at endMonth, oldest first — the sparkline's inputs. It deliberately
+// loops MonthlyReport rather than issuing one generate_series query: six
+// single-month reads are cheap at this volume, and reusing the one monthly
+// aggregation is what guarantees the chart's definition of net can never drift
+// from the ledger's (gross by paid_at month, refunds by recorded month, WIB).
+func (s *ReportService) MonthlyNetSeries(ctx context.Context, endMonth string, locationID uuid.UUID, months int) ([]domain.MonthNet, error) {
+	if months <= 0 {
+		months = 6
+	}
+	out := make([]domain.MonthNet, months)
+	month := endMonth
+	for i := months - 1; i >= 0; i-- {
+		if month == "" {
+			return nil, fmt.Errorf("invalid end month %q", endMonth)
+		}
+		sum, _, _, err := s.monthlyReport(ctx, month, locationID, 0)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = domain.MonthNet{Month: month, NetIDR: sum.NetIDR}
+		month = PrevMonth(month)
+	}
+	return out, nil
+}
+
+// MonthDelta compares the current month-to-date net with the same day-of-month
+// last month, in basis points of a percent (+5000 = +50.0%, -2000 = -20.0%).
+// The caller passes summaries that already cover the same cutoff (the current
+// month's page summary is month-to-date by construction; the previous month is
+// read through MonthlyReportThrough). A previous month with a non-positive net
+// has no meaningful percentage baseline, so ok is false and the page renders
+// its "first days of the month" state instead of a 100%-style artefact.
+//
+// asOf is the canonical WIB date the comparison runs through (YYYY-MM-DD),
+// clamped to the month's real length; the page renders it as "per <day>
+// <month>" in the request language.
+func MonthDelta(current, previous domain.ReportSummary, dayOfMonth int) (pctBp int, asOf string, ok bool) {
+	asOf = reportAsOf(current.Month, dayOfMonth)
+	if previous.NetIDR <= 0 {
+		return 0, asOf, false
+	}
+	delta := current.NetIDR - previous.NetIDR
+	return int(divRound(delta*10000, previous.NetIDR)), asOf, true
+}
+
+// reportAsOf builds the cutoff date for a YYYY-MM month and a day-of-month.
+// Invalid months yield ""; a day outside the month clamps to its first/last day
+// (a client can only supply a real current day, but a fixture must not be able
+// to mint an invalid date).
+func reportAsOf(month string, day int) string {
+	t, err := time.Parse("2006-01", month)
+	if err != nil {
+		return ""
+	}
+	last := time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	if day < 1 {
+		day = 1
+	}
+	if day > last {
+		day = last
+	}
+	return fmt.Sprintf("%04d-%02d-%02d", t.Year(), int(t.Month()), day)
+}
+
+// divRound is integer division rounded half away from zero, with a positive
+// denominator. It keeps the whole trend layer in integers: no floats means no
+// NaN/Inf can ever reach the page.
+func divRound(num, den int64) int64 {
+	if den <= 0 {
+		return 0
+	}
+	if num >= 0 {
+		return (num + den/2) / den
+	}
+	return -((-num + den/2) / den)
+}
+
+// SparklineSVG renders a dependency-free inline sparkline for the monthly net
+// series. It is pure: integer-only normalisation (max → top padding, min →
+// bottom padding, an all-equal series → the vertical middle, an empty or
+// all-zero series → the zero baseline), and it returns a string rather than
+// template.HTML because the service must not import html/template.
+//
+// The returned markup is safe to wrap in template.HTML: every interpolated
+// value is an int64 or an int (coordinates and dimensions computed here), the
+// attribute set is fixed, and no caller-supplied text ever reaches the string.
+// Non-positive width/height fall back to 320x64 so a fixture or a future caller
+// cannot emit a degenerate viewBox.
+func SparklineSVG(values []int64, width, height int) string {
+	const pad = 2
+	if width <= 0 {
+		width = 320
+	}
+	if height <= 0 {
+		height = 64
+	}
+	if width < 2*pad+2 {
+		width = 2*pad + 2
+	}
+	if height < 2*pad+2 {
+		height = 2*pad + 2
+	}
+	usableW, usableH := width-2*pad, height-2*pad
+
+	points := make([][2]int, 0, len(values))
+	if len(values) == 0 || allZero(values) {
+		// Zero reads as the floor: a flat baseline at the bottom.
+		points = append(points, [2]int{pad, height - pad}, [2]int{width - pad, height - pad})
+	} else {
+		min, max := values[0], values[0]
+		for _, v := range values[1:] {
+			if v < min {
+				min = v
+			}
+			if v > max {
+				max = v
+			}
+		}
+		if max == min {
+			y := pad + usableH/2
+			if len(values) == 1 {
+				points = append(points, [2]int{pad, y}, [2]int{width - pad, y})
+			} else {
+				for i := range values {
+					points = append(points, [2]int{sparkX(i, len(values), pad, usableW), y})
+				}
+			}
+		} else {
+			span := max - min
+			for i, v := range values {
+				x := sparkX(i, len(values), pad, usableW)
+				offset := int(divRound((v-min)*int64(usableH), span))
+				points = append(points, [2]int{x, pad + usableH - offset})
+			}
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg class="spark" viewBox="0 0 %d %d" width="%d" height="%d" aria-hidden="true"><polyline points="`,
+		width, height, width, height)
+	for i, p := range points {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "%d,%d", p[0], p[1])
+	}
+	b.WriteString(`" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`)
+	return b.String()
+}
+
+// sparkX spreads point i across the usable width. A single point is centred.
+func sparkX(i, n, pad, usableW int) int {
+	if n <= 1 {
+		return pad + usableW/2
+	}
+	return pad + int(divRound(int64(i)*int64(usableW), int64(n-1)))
+}
+
+func allZero(values []int64) bool {
+	for _, v := range values {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
 
 // AvailableMonths lists YYYY-MM months (desc) with report data for the
 // jump-to-month dropdown.

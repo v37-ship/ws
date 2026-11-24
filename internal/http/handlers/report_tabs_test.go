@@ -103,6 +103,7 @@ func reportTestInput(tab string, page int) reportsInput {
 		Tab:     tab,
 		Page:    page,
 		Demand:  demandFixture(),
+		Trend:   trendFixture(),
 		Years:   []string{"2026", "2025"},
 		Locations: []domain.Location{
 			{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "Kayu Putih"},
@@ -385,6 +386,7 @@ func reportsSweepData(tab string) pageData {
 		Date:      dailyFixture().Date,
 		Daily:     dailyFixture(),
 		Demand:    demandFixture(),
+		Trend:     trendFixture(),
 		Years:     []string{"2026", "2025"},
 		Locations: []domain.Location{{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "Kayu Putih"}},
 		Query:     url.Values{"month": {"2026-09"}, "tab": {tab}},

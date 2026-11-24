@@ -110,6 +110,25 @@ func New(
 		// percentBp renders integer basis points as one decimal of a percent
 		// (3000 -> "30.0%"). Display only: every rate is computed in integers.
 		"percentBp": percentBp,
+		// deltaPct is the signed month-over-month formatter (+12.3%).
+		"deltaPct": deltaPct,
+		// monthShort renders a YYYY-MM month as the language's short month
+		// name ("Agu" / "Aug") — the sparkline labels and the as-of date.
+		"monthShort": func(lang any, month string) string {
+			m, err := time.Parse("2006-01", month)
+			if err != nil {
+				return month
+			}
+			return i18n.MonthShort(fmt.Sprintf("%v", lang), m.Month())
+		},
+		// dateShort renders a YYYY-MM-DD cutoff as "<day> <short month>".
+		"dateShort": func(lang any, iso string) string {
+			d, err := time.Parse("2006-01-02", iso)
+			if err != nil {
+				return iso
+			}
+			return fmt.Sprintf("%d %s", d.Day(), i18n.MonthShort(fmt.Sprintf("%v", lang), d.Month()))
+		},
 		"dateLong": func(lang any, t time.Time) string {
 			if t.IsZero() {
 				return "-"

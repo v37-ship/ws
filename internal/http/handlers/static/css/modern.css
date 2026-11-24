@@ -597,14 +597,38 @@ html[data-theme="dark"] code { background: #3a2b41; }
   padding: 0.5rem 0;
   background: var(--bg);
 }
+/* Month-to-date trend line, full width under the strip's four cards. */
+.report-delta {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  flex-wrap: wrap;
+  padding: 0 0.25rem;
+  margin-top: -0.35rem;
+}
+.report-delta .delta { font-size: 1.15rem; font-weight: 800; }
+.report-delta .delta.up { color: var(--ok); }
+.report-delta .delta.down { color: var(--danger); }
+/* Sparkline: a pure inline SVG above its own month labels. Width tracks the
+   panel; the builder's viewBox keeps the aspect, and the vector prints. */
+.report-spark .spark { display: block; width: 100%; height: auto; max-height: 96px; color: var(--accent-deep); }
+.spark-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.spark-labels span { flex: 1; text-align: center; }
 .report-tabs {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
   border-bottom: 2px solid var(--line);
   margin-bottom: 0.25rem;
-}
-.report-tab {
+}.report-tab {
   padding: 0.55rem 1rem;
   font-weight: 700;
   color: var(--muted);

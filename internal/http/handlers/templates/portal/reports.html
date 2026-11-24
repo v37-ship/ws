@@ -64,6 +64,20 @@
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.refunds"}} ({{.Summary.RefundCnt}}×)</div><div style="font-size:1.4rem; font-weight:800; color:var(--danger);">−{{formatIDR .Summary.RefundIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">{{t .Lang "r.net"}}</div><div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Summary.NetIDR}}</div></div>
       <div class="panel stat-card"><div class="muted">QRIS / {{t .Lang "r.cash"}}</div><div style="font-weight:700;">{{formatIDR .Summary.QRISIDR}} / {{formatIDR .Summary.CashIDR}}</div></div>
+      {{/* Current-month trend: month-to-date net against the same day-of-month
+           last month. A complete (past) month has no month-to-date read, and a
+           fresh month has no positive baseline — both are stated, never guessed. */}}
+      {{if .IsCurrent}}
+      <div class="report-delta" data-trend="delta">
+        {{if .Trend.OK}}
+        <span class="muted">{{t .Lang "r.tr.mtd"}} ({{t .Lang "r.tr.per"}} {{dateShort .Lang .Trend.AsOf}})</span>
+        <strong class="delta{{if lt .Trend.PctBp 0}} down{{else if gt .Trend.PctBp 0}} up{{end}}">{{deltaPct .Trend.PctBp}}</strong>
+        <span class="muted"><small>{{t .Lang "r.tr.vs"}}</small></span>
+        {{else}}
+        <span class="muted">{{t .Lang "r.tr.fresh"}}</span>
+        {{end}}
+      </div>
+      {{end}}
     </div>
 
     <nav class="report-tabs no-print" aria-label="{{t .Lang "r.tabs"}}">
@@ -73,6 +87,21 @@
     <div class="tab-shell">
     {{if eq .Tab "revenue"}}
     <section class="tab-panel active" data-tab-panel="revenue">
+      {{/* Six-month net, right under the money strip. Pure inline SVG: no
+           chart dependency, and it prints as vector. Labels are short month
+           names in the page language, one per plotted point. */}}
+      <div class="panel report-spark" data-trend="spark">
+        <h2 style="margin:0;">{{t .Lang "r.tr.series"}} · {{.Month}}</h2>
+        {{if .Trend.Series}}
+        <figure style="margin:0.5rem 0 0;">
+          {{.Spark}}
+          <figcaption class="spark-labels">{{range .Trend.Series}}<span>{{monthShort $.Lang .Month}}</span>{{end}}</figcaption>
+        </figure>
+        {{else}}
+        <p class="muted" style="margin:0.5rem 0 0;">{{t .Lang "r.empty"}}</p>
+        {{end}}
+      </div>
+
       <div class="panel">
         <h2>{{t .Lang "r.bysvc"}}</h2>
         <table class="table">

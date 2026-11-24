@@ -431,6 +431,31 @@ type ReportSummary struct {
 	StaffRows   []StaffRow  // sorted desc by net
 }
 
+// MonthNet is one month's cash-basis net in the revenue sparkline's series.
+// Months run oldest → newest in MonthTrend.Series, which keeps the SVG builder
+// a straight left-to-right plot.
+type MonthNet struct {
+	Month  string // YYYY-MM, Asia/Jakarta
+	NetIDR int64
+}
+
+// MonthTrend is the revenue tab's trend layer: the month-to-date net compared
+// with the same day-of-month last month, plus the six-month net series the
+// sparkline plots. PctBp is the change in basis points of a percent (+5000 =
+// +50.0%); OK is false when last month has no positive baseline (a fresh month,
+// or a month that only ever refunded), in which case the page says so instead
+// of inventing a percentage. AsOf is the WIB date the comparison runs through,
+// canonical YYYY-MM-DD — the page renders it as "per <day> <month>" in the
+// request language.
+type MonthTrend struct {
+	PctBp       int
+	AsOf        string // YYYY-MM-DD, WIB
+	OK          bool
+	CurrentIDR  int64
+	PreviousIDR int64
+	Series      []MonthNet // oldest first
+}
+
 // DailySummary is one WIB day's operating picture for the reports page's Daily
 // tab. Counts are by the day's visits (bookings whose start_at falls on the
 // day); money is cash-basis by paid_at on that same WIB day, so it never

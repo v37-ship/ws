@@ -118,6 +118,18 @@ func (r *ReportRepo) DailyUpcoming(ctx context.Context, date string, at time.Tim
 
 // MonthlyLines returns paid payments in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportLine, error) {
+	return r.monthlyLines(ctx, month, locationID, 0)
+}
+
+// MonthlyLinesThrough is MonthlyLines cut at a WIB day-of-month, inclusive:
+// only payments whose Jakarta calendar day is <= throughDay are returned.
+// throughDay <= 0 means the whole month. The month-to-date delta uses this, so
+// the cutoff is the same WIB day bucket the rest of the report counts in.
+func (r *ReportRepo) MonthlyLinesThrough(ctx context.Context, month string, locationID uuid.UUID, throughDay int) ([]domain.ReportLine, error) {
+	return r.monthlyLines(ctx, month, locationID, throughDay)
+}
+
+func (r *ReportRepo) monthlyLines(ctx context.Context, month string, locationID uuid.UUID, throughDay int) ([]domain.ReportLine, error) {
 	q := fmt.Sprintf(`SELECT p.id, p.booking_id, p.amount_idr, p.payment_method, p.payment_purpose, p.paid_at,
 		b.start_at, b.customer_id, COALESCE(NULLIF(b.guest_name,''), u.full_name,''), b.service_id, COALESCE(sv.name,''),
 		b.staff_id, COALESCE(st.name,''),
@@ -133,6 +145,10 @@ func (r *ReportRepo) MonthlyLines(ctx context.Context, month string, locationID 
 	if locationID != uuid.Nil {
 		q += " AND b.location_id = $2"
 		args = append(args, locationID)
+	}
+	if throughDay > 0 {
+		q += fmt.Sprintf(" AND date_part('day', p.paid_at AT TIME ZONE 'Asia/Jakarta') <= $%d", len(args)+1)
+		args = append(args, throughDay)
 	}
 	q += " ORDER BY p.paid_at ASC"
 	rows, err := r.pool.Query(ctx, q, args...)
@@ -203,6 +219,17 @@ func (r *ReportRepo) DemandCounts(ctx context.Context, month string, locationID 
 
 // MonthlyRefunds returns active (non-voided) refunds recorded in the given YYYY-MM month.
 func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationID uuid.UUID) ([]domain.ReportRefund, error) {
+	return r.monthlyRefunds(ctx, month, locationID, 0)
+}
+
+// MonthlyRefundsThrough is MonthlyRefunds cut at a WIB day-of-month, inclusive
+// (by created_at, the same bucket the monthly report deducts in). throughDay
+// <= 0 means the whole month.
+func (r *ReportRepo) MonthlyRefundsThrough(ctx context.Context, month string, locationID uuid.UUID, throughDay int) ([]domain.ReportRefund, error) {
+	return r.monthlyRefunds(ctx, month, locationID, throughDay)
+}
+
+func (r *ReportRepo) monthlyRefunds(ctx context.Context, month string, locationID uuid.UUID, throughDay int) ([]domain.ReportRefund, error) {
 	q := fmt.Sprintf(`SELECT r.id, r.booking_id, r.amount_idr, r.reason, r.created_by_id,
 		COALESCE(maker.full_name,''), r.created_at,
 		COALESCE(u.full_name,''), COALESCE(sv.name,''),
@@ -220,6 +247,10 @@ func (r *ReportRepo) MonthlyRefunds(ctx context.Context, month string, locationI
 	if locationID != uuid.Nil {
 		q += " AND b.location_id = $2"
 		args = append(args, locationID)
+	}
+	if throughDay > 0 {
+		q += fmt.Sprintf(" AND date_part('day', r.created_at AT TIME ZONE 'Asia/Jakarta') <= $%d", len(args)+1)
+		args = append(args, throughDay)
 	}
 	q += " ORDER BY r.created_at ASC"
 	rows, err := r.pool.Query(ctx, q, args...)

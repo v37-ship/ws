@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/csv"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -57,6 +58,28 @@ func percentBp(bp int) string {
 		bp = 0
 	}
 	return fmt.Sprintf("%d.%d%%", bp/100, (bp%100)/10)
+}
+
+// deltaPct renders a signed basis-point change as one decimal of a percent:
+// 5000 -> "+50.0%", -2000 -> "-20.0%". A value that rounds to zero prints
+// "0.0%" with no sign, so a flat month never reads as a move. It returns
+// template.HTML because html/template escapes a literal "+" in text context
+// (&#43;) — the string is built only from an int and fixed punctuation, so
+// marking it trusted cannot carry markup.
+func deltaPct(bp int) template.HTML {
+	sign := ""
+	if bp > 0 {
+		sign = "+"
+	}
+	if bp < 0 {
+		sign = "-"
+		bp = -bp
+	}
+	tenths := (bp + 5) / 10 // 10 bp = 0.1%, rounded half up
+	if tenths == 0 {
+		return "0.0%"
+	}
+	return template.HTML(fmt.Sprintf("%s%d.%d%%", sign, tenths/10, tenths%10))
 }
 
 // normalizeReportDate keeps ?date= on a real WIB calendar day. Anything
@@ -137,6 +160,7 @@ type reportsInput struct {
 	Date      string              // daily tab's WIB day (YYYY-MM-DD)
 	Daily     domain.DailySummary // only fetched when Tab == "daily"
 	Demand    domain.ReportDemand // only fetched when Tab == "ops"
+	Trend     domain.MonthTrend   // MTD delta + six-month net series
 	Years     []string
 	Locations []domain.Location
 	Query     url.Values
@@ -243,6 +267,19 @@ func reportsData(in reportsInput) pageData {
 	if nextMonth == "" {
 		nextMonth = month
 	}
+	// The sparkline is built here, from the series the handler loaded, so the
+	// template receives finished markup. The values are int64 nets and the
+	// builder writes only numeric coordinates into a fixed attribute set, so
+	// the template.HTML wrapper is safe by construction — no user text passes
+	// through it.
+	spark := template.HTML("")
+	if len(in.Trend.Series) > 0 {
+		nets := make([]int64, len(in.Trend.Series))
+		for i, point := range in.Trend.Series {
+			nets[i] = point.NetIDR
+		}
+		spark = template.HTML(service.SparklineSVG(nets, 560, 72))
+	}
 	data := pageData{
 		"Month":        month,
 		"Year":         month[:4],
@@ -265,6 +302,8 @@ func reportsData(in reportsInput) pageData {
 		"DayMax":       todayDate,
 		"Daily":        daily,
 		"Demand":       in.Demand,
+		"Trend":        in.Trend,
+		"Spark":        spark,
 		"PrevURL":      "",
 		"NextURL":      "",
 		"PrevMonthURL": monthURL(prevMonth),
@@ -324,6 +363,36 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Trend layer: the strip's delta compares this month-to-date against the
+	// same day-of-month last month. Only the current month has a month-to-date
+	// read to compare — a completed month is simply complete — so past months
+	// skip the delta and just carry the sparkline series. The sparkline only
+	// renders on the revenue tab, so only that tab pays for the six month reads.
+	trend := domain.MonthTrend{}
+	if month == currentMonth() {
+		prevMonth := service.PrevMonth(month)
+		if prevMonth != "" {
+			cutoff := time.Now().In(wib()).Day()
+			prevSum, prevErr := s.reports.MonthlyReportThrough(r.Context(), prevMonth, locID, cutoff)
+			if prevErr != nil {
+				http.Error(w, "failed to load report", http.StatusInternalServerError)
+				return
+			}
+			pctBp, asOf, ok := service.MonthDelta(sum, prevSum, cutoff)
+			trend = domain.MonthTrend{
+				PctBp: pctBp, AsOf: asOf, OK: ok,
+				CurrentIDR: sum.NetIDR, PreviousIDR: prevSum.NetIDR,
+			}
+		}
+	}
+	if tab == "revenue" {
+		series, seriesErr := s.reports.MonthlyNetSeries(r.Context(), month, locID, 6)
+		if seriesErr != nil {
+			http.Error(w, "failed to load report", http.StatusInternalServerError)
+			return
+		}
+		trend.Series = series
+	}
 	today := currentMonth()
 	// Year dropdown: distinct data years + current year, desc.
 	years := []string{today[:4]}
@@ -355,6 +424,7 @@ func (s *Server) PortalReports(w http.ResponseWriter, r *http.Request) {
 		Date:      date,
 		Daily:     daily,
 		Demand:    demand,
+		Trend:     trend,
 		Years:     years,
 		Locations: locs,
 		Query:     qs,
