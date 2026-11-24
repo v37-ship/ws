@@ -471,6 +471,12 @@ type DailySummary struct {
 	Upcoming  []ReportLine // today's remaining confirmed rows, by start time
 }
 
+// CollectedIDR is the day's money collected: cash plus the non-cash (QRIS)
+// payments, the same split DailyPayments returns. The daily card shows this
+// total as its hero and the split underneath; as a method it keeps the handler
+// from doing arithmetic the service already owns.
+func (d DailySummary) CollectedIDR() int64 { return d.CashIDR + d.QRISIDR }
+
 // ReportDemand is the monthly business-health block (the reports page's
 // Operations tab). Every field comes from columns a booking already snapshots
 // (created_at, start_at, source, place, discount_idr, distance_fee_idr) or from

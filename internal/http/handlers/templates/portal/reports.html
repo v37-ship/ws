@@ -73,6 +73,9 @@
         <span class="muted">{{t .Lang "r.tr.mtd"}} ({{t .Lang "r.tr.per"}} {{dateShort .Lang .Trend.AsOf}})</span>
         <strong class="delta{{if lt .Trend.PctBp 0}} down{{else if gt .Trend.PctBp 0}} up{{end}}">{{deltaPct .Trend.PctBp}}</strong>
         <span class="muted"><small>{{t .Lang "r.tr.vs"}}</small></span>
+        {{/* The percentage alone does not say whether it moved Rp 50k or Rp 5M,
+             so the two nets it compares ride on their own line underneath. */}}
+        <span class="muted" style="flex-basis:100%;"><small>{{printf (t .Lang "r.tr.abs") (formatIDR .Trend.CurrentIDR) (formatIDR .Trend.PreviousIDR)}}</small></span>
         {{else}}
         <span class="muted">{{t .Lang "r.tr.fresh"}}</span>
         {{end}}
@@ -89,17 +92,15 @@
     <section class="tab-panel active" data-tab-panel="revenue">
       {{/* Six-month net, right under the money strip. Pure inline SVG: no
            chart dependency, and it prints as vector. Labels are short month
-           names in the page language, one per plotted point. */}}
+           names in the page language, one per plotted point. MonthlyNetSeries
+           always returns six entries (an error is a 500, never a short
+           series), so there is no empty-chart branch to render. */}}
       <div class="panel report-spark" data-trend="spark">
         <h2 style="margin:0;">{{t .Lang "r.tr.series"}} · {{.Month}}</h2>
-        {{if .Trend.Series}}
         <figure style="margin:0.5rem 0 0;">
           {{.Spark}}
           <figcaption class="spark-labels">{{range .Trend.Series}}<span>{{monthShort $.Lang .Month}}</span>{{end}}</figcaption>
         </figure>
-        {{else}}
-        <p class="muted" style="margin:0.5rem 0 0;">{{t .Lang "r.empty"}}</p>
-        {{end}}
       </div>
 
       <div class="panel">
@@ -346,8 +347,8 @@
         <div class="panel stat-card" data-daily="cancelled"><div class="muted">{{t .Lang "r.d.cancel"}}</div><div style="font-size:1.6rem; font-weight:800;">{{.Daily.Cancelled}}</div></div>
         <div class="panel stat-card" data-daily="collected">
           <div class="muted">{{t .Lang "r.d.taken"}}</div>
-          <div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Daily.CashIDR}}</div>
-          <div class="muted"><small>{{t .Lang "r.d.cash"}} · {{formatIDR .Daily.QRISIDR}} QRIS</small></div>
+          <div style="font-size:1.6rem; font-weight:800; color:var(--ok);">{{formatIDR .Daily.CollectedIDR}}</div>
+          <div class="muted"><small>{{t .Lang "r.d.cash"}} {{formatIDR .Daily.CashIDR}} · QRIS {{formatIDR .Daily.QRISIDR}}</small></div>
         </div>
       </div>
 
@@ -365,7 +366,10 @@
                 <td>{{if .CustomerName}}{{.CustomerName}}{{else}}{{t $.Lang "p.bk.guest"}}{{end}}</td>
               </tr>
             {{else}}
-              <tr><td colspan="4" class="muted">{{t .Lang "r.d.none"}}</td></tr>
+              {{/* DailyUpcoming only returns confirmed rows that start after
+                   now, so a past day is always empty and must not claim there
+                   is nothing "left today". */}}
+              <tr><td colspan="4" class="muted">{{if .IsToday}}{{t .Lang "r.d.none"}}{{else}}{{t .Lang "r.d.nonep"}}{{end}}</td></tr>
             {{end}}
             </tbody>
           </table>

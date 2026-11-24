@@ -300,6 +300,7 @@ func reportsData(in reportsInput) pageData {
 		"TotalPages":   pages,
 		"Date":         date,
 		"DayMax":       todayDate,
+		"IsToday":      date == todayDate,
 		"Daily":        daily,
 		"Demand":       in.Demand,
 		"Trend":        in.Trend,

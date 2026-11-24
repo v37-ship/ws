@@ -96,9 +96,10 @@ func TestReportsDemandPanelRenders(t *testing.T) {
 	out := buf.String()
 
 	for _, want := range []string{
-		"Business health",         // panel heading
-		"Funnel",                  // funnel group heading
-		"Visit mix",               // mix group heading
+		"Business health", // panel heading
+		"Funnel",          // funnel group heading
+		"Visit mix",       // mix group heading
+		"the no-show rate follows the visit date", // the card's basis, not created_at
 		"Rp 3.250.000",            // paid gross, from the month summary
 		"30.0%",                   // no-show rate from 3000 bp
 		"3 of 10 finished visits", // the rate's denominator, labelled
@@ -161,9 +162,16 @@ func TestReportsDemandEmptyState(t *testing.T) {
 		}
 		empty := "Nothing booked or scheduled in this month yet."
 		noRate := "no finished visits yet"
+		// The no-show rate sits inside the created-date funnel panel but is
+		// counted by visit date; its basis line must say so.
+		fbasis := "the no-show rate follows the visit date"
 		if lang == "id" {
 			empty = "Belum ada booking atau kunjungan di bulan ini."
 			noRate = "belum ada kunjungan selesai"
+			fbasis = "rasio tidak hadir mengikuti tanggal kunjungan"
+		}
+		if !strings.Contains(out, fbasis) {
+			t.Errorf("%s: funnel basis line missing the no-show rate's visit basis %q", lang, fbasis)
 		}
 		if !strings.Contains(out, empty) {
 			t.Errorf("%s: empty demand block missing %q", lang, empty)

@@ -43,10 +43,12 @@ func TestReportsStaffUtilizationColumns(t *testing.T) {
 			t.Fatalf("execute portal_reports.html (%s): %v", lang, err)
 		}
 		out := buf.String()
-		// The header states the basis of the two ratios, in both languages.
+		// The header states the basis of the two ratios, in both languages,
+		// including that the schedule is the whole month's (future days
+		// included) — otherwise mid-month occupancy reads as bad performance.
 		wantHeader := map[string][]string{
-			"en": {"Rp/hour", "service gross, completed visits", "Occupancy", "of scheduled hours"},
-			"id": {"Rp/jam", "Okupansi", "jam terjadwal"},
+			"en": {"Rp/hour", "service gross, completed visits", "Occupancy", "of scheduled hours for the full month"},
+			"id": {"Rp/jam", "Okupansi", "jam terjadwal sebulan penuh"},
 		}[lang]
 		for _, want := range wantHeader {
 			if !strings.Contains(out, want) {

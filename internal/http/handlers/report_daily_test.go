@@ -155,6 +155,12 @@ func TestReportsDataDailyPanel(t *testing.T) {
 	if got := data["DayTodayURL"]; got == "" {
 		t.Error("a past day should offer the Today jump")
 	}
+	if got := data["IsToday"]; got != false {
+		t.Errorf("a past day IsToday = %v, want false", got)
+	}
+	if got := atToday["IsToday"]; got != true {
+		t.Errorf("today IsToday = %v, want true", got)
+	}
 
 	future := reportsData(dailyTestInput("2099-01-01", domain.DailySummary{Date: "2099-01-01"}))
 	if got := future["Date"]; got != today {
@@ -165,9 +171,12 @@ func TestReportsDataDailyPanel(t *testing.T) {
 	}
 }
 
-// dailyCardValue returns the rendered value inside the stat card carrying the
-// given data-daily marker, so a template edit that swaps two cards fails.
-func dailyCardValue(t *testing.T, out, kind string) string {
+// dailyCardWindow returns a slice of the rendered value starting at the stat
+// card carrying the given data-daily marker, so a template edit that swaps two
+// cards fails. The window is short for one-figure cards so a neighbour's value
+// cannot satisfy the assertion, and wider for the collected card, which also
+// carries its cash/QRIS split.
+func dailyCardWindow(t *testing.T, out, kind string, size int) string {
 	t.Helper()
 	marker := `data-daily="` + kind + `"`
 	start := strings.Index(out, marker)
@@ -175,8 +184,8 @@ func dailyCardValue(t *testing.T, out, kind string) string {
 		t.Fatalf("daily panel missing card %s", marker)
 	}
 	window := out[start:]
-	if len(window) > 300 {
-		window = window[:300]
+	if len(window) > size {
+		window = window[:size]
 	}
 	return window
 }
@@ -221,7 +230,7 @@ func TestReportsDailyPanelRenders(t *testing.T) {
 		"noshow":    ">1<",
 		"cancelled": ">4<",
 	} {
-		if window := dailyCardValue(t, out, kind); !strings.Contains(window, want) {
+		if window := dailyCardWindow(t, out, kind, 160); !strings.Contains(window, want) {
 			t.Errorf("daily card %s window missing %q: %q", kind, want, window)
 		}
 	}
@@ -232,36 +241,71 @@ func TestReportsDailyPanelRenders(t *testing.T) {
 		t.Errorf("day picker missing max=%q", currentDate())
 	}
 
+	// The collected card's hero is the day's total (cash + QRIS), with the
+	// split underneath: a cash-only hero would hide the QRIS money entirely.
+	collected := dailyCardWindow(t, out, "collected", 400)
+	for _, want := range []string{"Rp 425.000", "Rp 150.000", "Rp 275.000"} {
+		if !strings.Contains(collected, want) {
+			t.Errorf("collected card missing %q: %q", want, collected)
+		}
+	}
+
 	// Every scrolling table on the page keeps the shared table-cards class.
 	if cards, wraps := strings.Count(out, `class="table-cards"`), strings.Count(out, "overflow-x:auto;"); cards != wraps || cards == 0 {
 		t.Errorf("table wrappers: %d table-cards for %d scroll wrappers, want one each", cards, wraps)
 	}
 }
 
-// TestReportsDailyPanelEmptyCopy pins the honest empty state: a quiet day still
-// renders the counts (zeros) and says there are no confirmed bookings left,
+// TestReportsDailyPanelEmptyCopy pins the honest empty states: today says there
+// are no confirmed bookings left (the read only returns rows that start after
+// now), while a past day must not borrow "today" — its agenda is simply over,
+// so it gets the neutral variant. A quiet day still renders its counts (zeros)
 // rather than leaving a heading over a blank table.
 func TestReportsDailyPanelEmptyCopy(t *testing.T) {
-	for _, lang := range []string{"en", "id"} {
-		s := newReportTestServer(t)
-		data := reportsData(dailyTestInput("2020-01-02", domain.DailySummary{Date: "2020-01-02"}))
-		data["Lang"] = lang
-		data["Contact"] = portalPrintData(lang)["Contact"]
+	cases := []struct {
+		date string
+		en   string
+		id   string
+		why  string
+	}{
+		{
+			"2020-01-02",
+			"No confirmed bookings remained on this day.",
+			"Tidak ada booking terkonfirmasi tersisa pada hari itu.",
+			"a past day cannot have bookings left",
+		},
+		{
+			currentDate(),
+			"No confirmed bookings left today.",
+			"Tidak ada booking terkonfirmasi tersisa hari ini.",
+			"today's remaining agenda",
+		},
+	}
+	for _, tc := range cases {
+		for _, lang := range []string{"en", "id"} {
+			s := newReportTestServer(t)
+			data := reportsData(dailyTestInput(tc.date, domain.DailySummary{Date: tc.date}))
+			data["Lang"] = lang
+			data["Contact"] = portalPrintData(lang)["Contact"]
 
-		var buf bytes.Buffer
-		if err := s.tpl.ExecuteTemplate(&buf, "portal_reports.html", data); err != nil {
-			t.Fatalf("%s: execute portal_reports.html: %v", lang, err)
-		}
-		out := buf.String()
-		want := "No confirmed bookings left today."
-		if lang == "id" {
-			want = "Tidak ada booking terkonfirmasi tersisa hari ini."
-		}
-		if !strings.Contains(out, want) {
-			t.Errorf("%s: daily empty state missing %q", lang, want)
-		}
-		if !strings.Contains(out, ">0<") {
-			t.Errorf("%s: daily empty state should still show zero counts", lang)
+			var buf bytes.Buffer
+			if err := s.tpl.ExecuteTemplate(&buf, "portal_reports.html", data); err != nil {
+				t.Fatalf("%s/%s: execute portal_reports.html: %v", lang, tc.date, err)
+			}
+			out := buf.String()
+			want, other := tc.en, tc.id
+			if lang == "id" {
+				want, other = tc.id, tc.en
+			}
+			if !strings.Contains(out, want) {
+				t.Errorf("%s/%s: daily empty state missing %q (%s)", lang, tc.date, want, tc.why)
+			}
+			if strings.Contains(out, other) {
+				t.Errorf("%s/%s: daily empty state rendered the other day's copy %q", lang, tc.date, other)
+			}
+			if !strings.Contains(out, ">0<") {
+				t.Errorf("%s/%s: daily empty state should still show zero counts", lang, tc.date)
+			}
 		}
 	}
 }

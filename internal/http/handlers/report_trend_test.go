@@ -55,8 +55,9 @@ func TestReportsDataTrend(t *testing.T) {
 }
 
 // TestDeltaPct pins the signed display formatter. It never prints a signed
-// zero, rounds to one decimal of a percent (10 bp), and keeps the sign on a
-// value that rounds to zero (|bp| < 5).
+// zero, rounds to one decimal of a percent (10 bp), and drops the sign when
+// the magnitude rounds to zero (|bp| < 5, so 4 pins to "0.0%", not "+0.0%");
+// 5 bp is the first magnitude that keeps a sign.
 func TestDeltaPct(t *testing.T) {
 	cases := map[int]string{
 		0:       "0.0%",
@@ -104,15 +105,19 @@ func renderReports(t *testing.T, lang string, data pageData) string {
 // TestReportsDeltaLine pins the sticky strip's trend line on the current month:
 // an up move is signed and green-marked, a down move signed and red-marked, and
 // a fresh month renders the "first days" copy instead of a percentage. The line
-// describes its own cutoff, so the number is never mistaken for a full month.
+// describes its own cutoff, so the number is never mistaken for a full month,
+// and the two nets the percentage compares ride underneath it — a percentage
+// without its amounts cannot say whether the move was Rp 50k or Rp 5M.
 func TestReportsDeltaLine(t *testing.T) {
 	month := currentMonth()
 	up := reportsData(reportTrendData("revenue", month, domain.MonthTrend{
 		PctBp: 1_234, AsOf: month + "-05", OK: true,
+		CurrentIDR: 4_575_000, PreviousIDR: 4_070_000,
 	}))
 	out := renderReports(t, "en", up)
 	for _, want := range []string{
 		"Net so far", "per 5 ", "+12.3%", "vs same day last month", "class=\"delta up\"",
+		"now Rp 4.575.000 vs Rp 4.070.000",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("up trend render missing %q", want)
@@ -175,8 +180,10 @@ func TestReportsSparkline(t *testing.T) {
 	}
 }
 
-// TestReportsSparklineEmptyState keeps an empty series from rendering a
-// misleading chart: no polyline, and the panel says there is nothing yet.
+// TestReportsSparklineEmptyState pins the builder's empty guard: a zero-length
+// series produces no SVG at all. The template carries no empty-chart branch
+// because MonthlyNetSeries always returns six entries (a read error is a 500,
+// not a short series), so the only way here is a hand-built fixture.
 func TestReportsSparklineEmptyState(t *testing.T) {
 	month := currentMonth()
 	in := reportTestInput("revenue", 1)
@@ -186,12 +193,8 @@ func TestReportsSparklineEmptyState(t *testing.T) {
 	if got := data["Spark"]; got != template.HTML("") {
 		t.Errorf("empty series produced a spark: %q", got)
 	}
-	out := renderReports(t, "en", data)
-	if strings.Contains(out, `class="spark"`) {
+	if out := renderReports(t, "en", data); strings.Contains(out, `class="spark"`) {
 		t.Errorf("empty series rendered an svg: %s", out)
-	}
-	if !strings.Contains(out, "No paid transactions this month.") {
-		t.Errorf("empty sparkline missing its empty state")
 	}
 }
 
