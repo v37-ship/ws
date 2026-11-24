@@ -197,7 +197,7 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 		if failedView {
 			// The failed view exists to reach past the recent window, so it
 			// reads deeper than the page's 20-row recent list.
-			recent, _ = s.waOutbox.ListFailed(ctx, 200)
+			recent, _ = s.waOutbox.ListFailed(ctx, repo.WaFailedLimit)
 		} else {
 			recent, _ = s.waOutbox.ListRecent(ctx, 20)
 		}

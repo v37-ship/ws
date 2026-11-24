@@ -277,13 +277,22 @@ func (r *WaRepo) ListRecent(ctx context.Context, limit int) ([]WaOutboxItem, err
 	return r.scanList(ctx, q, limit)
 }
 
+// WaFailedLimit is the depth of the admin failed-message view. It is larger
+// than the 20-row recent window because the view exists to reach a backlog the
+// recent window cannot show; the page's cap note states this same number.
+const WaFailedLimit = 200
+
 // ListFailed returns the failed rows, newest first, with the same joined
-// booking status/start as ListRecent. The recent window is only 20 rows, so
-// with a backlog most failures would otherwise be unreachable (ruling R14's
-// operator path: the counters link here).
+// booking status/start as ListRecent. It has its own depth handling (up to
+// WaFailedLimit) rather than ListRecent's 20-row clamp: with a backlog most
+// failures would otherwise be unreachable (ruling R14's operator path: the
+// counters link here).
 func (r *WaRepo) ListFailed(ctx context.Context, limit int) ([]WaOutboxItem, error) {
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 20
+	}
+	if limit > WaFailedLimit {
+		limit = WaFailedLimit
 	}
 	const q = `SELECT o.id, o.phone, o.template_key, o.payload, o.booking_id, o.dedupe_key,
 		o.scheduled_at, o.attempts, o.max_attempts, o.last_error, o.status, o.created_at,

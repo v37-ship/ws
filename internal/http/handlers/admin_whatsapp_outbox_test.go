@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"spa-booking/internal/domain"
 	"spa-booking/internal/http/middleware"
+	"spa-booking/internal/i18n"
 	"spa-booking/internal/repo"
 	"spa-booking/internal/service"
 
@@ -320,8 +322,8 @@ func TestAdminWhatsAppOutboxView(t *testing.T) {
 	if len(fake.views) != 1 || fake.views[0] != "failed" {
 		t.Errorf("failed view reads = %v, want [failed]", fake.views)
 	}
-	if fake.limits["recent"] != 0 || fake.limits["failed"] != 200 {
-		t.Errorf("limits = %v, want failed=200 (recent untouched)", fake.limits)
+	if fake.limits["recent"] != 0 || fake.limits["failed"] != repo.WaFailedLimit {
+		t.Errorf("limits = %v, want failed=%d (recent untouched)", fake.limits, repo.WaFailedLimit)
 	}
 	if !strings.Contains(rec.Body.String(), failedRow.ID.String()) {
 		t.Error("failed view must render the failed row")
@@ -417,6 +419,18 @@ func TestAdminWhatsAppRetryFormOnlyOnLiveFailedRows(t *testing.T) {
 		}
 		if !strings.Contains(page, only) || !strings.Contains(page, all) {
 			t.Errorf("%s: missing the outbox view toggle (%q / %q)", lang, only, all)
+		}
+	}
+}
+
+// TestWaFailedCapNoteMatchesLimit keeps the i18n cap note and the repo depth
+// constant from drifting: the note states the number the handler requests.
+func TestWaFailedCapNoteMatchesLimit(t *testing.T) {
+	want := strconv.Itoa(repo.WaFailedLimit)
+	for _, lang := range []string{"en", "id"} {
+		note := i18n.T(lang, "a.wa.cap")
+		if !strings.Contains(note, want) {
+			t.Errorf("%s cap note %q does not state the requested depth %d", lang, note, repo.WaFailedLimit)
 		}
 	}
 }

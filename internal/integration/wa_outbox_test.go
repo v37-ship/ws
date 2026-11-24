@@ -276,6 +276,47 @@ func TestWaRetryFailedRefusesClosedBookings(t *testing.T) {
 
 func ptrUUID(id uuid.UUID) *uuid.UUID { return &id }
 
+// TestWaListFailedKeepsItsFullDepth is the regression for the copied clamp: a
+// request above 100 must not silently fall back to 20 (which made the page's
+// 200-row note a lie). The failed view allows up to WaFailedLimit, defaults to
+// 20 and clamps only above the cap.
+func TestWaListFailedKeepsItsFullDepth(t *testing.T) {
+	pool := OpenTestDB(t)
+	TruncateAll(t, pool)
+	wa := repo.NewWaRepo(pool)
+	ctx := context.Background()
+
+	const seeded = 120
+	for i := 0; i < seeded; i++ {
+		insertWaOutbox(t, pool, waOutboxSeed{Phone: "6281000" + uuid.NewString(), Status: "failed"})
+	}
+	insertWaOutbox(t, pool, waOutboxSeed{Phone: "6281999999999", Status: "sent"})
+
+	rows, err := wa.ListFailed(ctx, repo.WaFailedLimit)
+	if err != nil {
+		t.Fatalf("ListFailed(200): %v", err)
+	}
+	if len(rows) != seeded {
+		t.Errorf("ListFailed(200) returned %d rows, want %d", len(rows), seeded)
+	}
+
+	rows, err = wa.ListFailed(ctx, 0)
+	if err != nil {
+		t.Fatalf("ListFailed(0): %v", err)
+	}
+	if len(rows) != 20 {
+		t.Errorf("ListFailed(0) returned %d rows, want the 20-row default", len(rows))
+	}
+
+	rows, err = wa.ListFailed(ctx, repo.WaFailedLimit+1)
+	if err != nil {
+		t.Fatalf("ListFailed(201): %v", err)
+	}
+	if len(rows) != seeded {
+		t.Errorf("ListFailed(201) returned %d rows, want the cap to keep %d", len(rows), seeded)
+	}
+}
+
 // TestWaQueueSummaryCounts pins the header counters: pending and failed are
 // counted by status, and a cancelled row is not a failure.
 func TestWaQueueSummaryCounts(t *testing.T) {
