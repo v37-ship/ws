@@ -121,11 +121,7 @@ func TestTemplatesExecute(t *testing.T) {
 			data["Raw"] = &domain.WaSettings{}
 			data["Defaults"] = service.WaConfig{}
 			data["Conn"] = "mock"
-			data["Templates"] = []waTemplateView{{
-				Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
-				Fields: []string{"name"}, Preview: "Halo Bunda",
-				Encoding: "GSM-7", Chars: 10, Segments: 1,
-			}}
+			data["Templates"] = waTemplatesSweep()
 		case "admin_payroll.html":
 			for k, v := range payrollSweepData("id") {
 				data[k] = v
@@ -275,11 +271,7 @@ func TestTemplatesBothLanguages(t *testing.T) {
 				data["Raw"] = &domain.WaSettings{}
 				data["Defaults"] = service.WaConfig{}
 				data["Conn"] = "mock"
-				data["Templates"] = []waTemplateView{{
-					Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
-					Fields: []string{"name"}, Preview: "Halo Bunda",
-					Encoding: "GSM-7", Chars: 10, Segments: 1,
-				}}
+				data["Templates"] = waTemplatesSweep()
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":
@@ -827,11 +819,7 @@ func TestNoEmojiIcons(t *testing.T) {
 				data["Raw"] = &domain.WaSettings{}
 				data["Defaults"] = service.WaConfig{}
 				data["Conn"] = "mock"
-				data["Templates"] = []waTemplateView{{
-					Key: "booking_remind", LabelKey: "a.wt.remind", Default: "Halo Bunda",
-					Fields: []string{"name"}, Preview: "Halo Bunda",
-					Encoding: "GSM-7", Chars: 10, Segments: 1,
-				}}
+				data["Templates"] = waTemplatesSweep()
 			case "portal_customer_detail.html":
 				data["Bookings"] = []domain.Booking{}
 			case "portal_customer_edit.html":

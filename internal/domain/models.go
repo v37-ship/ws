@@ -437,6 +437,17 @@ type WaSettings struct {
 	UpdatedAt       time.Time
 }
 
+// WaOverrideMeta is one editable template's stored copy plus its audit trail.
+// UpdatedBy is nil when the editor's account has been deleted (the FK is
+// ON DELETE SET NULL), so the page shows a neutral fallback (ruling R4)
+// rather than a blank line. UpdatedByName is then empty.
+type WaOverrideMeta struct {
+	Body          string
+	UpdatedBy     *uuid.UUID
+	UpdatedByName string
+	UpdatedAt     time.Time
+}
+
 type Session struct {
 	ID        string
 	UserID    uuid.UUID

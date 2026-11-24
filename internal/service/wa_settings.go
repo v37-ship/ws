@@ -34,6 +34,7 @@ type waSettingsStore interface {
 	Get(ctx context.Context) (*domain.WaSettings, error)
 	Save(ctx context.Context, s domain.WaSettings, by uuid.UUID) error
 	ListOverrides(ctx context.Context) (map[string]string, error)
+	ListOverrideMeta(ctx context.Context) (map[string]domain.WaOverrideMeta, error)
 	SetOverride(ctx context.Context, key, body string, by uuid.UUID) error
 	DeleteOverride(ctx context.Context, key string) error
 }
@@ -123,6 +124,13 @@ func (s *WaSettingsService) ResetAll(ctx context.Context, by uuid.UUID) error {
 // Overrides returns the copy overrides keyed by template.
 func (s *WaSettingsService) Overrides(ctx context.Context) (map[string]string, error) {
 	return s.store.ListOverrides(ctx)
+}
+
+// OverridesWithMeta returns the copy overrides with their editor and stamp.
+// Deliberately cache-free: this feeds the admin copy page only, and an admin
+// who just saved must see their own name on the card.
+func (s *WaSettingsService) OverridesWithMeta(ctx context.Context) (map[string]domain.WaOverrideMeta, error) {
+	return s.store.ListOverrideMeta(ctx)
 }
 
 // Override returns the stored body for a template, or ok=false when the

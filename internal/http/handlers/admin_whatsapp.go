@@ -28,11 +28,22 @@ type waTemplateView struct {
 	Encoding string
 	Chars    int
 	Segments int
+	// Audit trail: Edited is true when a stored row exists; Editor is empty
+	// when that row's editor account was deleted (ruling R4), and the
+	// template falls back to the neutral label.
+	Edited   bool
+	Editor   string
+	EditedAt time.Time
 }
 
-// waTemplateViewFor assembles one card's data. Kept separate from the page so
-// the counter wiring is testable without a database.
-func waTemplateViewFor(key, override string) waTemplateView {
+// waTemplateViewFor assembles one card's data. meta is nil when the template
+// has no stored row (built-in copy). Kept separate from the page so the
+// counter and audit wiring are testable without a database.
+func waTemplateViewFor(key string, meta *domain.WaOverrideMeta) waTemplateView {
+	override := ""
+	if meta != nil {
+		override = meta.Body
+	}
 	ov := strings.TrimSpace(override)
 	defaultCopy := whatsapp.DefaultCopy(key)
 	preview := defaultCopy
@@ -46,11 +57,31 @@ func waTemplateViewFor(key, override string) waTemplateView {
 		body = defaultCopy
 	}
 	encoding, chars, segments := whatsapp.Segments(body)
-	return waTemplateView{
+	view := waTemplateView{
 		Key: key, LabelKey: waTemplateLabels[key], Default: defaultCopy,
 		Override: ov, Fields: whatsapp.Fields(key), Preview: preview, Custom: ov != "",
 		Encoding: encoding, Chars: chars, Segments: segments,
 	}
+	if meta != nil {
+		view.Edited = true
+		view.Editor = meta.UpdatedByName
+		view.EditedAt = meta.UpdatedAt
+	}
+	return view
+}
+
+// waTemplateViews pairs every editable template with its stored row, if any.
+func waTemplateViews(metas map[string]domain.WaOverrideMeta) []waTemplateView {
+	keys := whatsapp.EditableTemplates()
+	out := make([]waTemplateView, 0, len(keys))
+	for _, key := range keys {
+		var meta *domain.WaOverrideMeta
+		if m, ok := metas[key]; ok {
+			meta = &m
+		}
+		out = append(out, waTemplateViewFor(key, meta))
+	}
+	return out
 }
 
 // waTemplateLabels maps a template key to its short i18n label key.
@@ -79,9 +110,9 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 		http.Error(w, "Could not load WhatsApp settings", http.StatusInternalServerError)
 		return
 	}
-	overrides, err := s.waSettings.Overrides(ctx)
+	overrides, err := s.waSettings.OverridesWithMeta(ctx)
 	if err != nil {
-		s.log.Error("wa overrides", "err", err)
+		s.log.Error("wa override meta", "err", err)
 		http.Error(w, "Could not load WhatsApp settings", http.StatusInternalServerError)
 		return
 	}
@@ -94,10 +125,7 @@ func (s *Server) renderAdminWhatsApp(w http.ResponseWriter, r *http.Request, suc
 	next, _ := s.waOutbox.ListUpcoming(ctx, "booking_remind", 20)
 	recent, _ := s.waOutbox.ListRecent(ctx, 20)
 
-	templates := make([]waTemplateView, 0, 8)
-	for _, key := range whatsapp.EditableTemplates() {
-		templates = append(templates, waTemplateViewFor(key, overrides[key]))
-	}
+	templates := waTemplateViews(overrides)
 
 	s.render(w, r, "admin_whatsapp.html", pageData{
 		"Settings":  cfg,

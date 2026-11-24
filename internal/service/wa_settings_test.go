@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"spa-booking/internal/domain"
 
@@ -11,8 +12,10 @@ import (
 )
 
 type fakeWaSettingsStore struct {
-	row       *domain.WaSettings
-	overrides map[string]string
+	row        *domain.WaSettings
+	overrides  map[string]string
+	editorName string
+	editedAt   *time.Time
 }
 
 func (f *fakeWaSettingsStore) Get(context.Context) (*domain.WaSettings, error) {
@@ -32,6 +35,18 @@ func (f *fakeWaSettingsStore) ListOverrides(context.Context) (map[string]string,
 		return map[string]string{}, nil
 	}
 	return f.overrides, nil
+}
+
+func (f *fakeWaSettingsStore) ListOverrideMeta(context.Context) (map[string]domain.WaOverrideMeta, error) {
+	out := map[string]domain.WaOverrideMeta{}
+	for k, body := range f.overrides {
+		m := domain.WaOverrideMeta{Body: body, UpdatedByName: f.editorName}
+		if f.editedAt != nil {
+			m.UpdatedAt = *f.editedAt
+		}
+		out[k] = m
+	}
+	return out, nil
 }
 
 func (f *fakeWaSettingsStore) SetOverride(_ context.Context, k, b string, _ uuid.UUID) error {
@@ -143,6 +158,31 @@ func TestWaSettingsOverrideValidation(t *testing.T) {
 	}
 	if err := svc.SetOverride(ctx, "booking_remind", "   ", uuid.New()); !errors.Is(err, ErrValidation) {
 		t.Errorf("empty override must fail, got %v", err)
+	}
+}
+
+// TestWaSettingsOverridesWithMeta checks the audit read is a plain passthrough
+// (no caching: the page must show the name of the admin who just saved).
+func TestWaSettingsOverridesWithMeta(t *testing.T) {
+	ctx := context.Background()
+	stamp := time.Date(2026, 11, 24, 3, 4, 0, 0, time.UTC)
+	store := &fakeWaSettingsStore{
+		overrides:  map[string]string{"booking_remind": "Halo Bunda"},
+		editorName: "Bu Sari",
+		editedAt:   &stamp,
+	}
+	svc := NewWaSettingsService(store, WaConfig{}, testLogger())
+
+	meta, err := svc.OverridesWithMeta(ctx)
+	if err != nil {
+		t.Fatalf("OverridesWithMeta: %v", err)
+	}
+	got, ok := meta["booking_remind"]
+	if !ok {
+		t.Fatal("override missing")
+	}
+	if got.Body != "Halo Bunda" || got.UpdatedByName != "Bu Sari" || !got.UpdatedAt.Equal(stamp) {
+		t.Errorf("meta = %+v, want the store's body/editor/stamp", got)
 	}
 }
 

@@ -85,6 +85,30 @@ func (r *WaSettingsRepo) ListOverrides(ctx context.Context) (map[string]string, 
 	return out, rows.Err()
 }
 
+// ListOverrideMeta returns the overrides with their audit trail: the editor's
+// display name (blank once the account is gone) and the edit stamp. The LEFT
+// JOIN keeps a row whose editor was deleted (updated_by is NULL, ruling R4).
+func (r *WaSettingsRepo) ListOverrideMeta(ctx context.Context) (map[string]domain.WaOverrideMeta, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.template_key, o.body, o.updated_by, COALESCE(u.full_name, ''), o.updated_at
+		FROM wa_template_overrides o
+		LEFT JOIN users u ON u.id = o.updated_by`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]domain.WaOverrideMeta{}
+	for rows.Next() {
+		var k string
+		var m domain.WaOverrideMeta
+		if err := rows.Scan(&k, &m.Body, &m.UpdatedBy, &m.UpdatedByName, &m.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out[k] = m
+	}
+	return out, rows.Err()
+}
+
 func (r *WaSettingsRepo) SetOverride(ctx context.Context, key, body string, by uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO wa_template_overrides (template_key, body, updated_by, updated_at)
